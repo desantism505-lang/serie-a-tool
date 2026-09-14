@@ -210,6 +210,7 @@
 
   .metricname{color:var(--text);font-weight:600;}
   .rank{color:var(--accent);font-weight:700;}
+  .rank-bad{color:var(--bad);font-weight:700;}
   .rank.nd{color:var(--muted);font-weight:400;}
   .chip{
     display:inline-block;
@@ -411,9 +412,9 @@
   </div>
 </header>
 <nav class="sitenav">
+  <a href="serie.html" class="active">Serie &amp; Ritardi</a>
   <a href="index.html">Matchup Engine</a>
   <a href="scanner.html">Scanner &amp; Screener</a>
-  <a href="serie.html" class="active">Serie &amp; Ritardi</a>
 </nav>
 
 
@@ -471,14 +472,14 @@
       <div>
         <div class="metricname" style="margin-bottom:6px;" id="dritHomeLabel">Squadre in casa</div>
         <table class="stat" id="dritTableHome">
-          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num">Indice</th><th class="num" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G</th></tr></thead>
+          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num" title="Falli commessi diviso i minuti giocati, moltiplicato 90 — quanti falli farebbe in una partita intera. Calcolato solo sulla finestra di ritardo (dall’ultimo giallo in poi).">Indice</th><th class="num" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G</th></tr></thead>
           <tbody id="dritBodyHome"></tbody>
         </table>
       </div>
       <div>
         <div class="metricname" style="margin-bottom:6px;" id="dritAwayLabel">Squadre in trasferta</div>
         <table class="stat" id="dritTableAway">
-          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num">Indice</th><th class="num" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G</th></tr></thead>
+          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num" title="Falli commessi diviso i minuti giocati, moltiplicato 90 — quanti falli farebbe in una partita intera. Calcolato solo sulla finestra di ritardo (dall’ultimo giallo in poi).">Indice</th><th class="num" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G</th></tr></thead>
           <tbody id="dritBodyAway"></tbody>
         </table>
       </div>
@@ -681,13 +682,27 @@ function renderTopRanks(home, away){
       return `<tr><td class="metricname">Vince duello ${label.toLowerCase()}</td><td>${items || '<span class="subtle">—</span>'}</td></tr>`;
     }).join('');
 
+    const loseDuelRows = DUEL_METRICS.map(([label, key]) => {
+      const list = teamList
+        .map(t => ({ t, d: teamDuelRecord(computeTeamDuelTotals(DB.matchLog, t, venue), key) }))
+        .filter(x => x.d.n > 0)
+        .sort((a, b) => a.d.rate - b.d.rate)
+        .slice(0, 3);
+      const items = list.map(x => `${teamName(x.t)} <span class="rank-bad">${x.d.wins}/${x.d.n}</span>`).join(' · ');
+      return `<tr><td class="metricname">Perde duello ${label.toLowerCase()}</td><td>${items || '<span class="subtle">—</span>'}</td></tr>`;
+    }).join('');
+
     return `<table class="stat" style="margin-bottom:14px;">
       <tr><th>Media (top 3)</th><th></th></tr>
       ${avgRows}
     </table>
-    <table class="stat">
-      <tr><th>Confronto diretto (top 3)</th><th></th></tr>
+    <table class="stat" style="margin-bottom:14px;">
+      <tr><th>Confronto diretto — vince (top 3)</th><th></th></tr>
       ${duelRows}
+    </table>
+    <table class="stat">
+      <tr><th>Confronto diretto — perde (top 3)</th><th></th></tr>
+      ${loseDuelRows}
     </table>`;
   }
 

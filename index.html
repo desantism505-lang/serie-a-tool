@@ -210,6 +210,7 @@
 
   .metricname{color:var(--text);font-weight:600;}
   .rank{color:var(--accent);font-weight:700;}
+  .rank-bad{color:var(--bad);font-weight:700;}
   .rank.nd{color:var(--muted);font-weight:400;}
   .chip{
     display:inline-block;
@@ -412,9 +413,9 @@
   </div>
 </header>
 <nav class="sitenav">
+  <a href="serie.html">Serie &amp; Ritardi</a>
   <a href="index.html" class="active">Matchup Engine</a>
   <a href="scanner.html">Scanner &amp; Screener</a>
-  <a href="serie.html">Serie &amp; Ritardi</a>
 </nav>
 
 
@@ -718,7 +719,7 @@ function render(){
         <div class="body">
           <table class="stat">
             <tr><th>Metrica</th><th class="num">Baseline /90</th></tr>
-            ${baseMetrics.map(([label,key]) => `<tr><td class="metricname">${label}</td><td class="num baseline-value">${fmt(baseline[key+baseCol])}</td></tr>`).join('')}
+            ${baseMetrics.map(([label,key]) => `<tr><td class="metricname">${label}</td><td class="num"><span class="baseline-value">${fmt(baseline[key+baseCol])}</span></td></tr>`).join('')}
           </table>
           <div class="subtle" style="margin-top:10px;">Media pesata: stagione 40% · venue 30% · L10 20% · L5 10%, normalizzata sulle componenti disponibili. Volume, non probabilità.</div>
         </div>
@@ -745,6 +746,29 @@ function render(){
 // forzate.
 // ---------------------------------------------------------------------------
 const ALL_ROLES = ['Centrale difensivo','Centrocampista centrale','Esterno offensivo','Esterno/Quinto','Portiere','Punta centrale','Terzino','Trequartista'];
+// Forme grammaticali corrette per ruolo — "ai/agli/alle X" (plurale) e "un/una X"
+// (singolare) variano per genere e per iniziale vocalica/consonantica, quindi
+// non si possono costruire a mano con toLowerCase() senza produrre frasi rotte.
+const ROLE_PLURAL_PHRASE = {
+  'Centrale difensivo': 'ai centrali difensivi',
+  'Centrocampista centrale': 'ai centrocampisti centrali',
+  'Esterno offensivo': 'agli esterni offensivi',
+  'Esterno/Quinto': 'agli esterni/quinti',
+  'Portiere': 'ai portieri',
+  'Punta centrale': 'alle punte centrali',
+  'Terzino': 'ai terzini',
+  'Trequartista': 'ai trequartisti',
+};
+const ROLE_ARTICLE_SINGULAR = {
+  'Centrale difensivo': 'un centrale difensivo',
+  'Centrocampista centrale': 'un centrocampista centrale',
+  'Esterno offensivo': 'un esterno offensivo',
+  'Esterno/Quinto': 'un esterno/quinto',
+  'Portiere': 'un portiere',
+  'Punta centrale': 'una punta centrale',
+  'Terzino': 'un terzino',
+  'Trequartista': 'un trequartista',
+};
 const PLAYER_METRICS = [
   ['Tiri_90', 'tiri'], ['SOT_90', 'tiri in porta'], ['FC_90', 'falli commessi'],
   ['FD_90', 'falli subiti'], ['Cartellini_90', 'cartellini'],
@@ -817,7 +841,7 @@ function computeTeamFacts(teamId, venue, venueLabel){
       const me = list.find(x => x.key === teamId);
       if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
         const top = isTopEnd(rank, eligible);
-        facts.push({ tag: 'Squadra', text: `${top ? 'Concede più di chiunque altro' : 'Concede meno di chiunque altro'} ${label} ai ${role.toLowerCase()}, ${venueLabel} (${rank}° su ${eligible})`, rank, eligible });
+        facts.push({ tag: 'Squadra', text: `${top ? 'Concede più di chiunque altro' : 'Concede meno di chiunque altro'} ${label} ${ROLE_PLURAL_PHRASE[role]}, ${venueLabel} (${rank}° su ${eligible})`, rank, eligible });
       }
     }
   }
@@ -882,7 +906,7 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
         const top = isTopEnd(rank, eligible);
         facts.push({
           tag: 'Giocatore vs avversario',
-          text: `${oppName} ${top ? 'concede più' : 'concede meno'} ${label} di chiunque altro ai ${role.toLowerCase()} quando gioca ${oppVenueWord} (${rank}° su ${eligible}). Stasera affronta proprio un ${role.toLowerCase()}: ${sameRole.join(', ')}.`,
+          text: `${oppName} ${top ? 'concede più' : 'concede meno'} ${label} di chiunque altro ${ROLE_PLURAL_PHRASE[role]} quando gioca ${oppVenueWord} (${rank}° su ${eligible}). Stasera affronta proprio ${ROLE_ARTICLE_SINGULAR[role]}: ${sameRole.join(', ')}.`,
           rank, eligible,
         });
       }
@@ -990,7 +1014,33 @@ function togglePanelCollapse(id){
 const TEAM_METRIC_LABELS = [['Tiri', 'Tiri Totali'], ['SOT', 'Tiri in porta'], ['Falli', 'Falli'], ['Cart', 'Cartellini']];
 const TEAM_LINE_SETS = { Tiri: [8.5, 10.5, 12.5], SOT: [2.5, 3.5, 4.5], Falli: [8.5, 10.5, 12.5], Cart: [0.5, 1.5, 2.5] };
 
+// Colora una percentuale in base alla fascia — lime se alta, rosso se bassa,
+// colore normale nella fascia intermedia. Solo testo, nessuno sfondo.
+function pctColorClass(rate){
+  if (rate == null) return '';
+  if (rate >= 0.7) return 'rank';
+  if (rate <= 0.3) return 'rank-bad';
+  return '';
+}
+
+// Linea personalizzabile per la tabella Hit rate — sostituisce le 3 colonne
+// fisse "bassa/media/alta" (troppo rigide) con un input libero per metrica,
+// preimpostato sulla linea centrale del preset esistente.
+const teamLineState = {};
+let _teamStatsMatch = null;
+function teamLineKey(teamId, key){ return teamId + '|' + key; }
+function updateTeamLineRow(teamId, key, venue){
+  const val = document.getElementById(`tlInput-${teamId}-${key}`).value;
+  const line = Number(String(val).replace(',', '.'));
+  teamLineState[teamLineKey(teamId, key)] = Number.isFinite(line) ? line : null;
+  const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue);
+  const h = teamHitRate(totals, key, teamLineState[teamLineKey(teamId, key)]);
+  const out = document.getElementById(`tlResult-${teamId}-${key}`);
+  out.innerHTML = h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
+}
+
 function renderTeamStatsPanel(match){
+  _teamStatsMatch = match;
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
   const leagueAvg = {};
   TEAM_METRIC_LABELS.forEach(([key]) => { leagueAvg[key] = leagueAverageMetric(DB.matchLog, teamsAll, 'TOTALE', key); });
@@ -1001,15 +1051,20 @@ function renderTeamStatsPanel(match){
 
     const duelRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
       const d = teamDuelRecord(duels, key);
-      return `<tr><td class="metricname">${label2}</td><td class="num">${d.n ? `${d.wins}/${d.n} <span class="subtle">(${Math.round(d.rate*100)}%)</span>` : '—'}</td></tr>`;
+      return `<tr><td class="metricname">${label2}</td><td class="num">${d.n ? `${d.wins}/${d.n} <span class="subtle">(</span><span class="${pctColorClass(d.rate)}">${Math.round(d.rate*100)}%</span><span class="subtle">)</span>` : '—'}</td></tr>`;
     }).join('');
 
     const hitRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
-      const cells = TEAM_LINE_SETS[key].map(line => {
-        const h = teamHitRate(totals, key, line);
-        return `<td class="num">Over ${line}<br>${h.n ? `${h.hits}/${h.n} <span class="subtle">(${Math.round(h.rate*100)}%)</span>` : '—'}</td>`;
-      }).join('');
-      return `<tr><td class="metricname">${label2}</td>${cells}</tr>`;
+      const defaultLine = TEAM_LINE_SETS[key][1]; // preset centrale come default
+      if (!(teamLineKey(teamId, key) in teamLineState)) teamLineState[teamLineKey(teamId, key)] = defaultLine;
+      const line = teamLineState[teamLineKey(teamId, key)];
+      const h = teamHitRate(totals, key, line);
+      const resultHtml = h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
+      return `<tr>
+        <td class="metricname">${label2}</td>
+        <td class="num"><input type="text" inputmode="decimal" id="tlInput-${teamId}-${key}" value="${line}" onchange="updateTeamLineRow('${teamId}','${key}','${venue}')" style="width:52px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px;text-align:right;" /></td>
+        <td class="num" id="tlResult-${teamId}-${key}">${resultHtml}</td>
+      </tr>`;
     }).join('');
 
     const projRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
@@ -1037,9 +1092,9 @@ function renderTeamStatsPanel(match){
           <tr><th>Metrica</th><th class="num">Vinto</th></tr>
           ${duelRows}
         </table>
-        <div class="subtle" style="margin-bottom:4px;">Hit rate sulle linee — solo il proprio totale, a prescindere dall'avversario</div>
+        <div class="subtle" style="margin-bottom:4px;">Hit rate sulla linea che scegli tu — modifica il numero e premi invio</div>
         <table class="stat">
-          <tr><th>Metrica</th><th class="num">Linea bassa</th><th class="num">Linea media</th><th class="num">Linea alta</th></tr>
+          <tr><th>Metrica</th><th class="num">Linea</th><th class="num">Hit rate</th></tr>
           ${hitRows}
         </table>
       </div>`;
@@ -1047,7 +1102,7 @@ function renderTeamStatsPanel(match){
 
   return `
     <div class="panel section-gap">
-      <h2><span class="info-title" title="Tre cose diverse. 'Proiezione' usa un modello a rapporti (media di lega × forza attacco × debolezza difesa avversario), con i rapporti tirati verso 1.0 se il campione è piccolo (shrinkage) — un numero stimato, non una probabilità. 'Confronto diretto' guarda chi ha fatto di più DENTRO la stessa partita, con gli avversari già affrontati in generale. 'Hit rate sulle linee' guarda solo il totale della squadra contro una soglia fissa. Il riposo (giorni dall'ultima partita) è mostrato come informazione, non è integrato nel calcolo — verificato che non ha una correlazione affidabile nei nostri dati.">Statistiche squadra</span> <span class="tag" style="flex:1;">per venue reale della partita</span>
+      <h2><span class="info-title" title="Tre cose diverse. 'Proiezione' usa un modello a rapporti (media di lega × forza attacco × debolezza difesa avversario), con i rapporti tirati verso 1.0 se il campione è piccolo (shrinkage) — un numero stimato, non una probabilità. 'Confronto diretto' guarda chi ha fatto di più DENTRO la stessa partita, con gli avversari già affrontati in generale. 'Hit rate sulla linea' ti lascia scegliere qualunque soglia e mostra quante volte l'ha superata, sul solo totale della squadra. Verde = fascia alta, rosso = fascia bassa. Il riposo (giorni dall'ultima partita) è mostrato come informazione, non è integrato nel calcolo — verificato che non ha una correlazione affidabile nei nostri dati.">Statistiche squadra</span> <span class="tag" style="flex:1;">per venue reale della partita</span>
         <button class="panel-collapse-btn" onclick="togglePanelCollapse('teamStats')" id="panelBtn-teamStats">${panelCollapseState.teamStats ? 'espandi ▸' : 'minimizza ▾'}</button>
       </h2>
       <div id="panelBody-teamStats" style="${panelCollapseState.teamStats ? 'display:none;' : ''}">
@@ -1080,7 +1135,11 @@ function renderNotableFactsPanel(match){
 
   function list(teamName, facts){
     if (!facts.length) return `<div class="subtle">Nessun rank ancora affidabile (campione insufficiente su tutte le metriche).</div>`;
-    return `<ul class="facts-list" style="margin:0;padding-left:16px;">${facts.map(f => `<li style="margin-bottom:5px;"><span class="tag-inline">[${f.tag}]</span> ${f.text}</li>`).join('')}</ul>`;
+    return `<ul class="facts-list" style="margin:0;padding-left:16px;">${facts.map(f => {
+      const extreme = Math.min(f.rank, f.eligible + 1 - f.rank) <= 2;
+      const marker = extreme ? '<span title="Tra i 2 valori più estremi della lega" style="color:var(--accent);">★</span> ' : '';
+      return `<li style="margin-bottom:5px;">${marker}<span class="tag-inline">[${f.tag}]</span> ${f.text}</li>`;
+    }).join('')}</ul>`;
   }
 
   return `
@@ -1090,8 +1149,8 @@ function renderNotableFactsPanel(match){
       </h2>
       <div id="panelBody-facts" style="${panelCollapseState.facts ? 'display:none;' : ''}">
         <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-          <div><div class="metricname" style="margin-bottom:6px;">${match.Home} — Casa</div>${list(match.Home, home)}</div>
-          <div><div class="metricname" style="margin-bottom:6px;">${match.Away} — Trasferta</div>${list(match.Away, away)}</div>
+          <div><div style="margin-bottom:6px;font-weight:600;"><span style="color:var(--accent);">${match.Home}</span> <span class="subtle">— Casa</span></div>${list(match.Home, home)}</div>
+          <div><div style="margin-bottom:6px;font-weight:600;"><span style="color:var(--accent);">${match.Away}</span> <span class="subtle">— Trasferta</span></div>${list(match.Away, away)}</div>
         </div>
         <div class="body" style="padding-top:0;">
           <div class="subtle">Rank provvisori (X°/Y eleggibili): con solo 30 partite giocate su 380, non tutte le squadre/giocatori hanno ancora campione sufficiente — mostrato solo dove almeno 6 sono confrontabili. Cambierà nel corso della stagione.</div>
@@ -1178,6 +1237,12 @@ function renderSidePanel(side, teamName, label){
       </div>`;
 }
 
+function rankColorClass(rank){
+  if (rank === 'N/D') return 'rank nd';
+  if (rank <= 3) return 'rank';       // tra le 3 che concedono di più — lime
+  if (rank >= 18) return 'rank-bad';  // tra le 3 che concedono di meno — colore diverso
+  return '';                          // posizione intermedia, nessuna evidenza
+}
 function renderSideRowsHtml(side){
   const st = moState[side];
   let rows = [...st.rows];
@@ -1199,7 +1264,7 @@ function renderSideRowsHtml(side){
               <td class="num">${fmt(r.pv.FC_90)}</td>
               <td class="num">${fmt(r.pv.FD_90)}</td>
               <td class="num">${fmt(r.pv.Cartellini_90)}</td>
-              <td class="num ${r.rank==='N/D'?'rank nd':'rank'}">${r.rank}</td>
+              <td class="num ${rankColorClass(r.rank)}">${r.rank}</td>
             </tr>`).join('');
 }
 

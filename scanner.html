@@ -210,6 +210,7 @@
 
   .metricname{color:var(--text);font-weight:600;}
   .rank{color:var(--accent);font-weight:700;}
+  .rank-bad{color:var(--bad);font-weight:700;}
   .rank.nd{color:var(--muted);font-weight:400;}
   .chip{
     display:inline-block;
@@ -411,9 +412,9 @@
   </div>
 </header>
 <nav class="sitenav">
+  <a href="serie.html">Serie &amp; Ritardi</a>
   <a href="index.html">Matchup Engine</a>
   <a href="scanner.html" class="active">Scanner &amp; Screener</a>
-  <a href="serie.html">Serie &amp; Ritardi</a>
 </nav>
 
 
@@ -688,6 +689,14 @@ function fmt(v, d=2){
   return v.toFixed(d).replace(/\.00$/, '');
 }
 function pct(v){ return v == null ? '—' : (v*100).toFixed(0) + '%'; }
+// Colora una percentuale per fascia (lime alta, rosso bassa, normale in mezzo)
+function pctColorClass(v){
+  if (v == null) return '';
+  if (v >= 0.7) return 'rank';
+  if (v <= 0.3) return 'rank-bad';
+  return '';
+}
+function pctColored(v){ return `<span class="${pctColorClass(v)}">${pct(v)}</span>`; }
 // Evidenzia il dato chiave (hit rate) come chip pieno, colorato per fascia —
 // lime ≥95%, ambra 80-94%, grigio sotto 80% (incluso quando non calcolabile).
 function hitChip(v){
@@ -904,7 +913,7 @@ function renderScan(){
     <td class="num">${fmt(r.mediaVenue)} <span class="subtle">(N=${r.nVenue})</span></td>
     <td>${cvBadge(r.cv)}</td>
     <td class="num">${hitChip(r.hitVenue)} ${ciTxt}</td>
-    <td class="num">${pct(r.hitStag)}</td>
+    <td class="num">${pctColored(r.hitStag)}</td>
     <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${quota ?? ''}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" /></td>
     <td class="num">${prob != null ? pct(prob) : '—'}</td>
     <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
@@ -1090,7 +1099,7 @@ function renderScreener(){
       <td class="num">${fmt(r.mediaVenue)} <span class="subtle">(${r.venue.toLowerCase()}, N=${r.nVenue})</span></td>
       <td class="num">${fmt(r.mediaL3)}</td>
       <td>${cvBadge(r.cv)}</td>
-      <td class="num">${pct(r.hitStag)}</td>
+      <td class="num">${pctColored(r.hitStag)}</td>
       <td class="num">${hitChip(r.hitVenue)}</td>
       <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${r.quota ?? ''}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scrSetQuota(${JSON.stringify(r.id)}, this.value)" /></td>
       <td class="num">${prob != null ? pct(prob) : '—'}</td>
