@@ -291,6 +291,39 @@ function computeCardDrought(matchLog, playerId) {
   return { minuti, falli, partite, indiceFalli: minuti ? (falli / minuti) * 90 : null };
 }
 
+// Tabella empirica: probabilità reale di ammonizione in una partita, in base
+// a quanti falli il giocatore fa in QUELLA partita — calcolata sui dati veri
+// (non stimata). Verificato: monotona crescente (0 falli -> 3.2%, 4+ -> 30%).
+function computeFoulCardProbabilityTable(matchLog) {
+  const buckets = { 0: [0, 0], 1: [0, 0], 2: [0, 0], 3: [0, 0], 4: [0, 0] }; // [partite, ammonizioni]
+  for (const r of matchLog) {
+    const f = Math.min(4, Number(r.Falli_commessi) || 0);
+    buckets[f][0]++;
+    if ((Number(r.Gialli) || 0) >= 1) buckets[f][1]++;
+  }
+  const table = {};
+  for (const k of Object.keys(buckets)) {
+    const [n, y] = buckets[k];
+    table[k] = n ? y / n : null;
+  }
+  return table; // {0: 0.032, 1: 0.161, 2: 0.180, 3: 0.267, 4: 0.304} (4 = "4+")
+}
+
+// Stima probabilità di ammonizione per un giocatore con una certa media falli
+// a partita, interpolando linearmente tra le due fasce empiriche più vicine.
+function estimateCardProbability(avgFalliPerGame, table) {
+  if (avgFalliPerGame == null) return null;
+  const v = Math.max(0, Math.min(4, avgFalliPerGame));
+  const lo = Math.floor(v);
+  const hi = Math.min(4, lo + 1);
+  const pLo = table[lo];
+  const pHi = table[hi];
+  if (pLo == null) return pHi;
+  if (pHi == null || lo === hi) return pLo;
+  const frac = v - lo;
+  return pLo + (pHi - pLo) * frac;
+}
+
 // ---------------------------------------------------------------------------
 // PROIEZIONE MOLTIPLICATIVA — sostituisce la media additiva (propria+concessa
 // avversario)/2 con un modello a rapporti standard (stesso principio dei
@@ -583,6 +616,8 @@ if (typeof module !== 'undefined') {
     currentStreak,
     computeTeamStreak,
     computeCardDrought,
+    computeFoulCardProbabilityTable,
+    estimateCardProbability,
     weightedRecentAvg,
     leagueAverageMetric,
     shrinkRatio,

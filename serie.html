@@ -5,20 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Serie A 2026/27 — Scanner & Screener</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#0B1210;
-    --panel:#132019;
-    --panel-2:#0E1613;
-    --line:#26382F;
-    --text:#EEF3EF;
-    --muted:#8CA096;
-    --accent:#C9F04D;
+    --panel:#16241D;
+    --panel-2:#101B15;
+    --panel-header:#233529;
+    --zebra:#1C2A21;
+    --line:#2F4438;
+    --text:#FFFFFF;
+    --text-2:#D7E3D3;
+    --muted:#93A897;
+    --accent:#D4FF6B;
     --accent-dim:#8FA83E;
+    --accent-ink:#12210C;
     --warn:#F2A65A;
+    --warn-ink:#3D2408;
     --bad:#E8735B;
+    --bad-ink:#3D0F08;
     --radius:14px;
     --radius-sm:8px;
   }
@@ -26,8 +32,9 @@
   html,body{margin:0;padding:0;}
   body{
     background:var(--bg);
-    color:var(--text);
-    font-family:'IBM Plex Mono',monospace;
+    color:var(--text-2);
+    font-family:'Inter',sans-serif;
+    font-variant-numeric:tabular-nums;
     line-height:1.5;
     min-height:100vh;
   }
@@ -35,21 +42,21 @@
     font-family:'Space Grotesk',sans-serif;
     font-weight:700;
     letter-spacing:-0.01em;
+    color:var(--text);
   }
   a{color:var(--accent);}
 
   header{
-    padding:32px 32px 22px;
-    border-bottom:1px solid var(--line);
+    padding:24px 32px 0;
     display:flex;
     justify-content:space-between;
-    align-items:flex-end;
+    align-items:flex-start;
     gap:16px;
     flex-wrap:wrap;
   }
-  header h1{font-size:22px;margin:0;color:var(--text);}
+  header h1{font-size:21px;margin:0;color:var(--text);}
   header h1 span{color:var(--accent);}
-  header p{margin:6px 0 0;color:var(--muted);font-size:13px;max-width:480px;}
+  header p{margin:6px 0 0;color:var(--muted);font-size:13px;max-width:460px;}
   .fileload{
     display:flex;
     align-items:center;
@@ -63,11 +70,31 @@
     padding:9px 16px;
     border-radius:var(--radius-sm);
     cursor:pointer;
-    color:var(--text);
-    transition:border-color .15s;
+    color:var(--text-2);
+    font-weight:500;
+    transition:border-color .15s, background .15s;
   }
-  .fileload label:hover{border-color:var(--accent-dim);}
-  #dataStatus{color:var(--accent);}
+  .fileload label:hover{border-color:var(--accent-dim);background:var(--panel);}
+  #dataStatus{color:var(--accent);font-weight:600;}
+
+  nav.sitenav{
+    display:flex;
+    gap:4px;
+    padding:16px 32px 0;
+    border-bottom:1px solid var(--line);
+  }
+  nav.sitenav a{
+    display:inline-block;
+    padding:10px 16px;
+    font-size:13px;
+    font-weight:600;
+    color:var(--muted);
+    text-decoration:none;
+    border-bottom:2px solid transparent;
+    transition:color .15s, border-color .15s;
+  }
+  nav.sitenav a:hover{color:var(--text);}
+  nav.sitenav a.active{color:var(--accent);border-bottom-color:var(--accent);}
 
   .controls{
     display:flex;
@@ -89,6 +116,7 @@
     font-size:11px;
     color:var(--muted);
     margin-bottom:6px;
+    font-weight:500;
   }
   .ctrl select{
     width:100%;
@@ -107,6 +135,7 @@
   }
   select, input, button{
     color-scheme: dark;
+    font-family:'Inter',sans-serif;
   }
 
   main{padding:32px 32px 60px;max-width:1180px;margin:0 auto;}
@@ -135,14 +164,16 @@
     font-size:14px;
     margin:0;
     padding:14px 20px;
+    background:var(--panel-header);
     border-bottom:1px solid var(--line);
     display:flex;
     justify-content:space-between;
     align-items:center;
     gap:12px;
+    color:var(--accent);
   }
   .panel h2 .tag{
-    font-family:'IBM Plex Mono',monospace;
+    font-family:'Inter',sans-serif;
     font-weight:500;
     font-size:11px;
     color:var(--muted);
@@ -156,28 +187,49 @@
   }
   table.stat th{
     text-align:left;
-    font-weight:500;
-    color:var(--muted);
-    padding:7px 10px 7px 0;
-    border-bottom:1px solid var(--line);
-    font-size:11px;
+    font-weight:700;
+    color:var(--accent);
+    background:var(--panel-header);
+    padding:10px 12px 10px 0;
+    padding-left:12px;
+    font-size:10.5px;
+    letter-spacing:.03em;
+    text-transform:uppercase;
   }
+  table.stat th:first-child{padding-left:0;}
   table.stat td{
-    padding:8px 10px 8px 0;
-    border-bottom:1px solid rgba(255,255,255,0.04);
+    padding:11px 12px 11px 0;
+    padding-left:12px;
+    color:var(--text-2);
+    font-weight:500;
   }
+  table.stat td:first-child{padding-left:0;}
+  table.stat tr:nth-child(even) td{background:var(--zebra);}
   table.stat td.num, table.stat th.num{text-align:right;}
   table.stat tr:last-child td{border-bottom:none;}
 
-  .metricname{color:var(--text);}
-  .rank{color:var(--accent);font-weight:600;}
+  .metricname{color:var(--text);font-weight:600;}
+  .rank{color:var(--accent);font-weight:700;}
   .rank.nd{color:var(--muted);font-weight:400;}
+  .chip{
+    display:inline-block;
+    background:var(--accent);
+    color:var(--accent-ink);
+    font-weight:700;
+    padding:4px 10px;
+    border-radius:6px;
+    font-size:12.5px;
+  }
+  .chip.warn{background:var(--warn);color:var(--warn-ink);}
+  .chip.bad{background:var(--bad);color:var(--bad-ink);}
+  .chip.flat{background:var(--line);color:var(--text-2);}
   .status-pill{
     display:inline-block;
     font-size:10px;
     padding:3px 9px;
     border:1px solid var(--line);
     border-radius:999px;
+    font-weight:600;
   }
   .status-OK{color:var(--accent);border-color:var(--accent-dim);}
   .status-CAMPIONE{color:var(--warn);border-color:var(--warn);}
@@ -193,7 +245,7 @@
     background:none;
     border:1px solid var(--line);
     color:var(--muted);
-    font-family:'IBM Plex Mono',monospace;
+    font-family:'Inter',sans-serif;
     font-size:11px;
     padding:5px 10px;
     cursor:pointer;
@@ -205,10 +257,14 @@
   }
 
   .baseline-value{
+    display:inline-block;
     font-family:'Space Grotesk',sans-serif;
     font-weight:700;
-    font-size:20px;
-    color:var(--accent);
+    font-size:18px;
+    color:var(--accent-ink);
+    background:var(--accent);
+    padding:3px 12px;
+    border-radius:8px;
   }
   .subtle{color:var(--muted);font-size:11px;}
   .screener-form{
@@ -222,18 +278,18 @@
     color:var(--text);
     border:1px solid var(--line);
     border-radius:var(--radius-sm);
-    font-family:'IBM Plex Mono',monospace;
+    font-family:'Inter',sans-serif;
     font-size:13px;
     padding:7px 10px;
   }
   .screener-form select option{background-color:var(--panel);color:var(--text);}
   .screener-form button{
     background:var(--accent);
-    color:var(--bg);
+    color:var(--accent-ink);
     border:none;
     border-radius:var(--radius-sm);
-    font-family:'IBM Plex Mono',monospace;
-    font-weight:600;
+    font-family:'Inter',sans-serif;
+    font-weight:700;
     font-size:12px;
     padding:8px 14px;
     cursor:pointer;
@@ -244,21 +300,38 @@
     border:1px solid var(--line);
     border-radius:var(--radius-sm);
   }
-  .verdict-fav{color:var(--accent);font-weight:600;}
+  .verdict-fav{color:var(--accent);font-weight:700;}
   .verdict-nofav{color:var(--muted);}
   .rowdel{
     background:none;border:none;color:var(--bad);cursor:pointer;font-size:14px;
   }
-  footer{
-    padding:24px 32px 48px;
-    color:var(--muted);
-    font-size:11px;
-    max-width:1180px;
-    margin:0 auto;
+
+  .match-title{
+    font-size:20px;
+    color:var(--accent);
+    margin:0 0 4px;
   }
+  .facts-list{font-size:12px;line-height:1.9;color:var(--text-2);}
+  .facts-list .tag-inline{color:var(--muted);font-size:10.5px;}
+  .info-title{border-bottom:1px dotted var(--muted);cursor:help;color:var(--text);}
   th.sortable{cursor:pointer;user-select:none;}
-  th.sortable:hover{color:var(--accent);}
-  th.sortable .arrow{opacity:0.5;font-size:10px;margin-left:3px;}
+  th.sortable:hover{color:var(--text);}
+  th.sortable .arrow{opacity:0.7;font-size:9px;margin-left:3px;}
+  .panel-collapse-btn{
+    background:none;
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    color:var(--muted);
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:11px;
+    padding:4px 10px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .panel-collapse-btn:hover{color:var(--text);border-color:var(--accent-dim);}
+  .section-gap{margin-top:28px;}
+
   .filter-group{
     display:flex;
     flex-wrap:wrap;
@@ -268,12 +341,13 @@
     border-radius:var(--radius-sm);
     padding:9px 14px;
     font-size:12px;
+    background:var(--panel-2);
   }
   .filter-group label{
     display:flex;
     align-items:center;
     gap:5px;
-    color:var(--text);
+    color:var(--text-2);
     cursor:pointer;
     white-space:nowrap;
   }
@@ -284,7 +358,8 @@
     border:1px solid var(--accent-dim);
     border-radius:var(--radius-sm);
     color:var(--accent);
-    font-family:'IBM Plex Mono',monospace;
+    font-family:'Inter',sans-serif;
+    font-weight:700;
     font-size:12px;
     padding:8px 14px;
     cursor:pointer;
@@ -305,12 +380,21 @@
     color:var(--text);
     border:1px solid var(--line);
     border-radius:var(--radius-sm);
-    font-family:'IBM Plex Mono',monospace;
+    font-family:'Inter',sans-serif;
     font-size:13px;
     padding:7px 9px;
     min-width:160px;
   }
   .miniform select option{background-color:var(--panel);color:var(--text);}
+
+  footer{
+    padding:24px 32px 48px;
+    color:var(--muted);
+    font-size:11px;
+    max-width:1180px;
+    margin:0 auto;
+  }
+
 </style>
 </head>
 <body>
@@ -319,7 +403,6 @@
   <div>
     <h1>Serie A 2026/27 <span>· Serie &amp; Ritardi</span></h1>
     <p>Strisce in corso per ogni squadra — segna/subisce, non segna/non subisce, non vince/perde/pareggia, e le strisce sui gol esatti fatti/subiti. Basato su gol e risultato, non su tiri o falli.</p>
-    <nav style="margin-top:8px;"><a href="index.html" style="font-size:12px;">← Matchup Engine</a> &nbsp;·&nbsp; <a href="scanner.html" style="font-size:12px;">Scanner &amp; Screener →</a></nav>
   </div>
   <div class="fileload">
     <span id="dataStatus">dati non caricati</span>
@@ -327,6 +410,12 @@
     <input type="file" id="fileInput" accept=".xlsx,.xls" />
   </div>
 </header>
+<nav class="sitenav">
+  <a href="index.html">Matchup Engine</a>
+  <a href="scanner.html">Scanner &amp; Screener</a>
+  <a href="serie.html" class="active">Serie &amp; Ritardi</a>
+</nav>
+
 
 <main style="max-width:1180px;margin:0 auto;padding:24px 32px 60px;">
 
@@ -382,19 +471,19 @@
       <div>
         <div class="metricname" style="margin-bottom:6px;" id="dritHomeLabel">Squadre in casa</div>
         <table class="stat" id="dritTableHome">
-          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num">Indice</th></tr></thead>
+          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num">Indice</th><th class="num" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G</th></tr></thead>
           <tbody id="dritBodyHome"></tbody>
         </table>
       </div>
       <div>
         <div class="metricname" style="margin-bottom:6px;" id="dritAwayLabel">Squadre in trasferta</div>
         <table class="stat" id="dritTableAway">
-          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num">Indice</th></tr></thead>
+          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num">Indice</th><th class="num" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G</th></tr></thead>
           <tbody id="dritBodyAway"></tbody>
         </table>
       </div>
     </div>
-    <div class="subtle" style="margin-top:10px;">Non replica "%G" della tabella che mi hai mostrato — quella formula non è ricavabile dai soli dati che avevo, non l'ho indovinata.</div>
+    <div class="subtle" style="margin-top:10px;">%G = probabilità di ammonizione stimata dalla relazione storica reale tra falli fatti in una partita e cartellini in quella stessa partita (0 falli → 3,2%, 4+ falli → 30,4% — dati di tutta la lega). Non è la formula esatta della tabella che mi avevi mostrato, ma una ricostruita sugli stessi dati nostri.</div>
   </div>
 </div>
 
@@ -609,21 +698,28 @@ function renderTopRanks(home, away){
 function renderCardDrought(home, away){
   if (!DB) return;
   const minMin = Number(document.getElementById('dritMinMin').value);
+  const probTable = computeFoulCardProbabilityTable(DB.matchLog);
 
   function block(teamList, targetId){
     const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && teamList.includes(p.Team_ID_Rif));
     const rows = players
-      .map(p => ({ p, d: computeCardDrought(DB.matchLog, p.Player_ID) }))
+      .map(p => {
+        const d = computeCardDrought(DB.matchLog, p.Player_ID);
+        const avgFalli = d.partite ? d.falli / d.partite : null;
+        const prob = estimateCardProbability(avgFalli, probTable);
+        return { p, d, prob };
+      })
       .filter(x => x.d.minuti >= minMin && x.d.indiceFalli != null)
-      .sort((a, b) => b.d.indiceFalli - a.d.indiceFalli)
+      .sort((a, b) => b.prob - a.prob)
       .slice(0, 10);
     document.getElementById(targetId).innerHTML = rows.map((x, i) => `<tr>
       <td class="metricname">${i + 1}</td>
       <td>${x.p.Nome_completo}<div class="subtle">${x.p.Squadra_Rif} · ${x.p.Posizione_Analitica}</div></td>
       <td class="num">${x.d.minuti}</td>
       <td class="num">${x.d.falli}</td>
-      <td class="num rank">${x.d.indiceFalli.toFixed(2)}</td>
-    </tr>`).join('') || '<tr><td class="subtle" colspan="5">Nessun giocatore sopra la soglia scelta.</td></tr>';
+      <td class="num">${x.d.indiceFalli.toFixed(2)}</td>
+      <td class="num rank">${x.prob != null ? Math.round(x.prob*100)+'%' : '—'}</td>
+    </tr>`).join('') || '<tr><td class="subtle" colspan="6">Nessun giocatore sopra la soglia scelta.</td></tr>';
   }
 
   block(home, 'dritBodyHome');
