@@ -556,6 +556,15 @@
 <script>
 let DB = null; // { rosters, teams, calendar, matchLog(indexed) }
 
+// Prossima giornata in base alla data odierna: la giornata della prima
+// partita con Data >= oggi. Se la stagione è finita, resta sull'ultima.
+function prossimaGiornata(calendar) {
+  const oggi = new Date().toISOString().slice(0, 10);
+  const future = calendar.filter((c) => c.Data >= oggi);
+  if (future.length) return Math.min(...future.map((c) => c.Giornata));
+  return Math.max(...calendar.map((c) => c.Giornata));
+}
+
 function toISO(v){
   if (v == null) return null;
   if (typeof v === 'number') {
@@ -645,13 +654,16 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 // ---------------------------------------------------------------------------
 function populateGiornate(){
   const giornate = [...new Set(DB.calendar.map(r => r.Giornata))].sort((a,b)=>a-b);
+  const auto = prossimaGiornata(DB.calendar);
   const sel = document.getElementById('selGiornata');
   sel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
   sel.onchange = populateMatches;
+  if (giornate.includes(auto)) sel.value = String(auto);
   populateMatches();
   const scnSel = document.getElementById('scnGiornata');
   scnSel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
   scnSel.onchange = populateScnMatch;
+  if (giornate.includes(auto)) scnSel.value = String(auto);
   populateScnMatch();
 }
 function populateScnMatch(){

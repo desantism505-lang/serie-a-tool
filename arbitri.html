@@ -534,11 +534,31 @@ const SORT_ACCESSORS = {
   cartTotali: r => r.Cartellini_Totali_Medi ?? -Infinity,
 };
 
+// Overrides arbitro inseriti a mano dal Matchup Engine — stesso localStorage,
+// così compaiono anche in questa tabella riepilogativa (stesso dispositivo).
+const ARBITRO_OVERRIDES_KEY = 'arbitroOverrides_v1';
+function loadArbitroOverrides(){
+  try { return JSON.parse(localStorage.getItem(ARBITRO_OVERRIDES_KEY) || '{}'); }
+  catch(e){ return {}; }
+}
+function arbitriEffettivi(){
+  const overrides = loadArbitroOverrides();
+  const daExcel = new Set(DB.arbitri.map(a => a.Match_ID));
+  const extra = Object.entries(overrides)
+    .filter(([matchId]) => !daExcel.has(matchId))
+    .map(([matchId, nome]) => {
+      const m = DB.calendar.find(c => c.Match_ID === matchId);
+      return m ? { Match_ID: matchId, Giornata: m.Giornata, Arbitro: nome, Home_ID: m.Home_ID, Home: m.Home, Away_ID: m.Away_ID, Away: m.Away } : null;
+    })
+    .filter(Boolean);
+  return [...DB.arbitri, ...extra];
+}
+
 function fmt1(v){ return v == null ? '—' : v.toFixed(1); }
 
 function renderArbitriTable(){
   if (!DB) return;
-  arbResults = computeAllArbitroStats(DB.matchLog, DB.arbitri);
+  arbResults = computeAllArbitroStats(DB.matchLog, arbitriEffettivi());
   document.getElementById('arbCount').textContent = `${arbResults.length} arbitri`;
   applySortAndRender();
 }

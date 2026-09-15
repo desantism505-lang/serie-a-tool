@@ -413,13 +413,16 @@ function computeTeamMatchTotals(matchLog, teamId, segmento, calendar) {
 }
 
 // Hit rate: quante partite (su quelle con un valore valido per la metrica) la
-// squadra ha superato una linea libera. Salta le partite dove la metrica è
-// null (es. Corner mancante) invece di contarle come "non superata".
-function teamHitRate(totals, key, line) {
+// squadra ha superato (Over) o non raggiunto (Under) una linea libera. Salta
+// le partite dove la metrica è null (es. Corner mancante) invece di contarle
+// come "non superata". mode: 'over' (default) o 'under'.
+function teamHitRate(totals, key, line, mode) {
   if (line == null || !Number.isFinite(line)) return { n: 0, hits: 0, rate: null };
   const valid = totals.filter((t) => t[key] != null);
   const n = valid.length;
-  const hits = valid.filter((t) => t[key] > line).length;
+  const hits = mode === 'under'
+    ? valid.filter((t) => t[key] < line).length
+    : valid.filter((t) => t[key] > line).length;
   return { n, hits, rate: n ? hits / n : null };
 }
 
@@ -569,7 +572,11 @@ function computeTeamStreak(calendar, teamId, venue, key, n) {
 // diversi. normalizeArbitroKey fa il confronto (case/spazi-insensitive),
 // titleCaseArbitro sceglie una forma di visualizzazione unica e leggibile.
 function normalizeArbitroKey(nome) {
-  return String(nome || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  return String(nome || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\.\s*/g, '.'); // uniforma "J.L." vs "J. L." vs "J . L ."
 }
 function titleCaseArbitro(nome) {
   return String(nome || '')
@@ -577,8 +584,75 @@ function titleCaseArbitro(nome) {
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .split(' ')
-    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .map((w) => w.replace(/(^|\.)([a-zà-ÿ])/g, (m, sep, ch) => sep + ch.toUpperCase()))
     .join(' ');
+}
+
+// Un nome arbitro inserito a mano può contenere errori di battitura/copia —
+// in particolare un orario copiato per sbaglio nella colonna sbagliata
+// (es. "h. 20.45"). Non è un nome valido: niente sequenza di 2+ lettere, o
+// è letteralmente un orario. Le righe non valide vengono escluse dal conteggio
+// invece di comparire come un "arbitro" fantasma.
+function isArbitroNomeValido(nome) {
+  const s = String(nome || '').trim();
+  if (!s) return false;
+  if (/^h\.?\s*\d{1,2}[.:]\d{2}$/i.test(s)) return false;
+  if (/^\d{1,2}[.:]\d{2}$/.test(s)) return false;
+  return /[a-zà-ÿ]{2,}/i.test(s);
+}
+
+// ---------------------------------------------------------------------------
+// CARTELLINO IN RITARDO (pannello "Serie & Ritardi"): un giocatore che fa
+// molti falli ma non prende un giallo da un po' — "in ritardo" per
+// un'ammonizione. Finestra di ritardo = dall'ultimo cartellino (giallo o
+// rosso) in poi, su tutta la stagione (non spezzata per casa/trasferta,
+// perché è una striscia continua nel tempo).
+// ---------------------------------------------------------------------------
+function computeCardDrought(matchLog, playerId) {
+  const rows = matchLog.filter((r) => r.Player_ID === playerId).sort((a, b) => a.Player_Seq - b.Player_Seq);
+  let lastCardSeq = 0; // 0 = mai ammonito/espulso in stagione -> finestra = tutte le presenze
+  for (const r of rows) {
+    if ((Number(r.Gialli) || 0) >= 1 || (Number(r.Rossi) || 0) >= 1) lastCardSeq = r.Player_Seq;
+  }
+  const finestra = rows.filter((r) => r.Player_Seq > lastCardSeq);
+  const minuti = finestra.reduce((a, r) => a + (Number(r.Minuti) || 0), 0);
+  const falli = finestra.reduce((a, r) => a + (Number(r.Falli_commessi) || 0), 0);
+  const partite = finestra.length;
+  const indiceFalli = minuti ? (falli / minuti) * 90 : null;
+  return { minuti, falli, partite, indiceFalli };
+}
+
+// Relazione reale (non stimata) tra falli commessi IN UNA PARTITA e
+// probabilità di essere ammonito/espulso IN QUELLA STESSA PARTITA, calcolata
+// su tutte le presenze di MATCH_LOG (tutta la lega). Bucket per numero intero
+// di falli, "5+" accorpa i casi rari (poche righe sopra i 5 falli a partita).
+function computeFoulCardProbabilityTable(matchLog) {
+  const buckets = {};
+  for (const r of matchLog) {
+    const f = Math.round(Number(r.Falli_commessi) || 0);
+    const key = f >= 5 ? '5+' : String(f);
+    if (!buckets[key]) buckets[key] = { n: 0, carded: 0 };
+    buckets[key].n++;
+    if ((Number(r.Gialli) || 0) >= 1 || (Number(r.Rossi) || 0) >= 1) buckets[key].carded++;
+  }
+  const table = {};
+  for (const key in buckets) table[key] = buckets[key].n ? buckets[key].carded / buckets[key].n : null;
+  return table;
+}
+
+// Stima la probabilità di ammonizione per un giocatore dato il suo indice
+// falli/90 nella finestra di ritardo, guardando la riga del bucket più vicino
+// nella tabella reale (arrotonda all'intero, "5+" per 5 o più).
+function estimateCardProbability(avgFalli, probTable) {
+  if (avgFalli == null || !Number.isFinite(avgFalli)) return null;
+  const f = Math.max(0, Math.round(avgFalli));
+  const key = f >= 5 ? '5+' : String(f);
+  if (probTable[key] != null) return probTable[key];
+  const disponibili = Object.keys(probTable).filter((k) => probTable[k] != null);
+  if (!disponibili.length) return null;
+  const numOf = (k) => (k === '5+' ? 5 : Number(k));
+  disponibili.sort((a, b) => Math.abs(numOf(a) - f) - Math.abs(numOf(b) - f));
+  return probTable[disponibili[0]];
 }
 
 // ---------------------------------------------------------------------------
@@ -622,6 +696,7 @@ function computeArbitroStats(matchLog, arbitri, arbitro) {
 function computeAllArbitroStats(matchLog, arbitri) {
   const canonici = new Map(); // chiave normalizzata -> nome da mostrare
   for (const a of arbitri) {
+    if (!isArbitroNomeValido(a.Arbitro)) continue;
     const key = normalizeArbitroKey(a.Arbitro);
     if (key && !canonici.has(key)) canonici.set(key, titleCaseArbitro(a.Arbitro));
   }
@@ -650,6 +725,10 @@ if (typeof module !== 'undefined') {
     computeTeamStreak,
     normalizeArbitroKey,
     titleCaseArbitro,
+    isArbitroNomeValido,
     teamCornerMatches,
+    computeCardDrought,
+    computeFoulCardProbabilityTable,
+    estimateCardProbability,
   };
 }

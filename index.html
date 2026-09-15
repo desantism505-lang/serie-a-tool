@@ -546,11 +546,25 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 // ---------------------------------------------------------------------------
 // Selettori a cascata: Giornata -> Partita -> Giocatore
 // ---------------------------------------------------------------------------
+// Prossima giornata in base alla data odierna: la giornata della prima
+// partita con Data >= oggi. Se la stagione è finita (nessuna partita futura),
+// resta sull'ultima giornata in calendario. Puramente basata sulla data di
+// sistema, non sullo Stato — così seleziona la giornata giusta anche prima
+// che tu abbia segnato le partite come CONCLUSA.
+function prossimaGiornata(calendar) {
+  const oggi = new Date().toISOString().slice(0, 10);
+  const future = calendar.filter((c) => c.Data >= oggi);
+  if (future.length) return Math.min(...future.map((c) => c.Giornata));
+  return Math.max(...calendar.map((c) => c.Giornata));
+}
+
 function populateGiornate(){
   const giornate = [...new Set(DB.calendar.map(r => r.Giornata))].sort((a,b)=>a-b);
   const sel = document.getElementById('selGiornata');
   sel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
   sel.onchange = populateMatches;
+  const auto = prossimaGiornata(DB.calendar);
+  if (giornate.includes(auto)) sel.value = String(auto);
   populateMatches();
 }
 function populateMatches(){
@@ -1051,26 +1065,67 @@ function updateTeamLineRow(teamId, key, venue){
   const line = Number(String(val).replace(',', '.'));
   teamLineState[teamLineKey(teamId, key)] = Number.isFinite(line) ? line : null;
   const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
-  const h = teamHitRate(totals, key, teamLineState[teamLineKey(teamId, key)]);
-  const out = document.getElementById(`tlResult-${teamId}-${key}`);
-  out.innerHTML = h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
+  const lineVal = teamLineState[teamLineKey(teamId, key)];
+  const hOver = teamHitRate(totals, key, lineVal, 'over');
+  const hUnder = teamHitRate(totals, key, lineVal, 'under');
+  const fmtRes = (h) => h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
+  document.getElementById(`tlResultOver-${teamId}-${key}`).innerHTML = fmtRes(hOver);
+  document.getElementById(`tlResultUnder-${teamId}-${key}`).innerHTML = fmtRes(hUnder);
+}
+
+// Overrides arbitro inseriti a mano dalla pagina (per partite non ancora
+// presenti nel foglio ARBITRI dell'Excel) — salvati in localStorage, quindi
+// visibili solo su QUESTO browser/dispositivo, stessa logica già in uso per
+// lo storico dello Screener. L'Excel ha sempre la priorità se la partita è
+// già presente lì: l'override serve solo a colmare il vuoto nel frattempo.
+const ARBITRO_OVERRIDES_KEY = 'arbitroOverrides_v1';
+function loadArbitroOverrides(){
+  try { return JSON.parse(localStorage.getItem(ARBITRO_OVERRIDES_KEY) || '{}'); }
+  catch(e){ return {}; }
+}
+function saveArbitroOverride(matchId, nome){
+  const overrides = loadArbitroOverrides();
+  if (nome && nome.trim()) overrides[matchId] = nome.trim();
+  else delete overrides[matchId];
+  try { localStorage.setItem(ARBITRO_OVERRIDES_KEY, JSON.stringify(overrides)); } catch(e){}
+}
+function arbitriEffettivi(){
+  const overrides = loadArbitroOverrides();
+  const daExcel = new Set(DB.arbitri.map(a => a.Match_ID));
+  const extra = Object.entries(overrides)
+    .filter(([matchId]) => !daExcel.has(matchId))
+    .map(([matchId, nome]) => {
+      const m = DB.calendar.find(c => c.Match_ID === matchId);
+      return m ? { Match_ID: matchId, Giornata: m.Giornata, Arbitro: nome, Home_ID: m.Home_ID, Home: m.Home, Away_ID: m.Away_ID, Away: m.Away } : null;
+    })
+    .filter(Boolean);
+  return [...DB.arbitri, ...extra];
 }
 
 // Snippet arbitro: chi dirige questa partita e le sue medie (falli/cartellini,
 // split casa/trasferta), con N partite sempre visibile — nessuna soglia
 // minima nasconde il dato, ma il campione resta sempre dichiarato accanto al
-// numero (stessa convenzione del rank provvisorio).
+// numero (stessa convenzione del rank provvisorio). Se non c'è ancora un
+// arbitro in Excel per questa partita, permette di inserirlo a mano (salvato
+// solo su questo dispositivo, finché non aggiorni l'Excel).
 function renderArbitroSnippet(match){
-  if (!DB.arbitri || !DB.arbitri.length) return '';
-  const riga = DB.arbitri.find(a => a.Match_ID === match.Match_ID);
-  if (!riga || !riga.Arbitro) {
-    return `<div class="subtle" style="margin-bottom:10px;">Arbitro non ancora assegnato o non disponibile per questa partita.</div>`;
+  const arbitriEff = arbitriEffettivi();
+  const riga = arbitriEff.find(a => a.Match_ID === match.Match_ID && isArbitroNomeValido(a.Arbitro));
+  if (!riga) {
+    return `
+    <div class="subtle" style="margin-bottom:18px;">
+      Arbitro non ancora assegnato o non disponibile per questa partita.
+      <input type="text" id="arbInput-${match.Match_ID}" placeholder="Nome arbitro" style="margin-left:8px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:3px 6px;width:160px;" />
+      <button onclick="saveArbitroOverride('${match.Match_ID}', document.getElementById('arbInput-${match.Match_ID}').value); render();" style="margin-left:6px;">Salva</button>
+      <span style="color:var(--muted);"> (solo su questo dispositivo, finché non aggiorni l'Excel)</span>
+    </div>`;
   }
-  const s = computeArbitroStats(DB.matchLog, DB.arbitri, riga.Arbitro);
+  const daExcel = DB.arbitri.some(a => a.Match_ID === match.Match_ID);
+  const s = computeArbitroStats(DB.matchLog, arbitriEff, riga.Arbitro);
   return `
     <div class="subtle" style="margin-bottom:18px;">
       <span class="info-title" title="Medie calcolate sulle partite dirette da questo arbitro nel campionato in corso, sui dati grezzi di MATCH_LOG. Nessuna soglia minima le nasconde, ma con pochissime partite dirette il numero oscilla molto — guarda sempre N.">Arbitro</span>:
-      <strong>${s.Arbitro}</strong> — ${s.N_Partite} partit${s.N_Partite === 1 ? 'a diretta' : 'e dirette'} in stagione ·
+      <strong>${s.Arbitro}</strong>${daExcel ? '' : ' <span style="color:var(--muted);">(inserito qui, solo su questo dispositivo)</span>'} — ${s.N_Partite} partit${s.N_Partite === 1 ? 'a diretta' : 'e dirette'} in stagione ·
       falli medi ${s.Falli_Casa_Medi != null ? s.Falli_Casa_Medi.toFixed(1) : '—'} (casa) / ${s.Falli_Trasferta_Medi != null ? s.Falli_Trasferta_Medi.toFixed(1) : '—'} (trasferta) ·
       cartellini medi ${s.Cartellini_Casa_Medi != null ? s.Cartellini_Casa_Medi.toFixed(1) : '—'} (casa) / ${s.Cartellini_Trasferta_Medi != null ? s.Cartellini_Trasferta_Medi.toFixed(1) : '—'} (trasferta)
       <span style="color:var(--muted);">(campione: ${s.N_Partite} partit${s.N_Partite === 1 ? 'a' : 'e'})</span>
@@ -1096,12 +1151,14 @@ function renderTeamStatsPanel(match){
       const defaultLine = TEAM_LINE_SETS[key][1]; // preset centrale come default
       if (!(teamLineKey(teamId, key) in teamLineState)) teamLineState[teamLineKey(teamId, key)] = defaultLine;
       const line = teamLineState[teamLineKey(teamId, key)];
-      const h = teamHitRate(totals, key, line);
-      const resultHtml = h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
+      const hOver = teamHitRate(totals, key, line, 'over');
+      const hUnder = teamHitRate(totals, key, line, 'under');
+      const fmtRes = (h) => h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
       return `<tr>
         <td class="metricname">${label2}</td>
         <td class="num"><input type="text" inputmode="decimal" id="tlInput-${teamId}-${key}" value="${line}" onchange="updateTeamLineRow('${teamId}','${key}','${venue}')" style="width:52px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px;text-align:right;" /></td>
-        <td class="num" id="tlResult-${teamId}-${key}">${resultHtml}</td>
+        <td class="num" id="tlResultOver-${teamId}-${key}">${fmtRes(hOver)}</td>
+        <td class="num" id="tlResultUnder-${teamId}-${key}">${fmtRes(hUnder)}</td>
       </tr>`;
     }).join('');
 
@@ -1132,7 +1189,7 @@ function renderTeamStatsPanel(match){
         </table>
         <div class="subtle" style="margin-bottom:4px;">Hit rate sulla linea che scegli tu — modifica il numero e premi invio</div>
         <table class="stat">
-          <tr><th>Metrica</th><th class="num">Linea</th><th class="num">Hit rate</th></tr>
+          <tr><th>Metrica</th><th class="num">Linea</th><th class="num">Over</th><th class="num">Under</th></tr>
           ${hitRows}
         </table>
       </div>`;

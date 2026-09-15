@@ -613,11 +613,20 @@ function teamsForGiornata(giornata){
   };
 }
 
+function prossimaGiornata(calendar) {
+  const oggi = new Date().toISOString().slice(0, 10);
+  const future = calendar.filter((c) => c.Data >= oggi);
+  if (future.length) return Math.min(...future.map((c) => c.Giornata));
+  return Math.max(...calendar.map((c) => c.Giornata));
+}
+
 function populateSrGiornata(){
   const giornate = [...new Set(DB.calendar.map(r => r.Giornata))].sort((a,b)=>a-b);
   const sel = document.getElementById('srGiornata');
   sel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
   sel.onchange = renderSerieTable;
+  const auto = prossimaGiornata(DB.calendar);
+  if (giornate.includes(auto)) sel.value = String(auto);
   renderSerieTable();
 }
 
