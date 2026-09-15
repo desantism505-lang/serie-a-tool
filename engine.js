@@ -353,6 +353,235 @@ function wilsonInterval(phat, n) {
 }
 
 // ---------------------------------------------------------------------------
+// STATISTICHE SQUADRA (pannello "Statistiche squadra" di index.html): totali
+// per singola partita (non per90) di Tiri/SOT/Falli/Cartellini/Corner, usati
+// per hit-rate su linea libera, confronto diretto (duel) e proiezione
+// moltiplicativa. Nessuna di queste richiede il risultato della partita.
+//
+// NOTA su Corner: a differenza di Tiri/SOT/Falli/Cartellini (che sono per
+// giocatore, in MATCH_LOG, e vanno sommati riga per riga), Corner è già un
+// totale-partita in CALENDAR (Corner_Home/Corner_Away) — non esiste a
+// livello di singolo giocatore. Per questo le funzioni sotto accettano un
+// parametro `calendar` opzionale: se non passato, si comportano come prima
+// (solo Tiri/SOT/Falli/Cart); se passato, aggiungono anche Corner.
+// ---------------------------------------------------------------------------
+
+// Corner "fatti" e "concessi" di una squadra, partita per partita — solo
+// sulle CONCLUSA con Corner_Home/Corner_Away compilati (nessun dato inventato
+// sulle partite dove manca).
+function teamCornerMatches(calendar, teamId, segmento) {
+  let rows = calendar.filter(
+    (c) =>
+      (c.Home_ID === teamId || c.Away_ID === teamId) &&
+      c.Stato === 'CONCLUSA' &&
+      c.Corner_Home != null &&
+      c.Corner_Away != null
+  );
+  if (segmento !== 'TOTALE') {
+    rows = rows.filter((c) => (segmento === 'HOME' ? c.Home_ID === teamId : c.Away_ID === teamId));
+  }
+  return rows.map((c) => {
+    const isHome = c.Home_ID === teamId;
+    return {
+      Match_ID: c.Match_ID,
+      Corner: isHome ? c.Corner_Home : c.Corner_Away,
+      CornerConcessi: isHome ? c.Corner_Away : c.Corner_Home,
+    };
+  });
+}
+
+// Totali per-partita di UNA squadra nel segmento richiesto: un oggetto per
+// Match_ID con la somma dei valori di tutti i giocatori di quella squadra in
+// quella partita, più Corner se viene passato `calendar`.
+function computeTeamMatchTotals(matchLog, teamId, segmento, calendar) {
+  const rows = teamRowsFatti(matchLog, teamId, segmento);
+  const byMatch = {};
+  for (const r of rows) {
+    const m = byMatch[r.Match_ID] || (byMatch[r.Match_ID] = { Match_ID: r.Match_ID, Tiri: 0, SOT: 0, Falli: 0, Cart: 0 });
+    m.Tiri += Number(r.Tiri) || 0;
+    m.SOT += Number(r.Tiri_in_porta) || 0;
+    m.Falli += Number(r.Falli_commessi) || 0;
+    m.Cart += (Number(r.Gialli) || 0) + (Number(r.Rossi) || 0);
+  }
+  const result = Object.values(byMatch);
+  if (calendar) {
+    const cornerByMatch = {};
+    for (const c of teamCornerMatches(calendar, teamId, segmento)) cornerByMatch[c.Match_ID] = c.Corner;
+    for (const m of result) m.Corner = cornerByMatch[m.Match_ID] != null ? cornerByMatch[m.Match_ID] : null;
+  }
+  return result;
+}
+
+// Hit rate: quante partite (su quelle con un valore valido per la metrica) la
+// squadra ha superato una linea libera. Salta le partite dove la metrica è
+// null (es. Corner mancante) invece di contarle come "non superata".
+function teamHitRate(totals, key, line) {
+  if (line == null || !Number.isFinite(line)) return { n: 0, hits: 0, rate: null };
+  const valid = totals.filter((t) => t[key] != null);
+  const n = valid.length;
+  const hits = valid.filter((t) => t[key] > line).length;
+  return { n, hits, rate: n ? hits / n : null };
+}
+
+// Media di lega di una metrica, per-partita, sul segmento richiesto — media
+// dei totali-partita di TUTTE le squadre (ogni partita conta una volta per
+// ciascuna prospettiva attacco, coerente con una "media attacco" di lega).
+function leagueAverageMetric(matchLog, teamsAll, segmento, key, calendar) {
+  let s = 0, n = 0;
+  for (const t of teamsAll) {
+    for (const m of computeTeamMatchTotals(matchLog, t, segmento, calendar)) {
+      if (m[key] != null) { s += m[key]; n++; }
+    }
+  }
+  return n ? s / n : null;
+}
+
+// Duel totals: per ogni partita della squadra nel segmento, il proprio totale
+// e quello dell'avversario nella STESSA partita (per il "confronto diretto").
+// Per Corner, il "concesso" dall'avversario è già disponibile in CALENDAR
+// (CornerConcessi) — non richiede somma su MATCH_LOG.
+function computeTeamDuelTotals(matchLog, teamId, segmento, calendar) {
+  const ownTotals = computeTeamMatchTotals(matchLog, teamId, segmento, calendar);
+  const oppRows = teamRowsSubiti(matchLog, teamId, segmento); // righe avversario, venue già invertita
+  const oppByMatch = {};
+  for (const r of oppRows) {
+    const m = oppByMatch[r.Match_ID] || (oppByMatch[r.Match_ID] = { Tiri: 0, SOT: 0, Falli: 0, Cart: 0 });
+    m.Tiri += Number(r.Tiri) || 0;
+    m.SOT += Number(r.Tiri_in_porta) || 0;
+    m.Falli += Number(r.Falli_commessi) || 0;
+    m.Cart += (Number(r.Gialli) || 0) + (Number(r.Rossi) || 0);
+  }
+  if (calendar) {
+    for (const c of teamCornerMatches(calendar, teamId, segmento)) {
+      const m = oppByMatch[c.Match_ID] || (oppByMatch[c.Match_ID] = { Tiri: 0, SOT: 0, Falli: 0, Cart: 0 });
+      m.Corner = c.CornerConcessi;
+    }
+  }
+  return ownTotals
+    .filter((own) => oppByMatch[own.Match_ID])
+    .map((own) => ({ Match_ID: own.Match_ID, own, opp: oppByMatch[own.Match_ID] }));
+}
+
+// Record duello su una metrica: quante volte il proprio totale ha superato
+// quello dell'avversario nella stessa partita (salta le partite senza un
+// valore valido per entrambi i lati).
+function teamDuelRecord(duels, key) {
+  const valid = duels.filter((d) => d.own[key] != null && d.opp[key] != null);
+  const n = valid.length;
+  const wins = valid.filter((d) => d.own[key] > d.opp[key]).length;
+  return { n, wins, rate: n ? wins / n : null };
+}
+
+// Proiezione moltiplicativa: media di lega × forza attacco (proprio totale
+// medio / media lega, con shrinkage) × debolezza difesa avversario (concesso
+// medio dall'avversario / media lega, con shrinkage). Shrinkage verso 1.0 sui
+// campioni piccoli, stesso k della Baseline (SHRINK_K=3) per coerenza.
+function multiplicativeProjection(matchLog, teamId, venue, oppTeamId, oppVenue, key, leagueAvg, calendar) {
+  const ownTotals = computeTeamMatchTotals(matchLog, teamId, venue, calendar)
+    .map((m) => m[key])
+    .filter((v) => v != null);
+  const nA = ownTotals.length;
+  const ownAvgA = nA ? ownTotals.reduce((a, b) => a + b, 0) / nA : null;
+
+  let concedeVals;
+  if (key === 'Corner' && calendar) {
+    concedeVals = teamCornerMatches(calendar, oppTeamId, oppVenue)
+      .map((c) => c.CornerConcessi)
+      .filter((v) => v != null);
+  } else {
+    const concedeRows = teamRowsSubiti(matchLog, oppTeamId, oppVenue);
+    const byMatch = {};
+    for (const r of concedeRows) {
+      const m = byMatch[r.Match_ID] || (byMatch[r.Match_ID] = { Tiri: 0, SOT: 0, Falli: 0, Cart: 0 });
+      m.Tiri += Number(r.Tiri) || 0;
+      m.SOT += Number(r.Tiri_in_porta) || 0;
+      m.Falli += Number(r.Falli_commessi) || 0;
+      m.Cart += (Number(r.Gialli) || 0) + (Number(r.Rossi) || 0);
+    }
+    concedeVals = Object.values(byMatch).map((m) => m[key]);
+  }
+  const nB = concedeVals.length;
+  const concedeAvgB = nB ? concedeVals.reduce((a, b) => a + b, 0) / nB : null;
+
+  if (leagueAvg == null) return { ownAvgA, nA, concedeAvgB, nB, projection: null };
+  const shrink = (avg, n) => (avg == null || !leagueAvg ? 1 : 1 + (avg / leagueAvg - 1) * (n / (n + SHRINK_K)));
+  const projection = leagueAvg * shrink(ownAvgA, nA) * shrink(concedeAvgB, nB);
+  return { ownAvgA, nA, concedeAvgB, nB, projection };
+}
+
+// Giorni di riposo prima della partita indicata: differenza in giorni tra la
+// Data della partita e la Data della partita precedente della stessa
+// squadra (qualunque venue) — null se non c'è una partita precedente.
+function restDaysBefore(calendar, teamId, dataPartita) {
+  const precedenti = calendar.filter(
+    (r) => (r.Home_ID === teamId || r.Away_ID === teamId) && r.Data < dataPartita
+  );
+  if (!precedenti.length) return null;
+  precedenti.sort((a, b) => b.Data.localeCompare(a.Data));
+  const d1 = new Date(precedenti[0].Data);
+  const d2 = new Date(dataPartita);
+  return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+}
+
+// STREAK basate sul RISULTATO (segna/subisce/vince/perde/pareggia): calcolate
+// sulle sole partite CONCLUSA con Home_Score/Away_Score compilati, ordinate
+// dalla più recente, contando quante di fila (a partire dall'ultima) rispettano
+// la condizione — si ferma alla prima partita che la rompe.
+function computeTeamStreak(calendar, teamId, venue, key, n) {
+  let rows = calendar.filter(
+    (r) =>
+      (r.Home_ID === teamId || r.Away_ID === teamId) &&
+      r.Stato === 'CONCLUSA' &&
+      r.Home_Score != null &&
+      r.Away_Score != null
+  );
+  if (venue !== 'TOTALE') {
+    rows = rows.filter((r) => (venue === 'HOME' ? r.Home_ID === teamId : r.Away_ID === teamId));
+  }
+  rows.sort((a, b) => b.Data.localeCompare(a.Data)); // più recente prima
+  const partite = rows.length;
+
+  let streak = 0;
+  for (const r of rows) {
+    const isHome = r.Home_ID === teamId;
+    const golFatti = isHome ? r.Home_Score : r.Away_Score;
+    const golSubiti = isHome ? r.Away_Score : r.Home_Score;
+    let cond;
+    switch (key) {
+      case 'segna': cond = golFatti > 0; break;
+      case 'nonSegna': cond = golFatti === 0; break;
+      case 'subisce': cond = golSubiti > 0; break;
+      case 'nonSubisce': cond = golSubiti === 0; break;
+      case 'nonVince': cond = golFatti <= golSubiti; break;
+      case 'nonPerde': cond = golFatti >= golSubiti; break;
+      case 'nonPareggia': cond = golFatti !== golSubiti; break;
+      default: cond = false;
+    }
+    if (cond) streak++;
+    else break;
+  }
+  return { streak, partite };
+}
+
+// Normalizzazione nome arbitro: l'inserimento è manuale, quindi lo stesso
+// arbitro può comparire con maiuscole/minuscole diverse ("ROSSI", "Rossi",
+// "rossi") — vanno raggruppati come UNA persona, non contati come arbitri
+// diversi. normalizeArbitroKey fa il confronto (case/spazi-insensitive),
+// titleCaseArbitro sceglie una forma di visualizzazione unica e leggibile.
+function normalizeArbitroKey(nome) {
+  return String(nome || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+function titleCaseArbitro(nome) {
+  return String(nome || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .split(' ')
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+// ---------------------------------------------------------------------------
 // ARBITRI — statistiche aggregate per arbitro: falli fischiati e cartellini
 // mostrati per partita diretta, con split "squadra di casa" vs "squadra in
 // trasferta" (bias arbitrale casa/trasferta), calcolati sui dati grezzi di
@@ -362,7 +591,8 @@ function wilsonInterval(phat, n) {
 // affidabile, è il dato grezzo di poche gare travestito da statistica.
 // ---------------------------------------------------------------------------
 function computeArbitroStats(matchLog, arbitri, arbitro) {
-  const matchIds = arbitri.filter((a) => a.Arbitro === arbitro).map((a) => a.Match_ID);
+  const targetKey = normalizeArbitroKey(arbitro);
+  const matchIds = arbitri.filter((a) => normalizeArbitroKey(a.Arbitro) === targetKey).map((a) => a.Match_ID);
   const nPartite = matchIds.length;
   const rowsCasa = filterRows(matchLog, (r) => matchIds.includes(r.Match_ID) && r.Venue === 'H');
   const rowsTrasferta = filterRows(matchLog, (r) => matchIds.includes(r.Match_ID) && r.Venue === 'A');
@@ -371,7 +601,7 @@ function computeArbitroStats(matchLog, arbitri, arbitro) {
   const cartellini = (rows) => sum(rows, 'Gialli') + sum(rows, 'Rossi');
 
   return {
-    Arbitro: arbitro,
+    Arbitro: titleCaseArbitro(arbitro),
     N_Partite: nPartite,
     Falli_Casa_Medi: avg(rowsCasa, 'Falli_commessi', nPartite),
     Falli_Trasferta_Medi: avg(rowsTrasferta, 'Falli_commessi', nPartite),
@@ -385,10 +615,17 @@ function computeArbitroStats(matchLog, arbitri, arbitro) {
 }
 
 // Statistiche per tutti gli arbitri presenti nel foglio ARBITRI, una riga per
-// arbitro. Utile per popolare una tabella "Statistiche arbitri" nello Scanner.
+// arbitro — deduplicati per nome normalizzato (non per stringa esatta), così
+// varianti di maiuscole/minuscole dello stesso arbitro non vengono contate
+// come persone diverse. Il nome mostrato è la prima occorrenza, in forma
+// Title Case.
 function computeAllArbitroStats(matchLog, arbitri) {
-  const nomi = [...new Set(arbitri.map((a) => a.Arbitro))];
-  return nomi.map((nome) => computeArbitroStats(matchLog, arbitri, nome));
+  const canonici = new Map(); // chiave normalizzata -> nome da mostrare
+  for (const a of arbitri) {
+    const key = normalizeArbitroKey(a.Arbitro);
+    if (key && !canonici.has(key)) canonici.set(key, titleCaseArbitro(a.Arbitro));
+  }
+  return [...canonici.values()].map((nome) => computeArbitroStats(matchLog, arbitri, nome));
 }
 
 if (typeof module !== 'undefined') {
@@ -403,5 +640,16 @@ if (typeof module !== 'undefined') {
     wilsonInterval,
     computeArbitroStats,
     computeAllArbitroStats,
+    computeTeamMatchTotals,
+    teamHitRate,
+    leagueAverageMetric,
+    computeTeamDuelTotals,
+    teamDuelRecord,
+    multiplicativeProjection,
+    restDaysBefore,
+    computeTeamStreak,
+    normalizeArbitroKey,
+    titleCaseArbitro,
+    teamCornerMatches,
   };
 }

@@ -416,6 +416,7 @@
   <a href="serie.html">Serie &amp; Ritardi</a>
   <a href="index.html" class="active">Matchup Engine</a>
   <a href="scanner.html">Scanner &amp; Screener</a>
+  <a href="arbitri.html">Arbitri</a>
 </nav>
 
 
@@ -431,6 +432,14 @@
   <div class="ctrl">
     <label>Giocatore</label>
     <select id="selPlayer"></select>
+  </div>
+  <div class="ctrl">
+    <label>Titolare</label>
+    <select id="selTitolare">
+      <option value="">Tutti</option>
+      <option value="TITOLARE">Solo titolare</option>
+      <option value="SUBENTRATO">Solo subentrato</option>
+    </select>
   </div>
   <div class="ctrl" style="flex:0 0 auto;display:flex;align-items:center;gap:8px;">
     <input type="checkbox" id="chkProvisional" style="width:16px;height:16px;" />
@@ -482,11 +491,13 @@ function loadWorkbook(wb){
   const calendar = calendarRaw.map(r => ({ ...r, Data: toISO(r.Data) }));
   const matchLogRaw = sheetToRows(wb, 'MATCH_LOG').filter(r => r.Match_ID);
   const matchLog = matchLogRaw.map(r => ({ ...r, Data: toISO(r.Data) }));
+  const arbitri = sheetToRows(wb, 'ARBITRI').filter(r => r.Match_ID);
 
   DB = {
     rosters,
     calendar,
     matchLog: buildIndexes(matchLog),
+    arbitri,
   };
   document.getElementById('dataStatus').textContent =
     `${rosters.length} giocatori · ${calendar.length} partite · ${matchLog.length} presenze`;
@@ -497,10 +508,12 @@ function loadFromJSON(D){
   const rosters = D.rosters.filter(r => r.Player_ID);
   const calendar = D.calendar.filter(r => r.Match_ID);
   const matchLog = D.match_log.filter(r => r.Match_ID);
+  const arbitri = (D.arbitri || []).filter(r => r.Match_ID);
   DB = {
     rosters,
     calendar,
     matchLog: buildIndexes(matchLog),
+    arbitri,
   };
   document.getElementById('dataStatus').textContent =
     `${rosters.length} giocatori · ${calendar.length} partite · ${matchLog.length} presenze (dati inclusi)`;
@@ -565,6 +578,7 @@ function populatePlayers(){
   render();
 }
 document.getElementById('chkProvisional').addEventListener('change', () => { if (DB) render(); });
+document.getElementById('selTitolare').addEventListener('change', () => { if (DB) render(); });
 
 // ---------------------------------------------------------------------------
 // Render pannelli
@@ -593,9 +607,10 @@ function render(){
   const oppTeam = playerVenue === 'HOME' ? match.Away_ID : match.Home_ID;
   const oppVenue = playerVenue === 'HOME' ? 'AWAY' : 'HOME';
 
-  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE');
-  const pHome = computePlayerStats(DB.matchLog, playerId, 'HOME');
-  const pAway = computePlayerStats(DB.matchLog, playerId, 'AWAY');
+  const titolareFiltro = document.getElementById('selTitolare').value || null;
+  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE', titolareFiltro);
+  const pHome = computePlayerStats(DB.matchLog, playerId, 'HOME', titolareFiltro);
+  const pAway = computePlayerStats(DB.matchLog, playerId, 'AWAY', titolareFiltro);
   const pVenue = playerVenue === 'HOME' ? pHome : pAway;
 
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
@@ -663,6 +678,8 @@ function render(){
       <div class="subtle">Giornata ${match.Giornata} · ${player.Nome_completo} (${player.Squadra_Rif}, ${role}) · gioca in ${playerVenue === 'HOME' ? 'casa' : 'trasferta'} contro ${oppVenue === 'HOME' ? 'una squadra in casa' : 'una squadra in trasferta'}</div>
     </div>
 
+    ${renderArbitroSnippet(match)}
+
     ${renderNotableFactsPanel(match)}
 
     ${renderTeamStatsPanel(match)}
@@ -670,7 +687,7 @@ function render(){
     <div class="grid" style="margin-top:28px;">
 
       <div class="panel">
-        <h2><span class="info-title" title="Quanto fa in media il giocatore selezionato: tiri, tiri in porta, falli, cartellini — sulla stagione intera, nel venue di questa partita (casa o trasferta) e nelle ultime gare (L10/L5/L3). Esempio: 'Tiri stagione 2.1, HOME 3.4' significa che tira di più quando gioca in casa.">Player</span> <span class="tag">stagione ${pTot.Partite} presenze</span></h2>
+        <h2><span class="info-title" title="Quanto fa in media il giocatore selezionato: tiri, tiri in porta, falli, cartellini — sulla stagione intera, nel venue di questa partita (casa o trasferta) e nelle ultime gare (L10/L5/L3). Esempio: 'Tiri stagione 2.1, HOME 3.4' significa che tira di più quando gioca in casa.">Player</span> <span class="tag">stagione ${pTot.Partite} presenze${titolareFiltro ? ' · solo ' + (titolareFiltro === 'TITOLARE' ? 'titolare' : 'subentrato') : ''}</span></h2>
         <div class="body">
           <table class="stat">
             <tr><th>Metrica</th><th class="num">Stagione /90</th><th class="num">${playerVenue} /90</th><th class="num">L10 /90</th><th class="num">L5 /90</th><th class="num">L3 /90</th></tr>
@@ -948,7 +965,7 @@ function computeDuelFacts(teamId, venue, venueLabel){
   const facts = [];
   for (const [key, label] of TEAM_METRIC_LABELS) {
     const list = teamsAll.map(t => {
-      const rec = teamDuelRecord(computeTeamDuelTotals(DB.matchLog, t, venue), key);
+      const rec = teamDuelRecord(computeTeamDuelTotals(DB.matchLog, t, venue, DB.calendar), key);
       return { key: t, value: rec.n > 0 ? rec.rate : null, partite: rec.n };
     });
     const eligible = list.filter(x => x.partite >= minSample && x.value != null);
@@ -1011,8 +1028,8 @@ function togglePanelCollapse(id){
   document.getElementById('panelBody-' + id).style.display = panelCollapseState[id] ? 'none' : '';
   document.getElementById('panelBtn-' + id).textContent = panelCollapseState[id] ? 'espandi ▸' : 'minimizza ▾';
 }
-const TEAM_METRIC_LABELS = [['Tiri', 'Tiri Totali'], ['SOT', 'Tiri in porta'], ['Falli', 'Falli'], ['Cart', 'Cartellini']];
-const TEAM_LINE_SETS = { Tiri: [8.5, 10.5, 12.5], SOT: [2.5, 3.5, 4.5], Falli: [8.5, 10.5, 12.5], Cart: [0.5, 1.5, 2.5] };
+const TEAM_METRIC_LABELS = [['Tiri', 'Tiri Totali'], ['SOT', 'Tiri in porta'], ['Falli', 'Falli'], ['Cart', 'Cartellini'], ['Corner', 'Corner']];
+const TEAM_LINE_SETS = { Tiri: [8.5, 10.5, 12.5], SOT: [2.5, 3.5, 4.5], Falli: [8.5, 10.5, 12.5], Cart: [0.5, 1.5, 2.5], Corner: [3.5, 4.5, 5.5] };
 
 // Colora una percentuale in base alla fascia — lime se alta, rosso se bassa,
 // colore normale nella fascia intermedia. Solo testo, nessuno sfondo.
@@ -1033,21 +1050,42 @@ function updateTeamLineRow(teamId, key, venue){
   const val = document.getElementById(`tlInput-${teamId}-${key}`).value;
   const line = Number(String(val).replace(',', '.'));
   teamLineState[teamLineKey(teamId, key)] = Number.isFinite(line) ? line : null;
-  const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue);
+  const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
   const h = teamHitRate(totals, key, teamLineState[teamLineKey(teamId, key)]);
   const out = document.getElementById(`tlResult-${teamId}-${key}`);
   out.innerHTML = h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
+}
+
+// Snippet arbitro: chi dirige questa partita e le sue medie (falli/cartellini,
+// split casa/trasferta), con N partite sempre visibile — nessuna soglia
+// minima nasconde il dato, ma il campione resta sempre dichiarato accanto al
+// numero (stessa convenzione del rank provvisorio).
+function renderArbitroSnippet(match){
+  if (!DB.arbitri || !DB.arbitri.length) return '';
+  const riga = DB.arbitri.find(a => a.Match_ID === match.Match_ID);
+  if (!riga || !riga.Arbitro) {
+    return `<div class="subtle" style="margin-bottom:10px;">Arbitro non ancora assegnato o non disponibile per questa partita.</div>`;
+  }
+  const s = computeArbitroStats(DB.matchLog, DB.arbitri, riga.Arbitro);
+  return `
+    <div class="subtle" style="margin-bottom:18px;">
+      <span class="info-title" title="Medie calcolate sulle partite dirette da questo arbitro nel campionato in corso, sui dati grezzi di MATCH_LOG. Nessuna soglia minima le nasconde, ma con pochissime partite dirette il numero oscilla molto — guarda sempre N.">Arbitro</span>:
+      <strong>${s.Arbitro}</strong> — ${s.N_Partite} partit${s.N_Partite === 1 ? 'a diretta' : 'e dirette'} in stagione ·
+      falli medi ${s.Falli_Casa_Medi != null ? s.Falli_Casa_Medi.toFixed(1) : '—'} (casa) / ${s.Falli_Trasferta_Medi != null ? s.Falli_Trasferta_Medi.toFixed(1) : '—'} (trasferta) ·
+      cartellini medi ${s.Cartellini_Casa_Medi != null ? s.Cartellini_Casa_Medi.toFixed(1) : '—'} (casa) / ${s.Cartellini_Trasferta_Medi != null ? s.Cartellini_Trasferta_Medi.toFixed(1) : '—'} (trasferta)
+      <span style="color:var(--muted);">(campione: ${s.N_Partite} partit${s.N_Partite === 1 ? 'a' : 'e'})</span>
+    </div>`;
 }
 
 function renderTeamStatsPanel(match){
   _teamStatsMatch = match;
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
   const leagueAvg = {};
-  TEAM_METRIC_LABELS.forEach(([key]) => { leagueAvg[key] = leagueAverageMetric(DB.matchLog, teamsAll, 'TOTALE', key); });
+  TEAM_METRIC_LABELS.forEach(([key]) => { leagueAvg[key] = leagueAverageMetric(DB.matchLog, teamsAll, 'TOTALE', key, DB.calendar); });
 
   function side(teamId, venue, label, oppTeamId, oppVenue){
-    const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue);
-    const duels = computeTeamDuelTotals(DB.matchLog, teamId, venue);
+    const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
+    const duels = computeTeamDuelTotals(DB.matchLog, teamId, venue, DB.calendar);
 
     const duelRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
       const d = teamDuelRecord(duels, key);
@@ -1068,7 +1106,7 @@ function renderTeamStatsPanel(match){
     }).join('');
 
     const projRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
-      const p = multiplicativeProjection(DB.matchLog, teamId, venue, oppTeamId, oppVenue, key, leagueAvg[key]);
+      const p = multiplicativeProjection(DB.matchLog, teamId, venue, oppTeamId, oppVenue, key, leagueAvg[key], DB.calendar);
       return `<tr>
         <td class="metricname">${label2}</td>
         <td class="num">${p.ownAvgA != null ? p.ownAvgA.toFixed(1) : '—'} <span class="subtle">(N=${p.nA})</span></td>
