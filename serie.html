@@ -473,6 +473,10 @@
         <option value="180" selected>almeno 180 minuti</option>
         <option value="270">almeno 270 minuti</option>
       </select>
+      <select id="dritScopeSquadra">
+        <option value="ATTUALE">Solo squadra attuale</option>
+        <option value="TUTTE">Tutta la stagione (ogni squadra)</option>
+      </select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
       <div>
@@ -728,13 +732,15 @@ function renderTopRanks(home, away){
 function renderCardDrought(home, away){
   if (!DB) return;
   const minMin = Number(document.getElementById('dritMinMin').value);
+  const scopeSquadra = document.getElementById('dritScopeSquadra').value !== 'TUTTE'; // default: squadra attuale
   const probTable = computeFoulCardProbabilityTable(DB.matchLog);
 
   function block(teamList, targetId){
     const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && teamList.includes(p.Team_ID_Rif));
     const rows = players
       .map(p => {
-        const d = computeCardDrought(DB.matchLog, p.Player_ID);
+        const teamFiltro = scopeSquadra ? p.Team_ID_Rif : null;
+        const d = computeCardDrought(DB.matchLog, p.Player_ID, teamFiltro);
         const avgFalli = d.partite ? d.falli / d.partite : null;
         const prob = estimateCardProbability(avgFalli, probTable);
         return { p, d, prob };
@@ -756,6 +762,11 @@ function renderCardDrought(home, away){
   block(away, 'dritBodyAway');
 }
 document.getElementById('dritMinMin').addEventListener('change', () => {
+  const giornata = Number(document.getElementById('srGiornata').value);
+  const { home, away } = teamsForGiornata(giornata);
+  renderCardDrought(home, away);
+});
+document.getElementById('dritScopeSquadra').addEventListener('change', () => {
   const giornata = Number(document.getElementById('srGiornata').value);
   const { home, away } = teamsForGiornata(giornata);
   renderCardDrought(home, away);

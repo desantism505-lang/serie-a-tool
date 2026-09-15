@@ -616,8 +616,14 @@ function isArbitroNomeValido(nome) {
 // rosso) in poi, su tutta la stagione (non spezzata per casa/trasferta,
 // perché è una striscia continua nel tempo).
 // ---------------------------------------------------------------------------
-function computeCardDrought(matchLog, playerId) {
-  const rows = matchLog.filter((r) => r.Player_ID === playerId).sort((a, b) => a.Player_Seq - b.Player_Seq);
+// teamFiltro: se passato, limita la finestra di ritardo alle sole presenze
+// con quella squadra (stesso principio già applicato a computePlayerStats —
+// un giocatore appena trasferito non deve trascinarsi minuti/falli fatti con
+// la maglia precedente dentro la valutazione per la squadra attuale).
+function computeCardDrought(matchLog, playerId, teamFiltro) {
+  let rows = matchLog.filter((r) => r.Player_ID === playerId);
+  if (teamFiltro) rows = rows.filter((r) => r.Team_ID === teamFiltro);
+  rows = rows.sort((a, b) => a.Player_Seq - b.Player_Seq);
   let lastCardSeq = 0; // 0 = mai ammonito/espulso in stagione -> finestra = tutte le presenze
   for (const r of rows) {
     if ((Number(r.Gialli) || 0) >= 1 || (Number(r.Rossi) || 0) >= 1) lastCardSeq = r.Player_Seq;
