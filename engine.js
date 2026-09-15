@@ -39,8 +39,16 @@ function countGE(rows, col, n) {
 // 'SUBENTRATO' = solo presenze da subentrato. Filtro applicato PRIMA del
 // segmento Venue, quindi combinabile liberamente con TOTALE/HOME/AWAY.
 // ---------------------------------------------------------------------------
-function computePlayerStats(matchLog, playerId, segmento, titolareFiltro) {
+// titolareFiltro: null/undefined = tutte le presenze; 'TITOLARE'/'SUBENTRATO'
+// come sopra. teamFiltro: se passato (un Team_ID), limita le righe a quelle
+// giocate CON QUELLA squadra — serve per i giocatori trasferiti a stagione in
+// corso: senza questo filtro, le partite con il club precedente si
+// mescolerebbero silenziosamente in "Tiri stagione" del club attuale. Se
+// null/undefined, comportamento invariato (tutte le presenze, qualunque
+// squadra) — utile per uno storico complessivo esplicito.
+function computePlayerStats(matchLog, playerId, segmento, titolareFiltro, teamFiltro) {
   let rows = filterRows(matchLog, (r) => r.Player_ID === playerId);
+  if (teamFiltro) rows = rows.filter((r) => r.Team_ID === teamFiltro);
   if (titolareFiltro === 'TITOLARE') rows = rows.filter((r) => r.Titolare === 'Sì');
   if (titolareFiltro === 'SUBENTRATO') rows = rows.filter((r) => r.Titolare === 'No');
   if (segmento !== 'TOTALE') {

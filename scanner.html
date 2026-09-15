@@ -814,8 +814,8 @@ function runScanGiornata(){
     for (const [venue, teamId] of [['HOME', match.Home_ID], ['AWAY', match.Away_ID]]) {
       const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
       for (const player of players) {
-        const pTot = computePlayerStats(DB.matchLog, player.Player_ID, 'TOTALE');
-        const pVenue = computePlayerStats(DB.matchLog, player.Player_ID, venue);
+        const pTot = computePlayerStats(DB.matchLog, player.Player_ID, 'TOTALE', null, teamId);
+        const pVenue = computePlayerStats(DB.matchLog, player.Player_ID, venue, null, teamId);
         if (pVenue.Partite < minN) continue;
         for (const mercato of mercatiScelti) {
           for (const [linea, avgKey, hitKey, cvKey] of MARKET_LINES[mercato]) {
@@ -950,7 +950,7 @@ function addScanToScreener(i){
     giocatore: r.player.Nome_completo,
     mercato: r.mercato, linea: r.linea, venue: r.venue,
     mediaStag: r.mediaStag, mediaVenue: r.mediaVenue,
-    mediaL3: computePlayerStats(DB.matchLog, r.player.Player_ID, 'TOTALE')['L3_' + r.avgKey],
+    mediaL3: computePlayerStats(DB.matchLog, r.player.Player_ID, 'TOTALE', null, r.player.Team_ID_Rif)['L3_' + r.avgKey],
     cv: r.cv,
     hitStag: r.hitStag, hitVenue: r.hitVenue, nVenue: r.nVenue,
     esito: null, quota,
@@ -1027,8 +1027,8 @@ document.getElementById('scrAdd').addEventListener('click', () => {
   // Vincolo verificato: il venue del giocatore viene SEMPRE dalla partita
   // selezionata (chi è Home_ID / Away_ID in quel match), mai un default.
   const venue = player.Team_ID_Rif === match.Home_ID ? 'HOME' : 'AWAY';
-  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE');
-  const pVenue = computePlayerStats(DB.matchLog, playerId, venue);
+  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE', null, player.Team_ID_Rif);
+  const pVenue = computePlayerStats(DB.matchLog, playerId, venue, null, player.Team_ID_Rif);
   const pL3 = pTot; // le finestre L3/L5/L10 vivono già dentro pTot (calcolate su tutta la stagione)
 
   screenerRows.push({

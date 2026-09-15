@@ -446,6 +446,13 @@
       <option value="SUBENTRATO">Solo subentrato</option>
     </select>
   </div>
+  <div class="ctrl">
+    <label>Storico giocatore</label>
+    <select id="selScopeSquadra">
+      <option value="ATTUALE">Solo squadra attuale</option>
+      <option value="TUTTE">Tutta la stagione (ogni squadra)</option>
+    </select>
+  </div>
   <div class="ctrl" style="flex:0 0 auto;display:flex;align-items:center;gap:8px;">
     <input type="checkbox" id="chkProvisional" style="width:16px;height:16px;" />
     <label for="chkProvisional" style="margin:0;cursor:pointer;">rank provvisorio</label>
@@ -598,6 +605,7 @@ function populatePlayers(){
 }
 document.getElementById('chkProvisional').addEventListener('change', () => { if (DB) render(); });
 document.getElementById('selTitolare').addEventListener('change', () => { if (DB) render(); });
+document.getElementById('selScopeSquadra').addEventListener('change', () => { if (DB) render(); });
 
 // ---------------------------------------------------------------------------
 // Render pannelli
@@ -627,10 +635,17 @@ function render(){
   const oppVenue = playerVenue === 'HOME' ? 'AWAY' : 'HOME';
 
   const titolareFiltro = document.getElementById('selTitolare').value || null;
-  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE', titolareFiltro);
-  const pHome = computePlayerStats(DB.matchLog, playerId, 'HOME', titolareFiltro);
-  const pAway = computePlayerStats(DB.matchLog, playerId, 'AWAY', titolareFiltro);
+  const scopeSquadra = document.getElementById('selScopeSquadra').value !== 'TUTTE'; // default: squadra attuale
+  const teamFiltro = scopeSquadra ? player.Team_ID_Rif : null;
+  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE', titolareFiltro, teamFiltro);
+  const pHome = computePlayerStats(DB.matchLog, playerId, 'HOME', titolareFiltro, teamFiltro);
+  const pAway = computePlayerStats(DB.matchLog, playerId, 'AWAY', titolareFiltro, teamFiltro);
   const pVenue = playerVenue === 'HOME' ? pHome : pAway;
+  // Per confronto: quante presenze avrebbe "tutta la stagione" (qualunque
+  // squadra) — se diverso da pTot.Partite, il giocatore ha cambiato squadra
+  // e vale la pena mostrarlo esplicitamente.
+  const pTotOgniSquadra = computePlayerStats(DB.matchLog, playerId, 'TOTALE', titolareFiltro, null);
+  const haCambiatoSquadra = pTotOgniSquadra.Partite !== pTot.Partite;
 
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
   function teamRankTable(metricCol, minSample){
@@ -706,7 +721,7 @@ function render(){
     <div class="grid" style="margin-top:28px;">
 
       <div class="panel">
-        <h2><span class="info-title" title="Quanto fa in media il giocatore selezionato: tiri, tiri in porta, falli, cartellini — sulla stagione intera, nel venue di questa partita (casa o trasferta) e nelle ultime gare (L10/L5/L3). Esempio: 'Tiri stagione 2.1, HOME 3.4' significa che tira di più quando gioca in casa.">Player</span> <span class="tag">stagione ${pTot.Partite} presenze${titolareFiltro ? ' · solo ' + (titolareFiltro === 'TITOLARE' ? 'titolare' : 'subentrato') : ''}</span></h2>
+        <h2><span class="info-title" title="Quanto fa in media il giocatore selezionato: tiri, tiri in porta, falli, cartellini — sulla stagione intera, nel venue di questa partita (casa o trasferta) e nelle ultime gare (L10/L5/L3). Esempio: 'Tiri stagione 2.1, HOME 3.4' significa che tira di più quando gioca in casa.">Player</span> <span class="tag">${scopeSquadra ? 'con ' + player.Squadra_Rif : 'tutte le squadre'}: ${pTot.Partite} presenze${titolareFiltro ? ' · solo ' + (titolareFiltro === 'TITOLARE' ? 'titolare' : 'subentrato') : ''}</span>${haCambiatoSquadra ? `<span class="tag" style="color:var(--muted);" title="Questo giocatore ha giocato anche con un'altra squadra in stagione. Con 'Tutta la stagione' vedresti ${pTotOgniSquadra.Partite} presenze totali invece di ${pTot.Partite}.">⚠ ha cambiato squadra in stagione</span>` : ''}</h2>
         <div class="body">
           <table class="stat">
             <tr><th>Metrica</th><th class="num">Stagione /90</th><th class="num">${playerVenue} /90</th><th class="num">L10 /90</th><th class="num">L5 /90</th><th class="num">L3 /90</th></tr>
@@ -816,7 +831,11 @@ const PLAYER_METRICS = [
 let _pCache = {};
 function getPStats(playerId, segmento){
   const k = playerId + '|' + segmento;
-  if (!(k in _pCache)) _pCache[k] = computePlayerStats(DB.matchLog, playerId, segmento);
+  if (!(k in _pCache)) {
+    const p = DB.rosters.find(r => r.Player_ID === playerId);
+    const teamFiltro = p ? p.Team_ID_Rif : null;
+    _pCache[k] = computePlayerStats(DB.matchLog, playerId, segmento, null, teamFiltro);
+  }
   return _pCache[k];
 }
 
@@ -1306,7 +1325,7 @@ function renderMatchOverview(match){
     }
 
     return players.map(p => {
-      const pv = computePlayerStats(DB.matchLog, p.Player_ID, venue);
+      const pv = computePlayerStats(DB.matchLog, p.Player_ID, venue, null, teamId);
       const rank = roleRankFor(p.Posizione_Analitica)[oppTeamId];
       return { p, pv, rank };
     });

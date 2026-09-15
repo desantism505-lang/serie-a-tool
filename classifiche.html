@@ -565,7 +565,7 @@ function topPlayers(segmento, totKey, k90Key, n){
   const out = [];
   for (const p of DB.rosters) {
     if (p.Attivo_SerieA !== 'SI') continue;
-    const s = computePlayerStats(DB.matchLog, p.Player_ID, segmento);
+    const s = computePlayerStats(DB.matchLog, p.Player_ID, segmento, null, p.Team_ID_Rif);
     if (s.Partite === 0) continue;
     if (segmento === 'TOTALE' && s.Minuti < BASELINE_THRESHOLDS.minMinutiStagione) continue;
     if (segmento !== 'TOTALE' && s.Partite < BASELINE_THRESHOLDS.minNVenue) continue;
