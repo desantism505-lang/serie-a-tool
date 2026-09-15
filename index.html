@@ -778,6 +778,7 @@ function render(){
 
     </div>
 
+    ${renderRoleVulnerabilityPanel(match)}
     ${renderMatchOverview(match)}
   `;
 }
@@ -1052,6 +1053,20 @@ function getLeagueMetricList(venue, col90key){
   _leagueMetricCache[k] = list;
   return list;
 }
+
+// Rank di UN giocatore contro tutta la lega (qualunque ruolo) su una metrica,
+// nel venue richiesto — usato sia dai Fatti salienti "assoluti" sia dalla
+// tabella "Confronto partita" (Player), stesso identico calcolo in entrambi
+// i posti, mai duplicato.
+function computeAbsoluteRank(playerId, venue, col90key){
+  const list = getLeagueMetricList(venue, col90key);
+  const eligible = list.length;
+  const me = list.find(x => x.key === playerId);
+  if (!me) return { rank: null, eligible };
+  const higher = list.filter(x => x.value > me.value).length;
+  return { rank: 1 + higher, eligible };
+}
+
 function computePlayerAbsoluteFacts(teamId, venue, venueLabel){
   const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
   const facts = [];
@@ -1423,13 +1438,83 @@ function renderNotableFactsPanel(match){
     </div>`;
 }
 
+// ---------------------------------------------------------------------------
+// PANNELLO "Rank ruolo — vulnerabilità avversario": una riga per ciascuno
+// degli 8 ruoli analitici, con il rank dell'avversario (tra le 20 squadre)
+// per ogni metrica di concessione a quel ruolo. Non contiene statistiche di
+// singoli giocatori — è puramente "quanto è debole l'avversario a questo
+// ruolo", separato di proposito dal pannello con i giocatori (vedi sotto).
+// ---------------------------------------------------------------------------
+const ROLE_VULN_METRICS = [
+  ['Tiri_Concessi_90', 'Tiri conc.', 'Tiri concessi al ruolo dall\'avversario, per partita — quanti tiri fanno in media i giocatori di questo ruolo contro di lui.'],
+  ['SOT_Concessi_90', 'SOT conc.', 'Tiri in porta concessi al ruolo dall\'avversario, per partita.'],
+  ['Falli_Contro_Ruolo_90', 'Falli commessi dal ruolo', 'Falli che il ruolo COMMETTE contro l\'avversario, per partita — aggressività del ruolo quando affronta questo avversario.'],
+  ['FalliSubiti_Ruolo_90', 'Falli subiti dal ruolo', 'Falli che il ruolo SUBISCE dall\'avversario, per partita — il contrario del precedente: quanto l\'avversario falla su questo ruolo.'],
+  ['Cartellini_Ruolo_90', 'Cartellini al ruolo', 'Cartellini (gialli+rossi) ricevuti dal ruolo quando affronta questo avversario, per partita.'],
+];
+
+function computeRoleVulnerabilityTable(oppTeamId, oppVenue){
+  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
+  const minSample = oppVenue === 'TOTALE' ? 3 : 2;
+  const tsByTeam = {};
+  for (const t of teamsAll) tsByTeam[t] = computeTeamStats(DB.matchLog, t, oppVenue);
+  return ALL_ROLES.map(ruolo => {
+    const row = { ruolo };
+    for (const [key] of ROLE_VULN_METRICS) {
+      const list = teamsAll.map(t => {
+        const rc = computeRoleConcessions(DB.matchLog, t, oppVenue, ruolo, tsByTeam[t].Partite);
+        return { key: t, value: rc[key], partite: tsByTeam[t].Partite };
+      });
+      const { rank, eligible } = rankProvisional(list, minSample)[oppTeamId];
+      const me = list.find(x => x.key === oppTeamId);
+      row[key] = { rank, eligible, value: me ? me.value : null };
+    }
+    return row;
+  });
+}
+
+function renderRoleVulnTable(oppTeamId, oppVenue, oppLabel){
+  const rows = computeRoleVulnerabilityTable(oppTeamId, oppVenue);
+  const head = ROLE_VULN_METRICS.map(([key, label, title]) => `<th class="num" title="${title}">${label}</th>`).join('');
+  const body = rows.map(r => {
+    const cells = ROLE_VULN_METRICS.map(([key]) => {
+      const c = r[key];
+      if (c.rank === 'N/D' || c.rank == null) return `<td class="num rank nd">N/D</td>`;
+      return `<td class="num ${rankColorClass(c.rank)}">${fmt(c.value)} <span class="subtle">(${c.rank}°/${c.eligible})</span></td>`;
+    }).join('');
+    return `<tr><td class="metricname">${r.ruolo}</td>${cells}</tr>`;
+  }).join('');
+  return `
+    <table class="stat" style="margin-top:8px;">
+      <thead><tr><th>Ruolo</th>${head}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
+function renderRoleVulnerabilityPanel(match){
+  return `
+    <div class="panel section-gap">
+      <h2>Rank ruolo <span class="tag" style="flex:1;">quanto ogni avversario concede a ciascun ruolo — solo squadre, nessun giocatore specifico</span></h2>
+      <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;overflow-x:auto;">
+        <div>
+          <div style="font-weight:600;margin-bottom:4px;"><span style="color:var(--accent);">${match.Away}</span> <span class="subtle">— avversario di chi gioca in casa, nel suo venue trasferta</span></div>
+          ${renderRoleVulnTable(match.Away_ID, 'AWAY', match.Away)}
+        </div>
+        <div>
+          <div style="font-weight:600;margin-bottom:4px;"><span style="color:var(--accent);">${match.Home}</span> <span class="subtle">— avversario di chi gioca in trasferta, nel suo venue casa</span></div>
+          ${renderRoleVulnTable(match.Home_ID, 'HOME', match.Home)}
+        </div>
+      </div>
+    </div>`;
+}
+
 // Stato dei "Rank ruolo" (Confronto partita): righe calcolate, ordinamento e
 // stato aperto/chiuso per lato (Casa/Trasferta), indipendenti tra loro e
 // persistenti finché non cambi partita — così un click su una colonna o sul
 // pulsante minimizza non ricalcola né richiude tutto il resto della pagina.
 const moState = {
-  home: { rows: [], sort: { key: null, dir: 1 }, collapsed: false },
-  away: { rows: [], sort: { key: null, dir: 1 }, collapsed: false },
+  home: { rows: [], sort: { key: null, dir: 1 }, collapsed: false, checked: new Set() },
+  away: { rows: [], sort: { key: null, dir: 1 }, collapsed: false, checked: new Set() },
 };
 const MO_ACCESSORS = {
   giocatore: r => r.p.Nome_completo,
@@ -1440,46 +1525,38 @@ const MO_ACCESSORS = {
   fc: r => r.pv.FC_90 ?? -1,
   fd: r => r.pv.FD_90 ?? -1,
   cart: r => r.pv.Cartellini_90 ?? -1,
-  rank: r => r.rank === 'N/D' ? Infinity : r.rank,
 };
 const MO_COLUMNS = [
   ['giocatore', 'Giocatore', ''], ['ruolo', 'Ruolo', ''], ['min', 'Min. medi', 'num'],
   ['tiri', 'Tiri/90', 'num'], ['sot', 'SOT/90', 'num'], ['fc', 'FC/90', 'num'],
-  ['fd', 'FD/90', 'num'], ['cart', 'Cart/90', 'num'], ['rank', 'Rank ruolo (Tiri conc.)', 'num'],
+  ['fd', 'FD/90', 'num'], ['cart', 'Cart/90', 'num'],
 ];
+const MO_STAT_KEYS = ['tiri', 'sot', 'fc', 'fd', 'cart'];
+const MO_STAT_LABELS = { tiri: 'Tiri/90', sot: 'SOT/90', fc: 'FC/90', fd: 'FD/90', cart: 'Cart/90' };
+const MO_STAT_TO_PV = { tiri: 'Tiri_90', sot: 'SOT_90', fc: 'FC_90', fd: 'FD_90', cart: 'Cartellini_90' };
 
 function renderMatchOverview(match){
-  function buildSide(teamId, venue, oppTeamId, oppVenue){
+  function buildSide(teamId, venue){
     const players = DB.rosters
       .filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId)
       .sort((a,b) => a.Posizione_Analitica.localeCompare(b.Posizione_Analitica) || a.Nome_completo.localeCompare(b.Nome_completo));
 
-    const roleCache = {};
-    function roleRankFor(ruolo){
-      if (roleCache[ruolo]) return roleCache[ruolo];
-      const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
-      const list = teamsAll.map(t => {
-        const ts = computeTeamStats(DB.matchLog, t, oppVenue);
-        const rc = computeRoleConcessions(DB.matchLog, t, oppVenue, ruolo, ts.Partite);
-        return { key: t, value: rc.Tiri_Concessi_90, partite: ts.Partite };
-      });
-      const minSample = oppVenue === 'TOTALE' ? 3 : 2;
-      const ranks = rankDesc(list, minSample);
-      roleCache[ruolo] = ranks;
-      return ranks;
-    }
-
     return players.map(p => {
       const pv = computePlayerStats(DB.matchLog, p.Player_ID, venue, null, teamId);
-      const rank = roleRankFor(p.Posizione_Analitica)[oppTeamId];
-      return { p, pv, rank };
+      const ranks = {};
+      for (const [statKey, pvKey] of Object.entries(MO_STAT_TO_PV)) {
+        ranks[statKey] = computeAbsoluteRank(p.Player_ID, venue, pvKey);
+      }
+      return { p, pv, ranks };
     });
   }
 
-  moState.home.rows = buildSide(match.Home_ID, 'HOME', match.Away_ID, 'AWAY');
-  moState.away.rows = buildSide(match.Away_ID, 'AWAY', match.Home_ID, 'HOME');
+  moState.home.rows = buildSide(match.Home_ID, 'HOME');
+  moState.away.rows = buildSide(match.Away_ID, 'AWAY');
   moState.home.sort = { key: 'tiri', dir: -1 };
   moState.away.sort = { key: 'tiri', dir: -1 };
+  moState.home.checked = new Set();
+  moState.away.checked = new Set();
 
   return `<div id="moContainer">${renderSidePanel('home', match.Home, 'Casa')}${renderSidePanel('away', match.Away, 'Trasferta')}</div>`;
 }
@@ -1489,14 +1566,18 @@ function renderSidePanel(side, teamName, label){
   const bodyHtml = renderSideRowsHtml(side);
   return `
       <div class="panel section-gap">
-        <h2>${teamName} — ${label} <span class="tag" style="flex:1;">rank ruolo = quanto l'avversario concede al ruolo di quel giocatore, per Tiri</span>
+        <h2>${teamName} — ${label} <span class="tag" style="flex:1;">statistiche personali dei giocatori, con il rank di ciascuno rispetto a TUTTA la lega (non solo il suo ruolo)</span>
           <button class="panel-collapse-btn" onclick="toggleMoSide('${side}')" id="moBtn-${side}">${st.collapsed ? 'espandi ▸' : 'minimizza ▾'}</button>
         </h2>
         <div class="body" style="overflow-x:auto;${st.collapsed ? 'display:none;' : ''}" id="moBody-${side}">
           <table class="stat">
-            <thead><tr id="moHead-${side}">${MO_COLUMNS.map(([key,label2,cls]) => `<th class="sortable ${cls}" data-key="${key}" onclick="sortMoSide('${side}','${key}')">${label2}<span class="arrow">${st.sort.key===key ? (st.sort.dir===1?'▲':'▼') : ''}</span></th>`).join('')}</tr></thead>
+            <thead><tr id="moHead-${side}">
+              <th title="Spunta i titolari previsti per sommare le loro statistiche qui sotto — non salvato, si azzera cambiando partita">Tit.?</th>
+              ${MO_COLUMNS.map(([key,label2,cls]) => `<th class="sortable ${cls}" data-key="${key}" onclick="sortMoSide('${side}','${key}')">${label2}<span class="arrow">${st.sort.key===key ? (st.sort.dir===1?'▲':'▼') : ''}</span></th>`).join('')}
+            </tr></thead>
             <tbody id="moTbody-${side}">${bodyHtml}</tbody>
           </table>
+          <div class="subtle" id="moSummary-${side}" style="margin-top:8px;">${renderMoSummaryHtml(side)}</div>
         </div>
       </div>`;
 }
@@ -1519,17 +1600,37 @@ function renderSideRowsHtml(side){
       return 0;
     });
   }
+  const fmtCell = (pv, r) => (r.rank == null ? fmt(pv) : `${fmt(pv)} <span class="subtle">(${r.rank}°/${r.eligible})</span>`);
   return rows.map(r => `<tr>
+              <td class="num"><input type="checkbox" ${st.checked.has(r.p.Player_ID) ? 'checked' : ''} onchange="toggleMoCheck('${side}','${r.p.Player_ID}')" /></td>
               <td class="metricname">${r.p.Nome_completo}</td>
               <td>${r.p.Posizione_Analitica}</td>
               <td class="num">${fmt(r.pv.Minuti_Medi,0)}</td>
-              <td class="num">${fmt(r.pv.Tiri_90)}</td>
-              <td class="num">${fmt(r.pv.SOT_90)}</td>
-              <td class="num">${fmt(r.pv.FC_90)}</td>
-              <td class="num">${fmt(r.pv.FD_90)}</td>
-              <td class="num">${fmt(r.pv.Cartellini_90)}</td>
-              <td class="num ${rankColorClass(r.rank)}">${r.rank}</td>
+              <td class="num">${fmtCell(r.pv.Tiri_90, r.ranks.tiri)}</td>
+              <td class="num">${fmtCell(r.pv.SOT_90, r.ranks.sot)}</td>
+              <td class="num">${fmtCell(r.pv.FC_90, r.ranks.fc)}</td>
+              <td class="num">${fmtCell(r.pv.FD_90, r.ranks.fd)}</td>
+              <td class="num">${fmtCell(r.pv.Cartellini_90, r.ranks.cart)}</td>
             </tr>`).join('');
+}
+
+function renderMoSummaryHtml(side){
+  const st = moState[side];
+  const checkedRows = st.rows.filter(r => st.checked.has(r.p.Player_ID));
+  if (!checkedRows.length) return 'Nessun titolare spuntato — spunta i giocatori per vedere qui la somma delle loro statistiche.';
+  const sums = MO_STAT_KEYS.map(k => {
+    const pvKey = MO_STAT_TO_PV[k];
+    const tot = checkedRows.reduce((a, r) => a + (r.pv[pvKey] || 0), 0);
+    return `${MO_STAT_LABELS[k]}: <strong>${tot.toFixed(2)}</strong>`;
+  }).join(' · ');
+  return `Somma su ${checkedRows.length} titolari spuntati — ${sums}`;
+}
+
+function toggleMoCheck(side, playerId){
+  const st = moState[side];
+  if (st.checked.has(playerId)) st.checked.delete(playerId);
+  else st.checked.add(playerId);
+  document.getElementById('moSummary-' + side).innerHTML = renderMoSummaryHtml(side);
 }
 
 function toggleMoSide(side){

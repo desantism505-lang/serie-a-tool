@@ -247,7 +247,15 @@ function rankProvisional(list, minSample) {
 // ---------------------------------------------------------------------------
 // ROLE_CONCESSIONS — squadra x segmento x ruolo: cosa concede quella squadra
 // ai giocatori che occupano un certo ruolo tattico (venue invertita, come le
-// colonne "Subiti" di TEAM_STATS).
+// colonne "Subiti" di TEAM_STATS). Le righe filtrate sono quelle DEGLI
+// AVVERSARI di quel ruolo, quindi:
+// - Falli_Contro_Ruolo_90 = falli che il ruolo COMMETTE contro questa squadra
+//   (colonna Falli_commessi sulle loro righe — aggressività del ruolo)
+// - FalliSubiti_Ruolo_90 = falli che il ruolo SUBISCE da questa squadra
+//   (colonna Falli_subiti sulle loro righe — quanto la squadra fallisce su
+//   quel ruolo, il concetto opposto al precedente)
+// - Cartellini_Ruolo_90 = cartellini (gialli+rossi) ricevuti dal ruolo
+//   quando affronta questa squadra
 // ---------------------------------------------------------------------------
 function computeRoleConcessions(matchLog, team, segmento, ruolo, teamPartite) {
   let rows = filterRows(matchLog, (r) => r.Opp_ID === team && r.Posizione_Analitica === ruolo);
@@ -265,6 +273,8 @@ function computeRoleConcessions(matchLog, team, segmento, ruolo, teamPartite) {
     Tiri_Concessi_90: per90('Tiri'),
     SOT_Concessi_90: per90('Tiri_in_porta'),
     Falli_Contro_Ruolo_90: per90('Falli_commessi'),
+    FalliSubiti_Ruolo_90: per90('Falli_subiti'),
+    Cartellini_Ruolo_90: teamPartite ? (sum(rows, 'Gialli') + sum(rows, 'Rossi')) / teamPartite : null,
   };
 }
 
