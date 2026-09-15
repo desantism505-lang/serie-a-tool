@@ -488,7 +488,7 @@
       </div>
 
       <div style="overflow-x:auto;">
-      <table class="stat" id="scnTable" style="margin-top:14px;min-width:1050px;">
+      <table class="stat" id="scnTable" style="margin-top:14px;min-width:1250px;">
         <thead>
           <tr>
             <th class="sortable" data-key="giocatore" title="Nome del giocatore e squadra">Giocatore<span class="arrow"></span></th>
@@ -496,12 +496,14 @@
             <th class="sortable" data-key="mercato" title="La statistica su cui si basa la linea (tiri, tiri in porta, falli, cartellini)">Mercato<span class="arrow"></span></th>
             <th class="num sortable" data-key="linea" title="La soglia Over da valutare (es. Over 1.5 = almeno 2)">Linea<span class="arrow"></span></th>
             <th class="num sortable" data-key="mediaVenue" title="Media a partita in quel venue (casa o trasferta), nelle partite reali giocate lì">Media venue /90 (N)<span class="arrow"></span></th>
+            <th class="num sortable" data-key="mediaL3" title="Media nelle ultime 3 presenze giocate, qualunque venue — utile per vedere se il giocatore sta salendo o scendendo rispetto alla media stagionale">Media L3/90<span class="arrow"></span></th>
             <th class="sortable" data-key="cv" title="Coefficiente di variazione: quanto oscilla la prestazione partita per partita. Sotto 0.5 = giocatore regolare, sopra 1 = molto incostante, anche con la stessa media">Consistenza<span class="arrow"></span></th>
             <th class="num sortable" data-key="hitVenue" title="Quante volte, storicamente, in quel venue ha superato questa esatta linea. ± indica l'incertezza (intervallo di Wilson) dato il campione">Hit venue<span class="arrow"></span></th>
             <th class="num sortable" data-key="hitStag" title="Come sopra ma su tutta la stagione, senza distinguere casa/trasferta">Hit stag.<span class="arrow"></span></th>
             <th class="num" title="Scrivi qui la quota decimale del bookmaker per questa esatta giocata">Quota</th>
             <th class="num sortable" data-key="prob" title="Probabilità implicita nella quota = 1 / quota">Prob. impl.<span class="arrow"></span></th>
             <th class="num sortable" data-key="edge" title="Hit rate venue meno probabilità implicita. Positivo = il book paga più di quanto i tuoi dati suggeriscano probabile">Edge<span class="arrow"></span></th>
+            <th class="num sortable" data-key="ev" title="Valore atteso per 1€ puntato, usando l'hit rate venue come probabilità reale: (hit rate × quota) − 1. Positivo = scommessa a valore nel lungo periodo">EV /1€<span class="arrow"></span></th>
             <th></th>
           </tr>
         </thead>
@@ -830,6 +832,7 @@ function runScanGiornata(){
               player, match, venue, mercato, linea, avgKey, hitKey, cvKey,
               hitVenue: hitV, hitStag: pTot[hitKey],
               mediaVenue: mediaV, mediaStag: pTot[avgKey],
+              mediaL3: pTot['L3_' + avgKey],
               cv: pVenue[cvKey],
               nVenue: pVenue.Partite,
             });
@@ -859,7 +862,8 @@ function derived(r){
   const quota = scanQuotes[key] ?? null;
   const prob = quota ? 1 / quota : null;
   const edge = (prob != null && r.hitVenue != null) ? r.hitVenue - prob : null;
-  return { quota, prob, edge };
+  const ev = (quota && r.hitVenue != null) ? (r.hitVenue * quota - 1) : null;
+  return { quota, prob, edge, ev };
 }
 
 const SORT_ACCESSORS = {
@@ -867,11 +871,13 @@ const SORT_ACCESSORS = {
   mercato: r => MARKET_LABELS[r.mercato],
   linea: r => r.linea,
   mediaVenue: r => r.mediaVenue ?? -Infinity,
+  mediaL3: r => r.mediaL3 ?? -Infinity,
   cv: r => r.cv ?? Infinity, // incostante in fondo quando si ordina "meno instabile prima"
   hitVenue: r => r.hitVenue ?? -Infinity,
   hitStag: r => r.hitStag ?? -Infinity,
   prob: r => derived(r).prob ?? -Infinity,
   edge: r => derived(r).edge ?? -Infinity,
+  ev: r => derived(r).ev ?? -Infinity,
 };
 
 function applySortAndRender(){
@@ -919,7 +925,7 @@ function renderScan(){
   }
   empty.style.display = 'none';
   body.innerHTML = scanResults.map((r, i) => {
-    const { quota, prob, edge } = derived(r);
+    const { quota, prob, edge, ev } = derived(r);
     const [lo, hi] = wilsonInterval(r.hitVenue, r.nVenue);
     const ciTxt = (lo != null) ? `<span class="subtle">±${Math.round((hi - lo) / 2 * 100)}pp</span>` : '';
     const lowN = r.nVenue < 5;
@@ -929,12 +935,14 @@ function renderScan(){
     <td>${MARKET_LABELS[r.mercato]}</td>
     <td class="num">${fmt(r.linea,1)}</td>
     <td class="num">${fmt(r.mediaVenue)} <span class="subtle">(N=${r.nVenue})</span></td>
+    <td class="num">${fmt(r.mediaL3)}</td>
     <td>${cvBadge(r.cv)}</td>
     <td class="num">${hitChip(r.hitVenue)} ${ciTxt}</td>
     <td class="num">${pctColored(r.hitStag)}</td>
     <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${quota ?? ''}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" /></td>
     <td class="num">${prob != null ? pct(prob) : '—'}</td>
     <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
+    <td class="num ${ev != null && ev > 0 ? 'verdict-fav' : (ev != null ? 'verdict-nofav' : '')}">${ev != null ? (ev>0?'+':'') + ev.toFixed(2)+'€' : '—'}</td>
     <td><button class="rowdel" style="color:var(--accent);" onclick="addScanToScreener(${i})">+ traccia</button></td>
   </tr>`;
   }).join('');

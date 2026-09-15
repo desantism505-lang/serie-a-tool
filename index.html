@@ -854,6 +854,35 @@ const MAX_TIE_FOR_FACT = 2;
 // giusta invece di lasciare solo un numero di rank da interpretare.
 function isTopEnd(rank, eligible){ return rank <= (eligible - rank + 1); }
 
+// Icona per tipo di statistica — coerente in tutte le categorie di fatto,
+// così lo stesso simbolo significa sempre la stessa cosa in ogni pannello.
+function metricIcon(label){
+  const l = (label || '').toLowerCase();
+  if (l.includes('tiri in porta')) return '🎯';
+  if (l.includes('tiri')) return '⚽';
+  if (l.includes('falli')) return '🥾';
+  if (l.includes('cartellin')) return '🟨';
+  if (l.includes('corner')) return '🚩';
+  return '🔥'; // fatti "Serie" (striscia sul risultato), nessuna singola metrica
+}
+
+// Colore della stella in base alla posizione: 1° = lime (il massimo estremo
+// nella direzione descritta dal testo), ultimo = rosso, 2° = azzurro,
+// penultimo = arancio. Chiunque sia in mezzo non ha stella — non è abbastanza
+// estremo da meritare un colore, anche se è comunque un "fatto" mostrato.
+function rankStarColor(rank, eligible){
+  if (rank === 1) return 'var(--accent)';
+  if (rank === eligible) return 'var(--bad)';
+  if (rank === 2) return '#5BA8E8';
+  if (rank === eligible - 1) return 'var(--warn)';
+  return null;
+}
+function factBadge(rank, eligible, label){
+  const color = rankStarColor(rank, eligible);
+  const star = color ? `<span style="color:${color};">★</span>` : '<span style="opacity:0;">★</span>';
+  return `${star} ${metricIcon(label)}`;
+}
+
 function computeTeamFacts(teamId, venue, venueLabel){
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
   const minSample = venue === 'TOTALE' ? 3 : 2;
@@ -866,6 +895,7 @@ function computeTeamFacts(teamId, venue, venueLabel){
     ['tiri in porta concessi', 'SOT_Subiti_90'],
     ['falli commessi', 'Falli_Fatti_90'],
     ['falli subiti', 'FalliSubiti_Fatti_90'],
+    ['cartellini', 'Cartellini_90'],
   ];
   for (const [label, col] of teamMetrics) {
     const list = teamsAll.map(t => {
@@ -876,7 +906,33 @@ function computeTeamFacts(teamId, venue, venueLabel){
     const me = list.find(x => x.key === teamId);
     if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
       const top = isTopEnd(rank, eligible);
-      facts.push({ tag: 'Squadra', text: `${top ? 'È la squadra con il valore più alto della lega' : 'È la squadra con il valore più basso della lega'} per ${label} ${venueLabel} (${rank}° su ${eligible})`, rank, eligible });
+      facts.push({
+        tag: 'Squadra',
+        icon: metricIcon(label),
+        text: `${top ? 'Ha il valore più alto della lega' : 'Ha il valore più basso della lega'} per ${label} ${venueLabel} — ${rank}° su ${eligible} squadre idonee`,
+        rank, eligible,
+      });
+    }
+  }
+
+  // Corner: dato di CALENDAR (non MATCH_LOG), stessa fonte usata in Classifiche.
+  const cornerMetrics = [['corner fatti', 'Corner'], ['corner concessi', 'CornerConcessi']];
+  for (const [label, key] of cornerMetrics) {
+    const list = teamsAll.map(t => {
+      const matches = teamCornerMatches(DB.calendar, t, venue);
+      const tot = matches.reduce((a, m) => a + (m[key] || 0), 0);
+      return { key: t, value: matches.length ? tot / matches.length : null, partite: matches.length };
+    });
+    const { rank, eligible } = rankProvisional(list, minSample)[teamId];
+    const me = list.find(x => x.key === teamId);
+    if (rank !== 'N/D' && eligible >= 6 && me.value != null && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
+      const top = isTopEnd(rank, eligible);
+      facts.push({
+        tag: 'Squadra',
+        icon: metricIcon(label),
+        text: `${top ? 'Ha il valore più alto della lega' : 'Ha il valore più basso della lega'} per ${label} ${venueLabel} — ${rank}° su ${eligible} squadre idonee`,
+        rank, eligible,
+      });
     }
   }
 
@@ -896,7 +952,12 @@ function computeTeamFacts(teamId, venue, venueLabel){
       const me = list.find(x => x.key === teamId);
       if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
         const top = isTopEnd(rank, eligible);
-        facts.push({ tag: 'Squadra', text: `${top ? 'Concede più di chiunque altro' : 'Concede meno di chiunque altro'} ${label} ${ROLE_PLURAL_PHRASE[role]}, ${venueLabel} (${rank}° su ${eligible})`, rank, eligible });
+        facts.push({
+          tag: 'Squadra',
+          icon: metricIcon(label),
+          text: `${top ? `Concede più ${label} della lega` : `Concede meno ${label} della lega`} ${ROLE_PLURAL_PHRASE[role]} avversari, ${venueLabel} — ${rank}° su ${eligible} squadre idonee`,
+          rank, eligible,
+        });
       }
     }
   }
@@ -961,10 +1022,58 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
         const top = isTopEnd(rank, eligible);
         facts.push({
           tag: 'Giocatore vs avversario',
-          text: `${oppName} ${top ? 'concede più' : 'concede meno'} ${label} di chiunque altro ${ROLE_PLURAL_PHRASE[role]} quando gioca ${oppVenueWord} (${rank}° su ${eligible}). Stasera affronta proprio ${ROLE_ARTICLE_SINGULAR[role]}: ${sameRole.join(', ')}.`,
+          icon: metricIcon(label),
+          text: `${oppName} ${top ? `concede più ${label} della lega` : `concede meno ${label} della lega`} ${ROLE_PLURAL_PHRASE[role]} quando gioca ${oppVenueWord} — ${rank}° su ${eligible} squadre idonee. Stasera affronta proprio ${ROLE_ARTICLE_SINGULAR[role]}: ${sameRole.join(', ')}.`,
           rank, eligible,
         });
       }
+    }
+  }
+  return facts;
+}
+
+// Fatti giocatore, tipo (c): il giocatore è tra i primi 3 o ultimi 3 di TUTTA
+// la lega su una metrica — a differenza di computePlayerStandoutFacts, qui il
+// confronto è con OGNI giocatore attivo (qualunque ruolo), non solo i suoi
+// pari ruolo. È lo stesso identico ranking che vedresti in Classifiche, solo
+// filtrato al venue reale della partita (mai TOTALE) e ristretto a top3/bottom3.
+let _leagueMetricCache = {};
+function getLeagueMetricList(venue, col90key){
+  const k = venue + '|' + col90key;
+  if (_leagueMetricCache[k]) return _leagueMetricCache[k];
+  const list = [];
+  for (const p of DB.rosters) {
+    if (p.Attivo_SerieA !== 'SI') continue;
+    const s = getPStats(p.Player_ID, venue); // già scoperta sulla squadra attuale del giocatore
+    if (s.Partite < BASELINE_THRESHOLDS.minNVenue) continue;
+    if (s[col90key] == null) continue;
+    list.push({ key: p.Player_ID, value: s[col90key], partite: s.Partite });
+  }
+  _leagueMetricCache[k] = list;
+  return list;
+}
+function computePlayerAbsoluteFacts(teamId, venue, venueLabel){
+  const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
+  const facts = [];
+  for (const player of players) {
+    for (const [col, label] of PLAYER_METRICS) {
+      const list = getLeagueMetricList(venue, col);
+      const eligible = list.length;
+      if (eligible < 6) continue;
+      const me = list.find(x => x.key === player.Player_ID);
+      if (!me) continue;
+      if (tiedCount(list, 0, me.value) > MAX_TIE_FOR_FACT) continue;
+      const higher = list.filter(x => x.value > me.value).length;
+      const rank = 1 + higher;
+      const extremity = Math.min(rank, eligible + 1 - rank);
+      if (extremity > 3) continue; // solo top3/bottom3 assoluti, come in Classifiche
+      const top = isTopEnd(rank, eligible);
+      facts.push({
+        tag: 'Giocatore (assoluto)',
+        icon: metricIcon(label),
+        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) ${top ? 'è tra i primi 3 di tutta la lega' : 'è tra gli ultimi 3 di tutta la lega'} per ${label}, senza distinzione di ruolo — ${rank}° su ${eligible} giocatori idonei`,
+        rank, eligible,
+      });
     }
   }
   return facts;
@@ -986,7 +1095,8 @@ function computePlayerStandoutFacts(teamId, venue, venueLabel){
       const top = isTopEnd(res.rank, res.eligible);
       facts.push({
         tag: 'Giocatore',
-        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) ${top ? 'è tra i più prolifici' : 'è tra i meno prolifici'} della lega per ${label} nel suo ruolo (${res.rank}° su ${res.eligible})`,
+        icon: metricIcon(label),
+        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) ${top ? 'è tra i più prolifici della lega' : 'è tra i meno prolifici della lega'} per ${label}, nel confronto con gli altri giocatori dello stesso ruolo — ${res.rank}° su ${res.eligible} ${player.Posizione_Analitica.toLowerCase()} idonei`,
         rank: res.rank, eligible: res.eligible,
       });
     }
@@ -1016,7 +1126,8 @@ function computeDuelFacts(teamId, venue, venueLabel){
     const top = isTopEnd(rank, eligible.length);
     facts.push({
       tag: 'Confronto diretto',
-      text: `${top ? 'Vince quasi sempre' : 'Perde quasi sempre'} il duello sui ${label.toLowerCase()} contro il proprio avversario, ${venueLabel} (${Math.round(me.value*100)}% delle volte, ${rank}° su ${eligible.length})`,
+      icon: metricIcon(label),
+      text: `${top ? 'Vince quasi sempre' : 'Perde quasi sempre'} il confronto diretto sui ${label.toLowerCase()} con l'avversario di turno, ${venueLabel} — successo nel ${Math.round(me.value*100)}% delle partite, ${rank}° su ${eligible.length} squadre idonee`,
       rank, eligible: eligible.length,
     });
   }
@@ -1049,6 +1160,7 @@ function computeStreakFacts(teamId, venue, venueLabel){
     const others = tied.filter(x => x.key !== teamId).map(x => teamNameOf(x.key));
     facts.push({
       tag: 'Serie',
+      icon: '🔥',
       text: `${label.charAt(0).toUpperCase()+label.slice(1)} ${maxVal} partite di fila, ${venueLabel}${others.length ? ` (record condiviso con ${others.join(', ')})` : ' — da sola, nessuna squadra ci arriva vicino'}`,
       rank: 1, eligible: results.length,
     });
@@ -1132,15 +1244,46 @@ function arbitriEffettivi(){
 // numero (stessa convenzione del rank provvisorio). Se non c'è ancora un
 // arbitro in Excel per questa partita, permette di inserirlo a mano (salvato
 // solo su questo dispositivo, finché non aggiorni l'Excel).
+function listaArbitriNoti(){
+  const arbitriEff = arbitriEffettivi();
+  const canonici = new Map();
+  for (const a of arbitriEff) {
+    if (!isArbitroNomeValido(a.Arbitro)) continue;
+    const key = normalizeArbitroKey(a.Arbitro);
+    if (key && !canonici.has(key)) canonici.set(key, titleCaseArbitro(a.Arbitro));
+  }
+  return [...canonici.values()].sort((a, b) => a.localeCompare(b));
+}
+
+function onArbitroSelectChange(matchId){
+  const sel = document.getElementById(`arbSelect-${matchId}`);
+  if (sel.value === '__nuovo__') {
+    document.getElementById(`arbNuovoWrap-${matchId}`).style.display = 'inline';
+    return;
+  }
+  if (sel.value) {
+    saveArbitroOverride(matchId, sel.value);
+    render();
+  }
+}
+
 function renderArbitroSnippet(match){
   const arbitriEff = arbitriEffettivi();
   const riga = arbitriEff.find(a => a.Match_ID === match.Match_ID && isArbitroNomeValido(a.Arbitro));
   if (!riga) {
+    const opzioni = listaArbitriNoti();
     return `
     <div class="subtle" style="margin-bottom:18px;">
       Arbitro non ancora assegnato o non disponibile per questa partita.
-      <input type="text" id="arbInput-${match.Match_ID}" placeholder="Nome arbitro" style="margin-left:8px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:3px 6px;width:160px;" />
-      <button onclick="saveArbitroOverride('${match.Match_ID}', document.getElementById('arbInput-${match.Match_ID}').value); render();" style="margin-left:6px;">Salva</button>
+      <select id="arbSelect-${match.Match_ID}" onchange="onArbitroSelectChange('${match.Match_ID}')" style="margin-left:8px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:3px 6px;">
+        <option value="">— scegli arbitro —</option>
+        ${opzioni.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+        <option value="__nuovo__">+ Nuovo arbitro…</option>
+      </select>
+      <span id="arbNuovoWrap-${match.Match_ID}" style="display:none;">
+        <input type="text" id="arbInput-${match.Match_ID}" placeholder="Nome arbitro" style="margin-left:6px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:3px 6px;width:150px;" />
+        <button onclick="saveArbitroOverride('${match.Match_ID}', document.getElementById('arbInput-${match.Match_ID}').value); render();" style="margin-left:4px;">Salva</button>
+      </span>
       <span style="color:var(--muted);"> (solo su questo dispositivo, finché non aggiorni l'Excel)</span>
     </div>`;
   }
@@ -1153,6 +1296,7 @@ function renderArbitroSnippet(match){
       falli medi ${s.Falli_Casa_Medi != null ? s.Falli_Casa_Medi.toFixed(1) : '—'} (casa) / ${s.Falli_Trasferta_Medi != null ? s.Falli_Trasferta_Medi.toFixed(1) : '—'} (trasferta) ·
       cartellini medi ${s.Cartellini_Casa_Medi != null ? s.Cartellini_Casa_Medi.toFixed(1) : '—'} (casa) / ${s.Cartellini_Trasferta_Medi != null ? s.Cartellini_Trasferta_Medi.toFixed(1) : '—'} (trasferta)
       <span style="color:var(--muted);">(campione: ${s.N_Partite} partit${s.N_Partite === 1 ? 'a' : 'e'})</span>
+      <button onclick="saveArbitroOverride('${match.Match_ID}', ''); render();" title="Rimuovi e scegli un altro arbitro" style="margin-left:8px;font-size:11px;padding:2px 6px;">cambia</button>
     </div>`;
 }
 
@@ -1235,7 +1379,7 @@ function renderTeamStatsPanel(match){
 }
 
 function renderNotableFactsPanel(match){
-  _pCache = {}; _roleCache = {}; // reset cache per questo render
+  _pCache = {}; _roleCache = {}; _leagueMetricCache = {}; // reset cache per questo render
 
   function sideFacts(teamId, venue, oppTeamId, oppVenue, venueLabel){
     const facts = [
@@ -1244,6 +1388,7 @@ function renderNotableFactsPanel(match){
       ...computeStreakFacts(teamId, venue, venueLabel),
       ...computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueLabel),
       ...computePlayerStandoutFacts(teamId, venue, venueLabel),
+      ...computePlayerAbsoluteFacts(teamId, venue, venueLabel),
     ];
     facts.sort((a, b) => Math.min(a.rank, a.eligible + 1 - a.rank) - Math.min(b.rank, b.eligible + 1 - b.rank));
     return facts.slice(0, 8);
@@ -1254,10 +1399,9 @@ function renderNotableFactsPanel(match){
 
   function list(teamName, facts){
     if (!facts.length) return `<div class="subtle">Nessun rank ancora affidabile (campione insufficiente su tutte le metriche).</div>`;
-    return `<ul class="facts-list" style="margin:0;padding-left:16px;">${facts.map(f => {
-      const extreme = Math.min(f.rank, f.eligible + 1 - f.rank) <= 2;
-      const marker = extreme ? '<span title="Tra i 2 valori più estremi della lega" style="color:var(--accent);">★</span> ' : '';
-      return `<li style="margin-bottom:5px;">${marker}<span class="tag-inline">[${f.tag}]</span> ${f.text}</li>`;
+    return `<ul class="facts-list" style="margin:0;padding-left:16px;list-style:none;">${facts.map(f => {
+      const badge = factBadge(f.rank, f.eligible, f.icon || '');
+      return `<li style="margin-bottom:5px;"><span title="Posizione ${f.rank}° su ${f.eligible}: lime/rosso = 1° o ultimo posto, azzurro/arancio = 2° o penultimo">${badge}</span> <span class="tag-inline">[${f.tag}]</span> ${f.text}</li>`;
     }).join('')}</ul>`;
   }
 
@@ -1273,6 +1417,7 @@ function renderNotableFactsPanel(match){
         </div>
         <div class="body" style="padding-top:0;">
           <div class="subtle">Rank provvisori (X°/Y eleggibili): con solo 30 partite giocate su 380, non tutte le squadre/giocatori hanno ancora campione sufficiente — mostrato solo dove almeno 6 sono confrontabili. Cambierà nel corso della stagione.</div>
+          <div class="subtle" style="margin-top:4px;">Colore stella: <span style="color:var(--accent);">★</span> 1° posto · <span style="color:#5BA8E8;">★</span> 2° posto · <span style="color:var(--warn);">★</span> penultimo · <span style="color:var(--bad);">★</span> ultimo. Icona: ⚽ tiri · 🎯 tiri in porta · 🥾 falli · 🟨 cartellini · 🚩 corner · 🔥 serie sul risultato.</div>
         </div>
       </div>
     </div>`;

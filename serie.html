@@ -472,6 +472,7 @@
         <option value="90">almeno 90 minuti dall'ultimo giallo</option>
         <option value="180" selected>almeno 180 minuti</option>
         <option value="270">almeno 270 minuti</option>
+        <option value="360">almeno 360 minuti</option>
       </select>
       <select id="dritScopeSquadra">
         <option value="ATTUALE">Solo squadra attuale</option>
@@ -482,14 +483,28 @@
       <div>
         <div class="metricname" style="margin-bottom:6px;" id="dritHomeLabel">Squadre in casa</div>
         <table class="stat" id="dritTableHome">
-          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num" title="Falli commessi diviso i minuti giocati, moltiplicato 90 — quanti falli farebbe in una partita intera. Calcolato solo sulla finestra di ritardo (dall’ultimo giallo in poi).">Indice</th><th class="num" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G</th></tr></thead>
+          <thead><tr>
+            <th>#</th>
+            <th class="sortable" data-key="giocatore">Giocatore<span class="arrow"></span></th>
+            <th class="num sortable" data-key="minuti">Min.<span class="arrow"></span></th>
+            <th class="num sortable" data-key="falli">Falli<span class="arrow"></span></th>
+            <th class="num sortable" data-key="indice" title="Falli commessi diviso i minuti giocati, moltiplicato 90 — quanti falli farebbe in una partita intera. Calcolato solo sulla finestra di ritardo (dall’ultimo giallo in poi).">Indice<span class="arrow"></span></th>
+            <th class="num sortable" data-key="prob" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G<span class="arrow"></span></th>
+          </tr></thead>
           <tbody id="dritBodyHome"></tbody>
         </table>
       </div>
       <div>
         <div class="metricname" style="margin-bottom:6px;" id="dritAwayLabel">Squadre in trasferta</div>
         <table class="stat" id="dritTableAway">
-          <thead><tr><th>#</th><th>Giocatore</th><th class="num">Min.</th><th class="num">Falli</th><th class="num" title="Falli commessi diviso i minuti giocati, moltiplicato 90 — quanti falli farebbe in una partita intera. Calcolato solo sulla finestra di ritardo (dall’ultimo giallo in poi).">Indice</th><th class="num" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G</th></tr></thead>
+          <thead><tr>
+            <th>#</th>
+            <th class="sortable" data-key="giocatore">Giocatore<span class="arrow"></span></th>
+            <th class="num sortable" data-key="minuti">Min.<span class="arrow"></span></th>
+            <th class="num sortable" data-key="falli">Falli<span class="arrow"></span></th>
+            <th class="num sortable" data-key="indice" title="Falli commessi diviso i minuti giocati, moltiplicato 90 — quanti falli farebbe in una partita intera. Calcolato solo sulla finestra di ritardo (dall’ultimo giallo in poi).">Indice<span class="arrow"></span></th>
+            <th class="num sortable" data-key="prob" title="Probabilità stimata di ammonizione, calcolata sulla relazione storica reale tra falli fatti in una partita e ammonizioni in quella stessa partita (tutta la lega, tutte le partite)">%G<span class="arrow"></span></th>
+          </tr></thead>
           <tbody id="dritBodyAway"></tbody>
         </table>
       </div>
@@ -603,6 +618,8 @@ const SERIE_METRICS = [
   ['Non vince da', 'nonVince', null],
   ['Non perde da', 'nonPerde', null],
   ['Non pareggia da', 'nonPareggia', null],
+  ['No Over 2,5 da', 'noOver25', null],
+  ['No Under 2,5 da', 'noUnder25', null],
 ];
 const TOPRANK_METRICS = [
   ['Tiri fatti /90', 'Tiri_Fatti_90'],
@@ -729,15 +746,25 @@ function renderTopRanks(home, away){
   document.getElementById('trAwayBody').innerHTML = block(away, 'AWAY');
 }
 
+let dritSortState = { home: { key: null, dir: -1 }, away: { key: null, dir: -1 } };
+let dritRowsCache = { home: [], away: [] };
+const DRIT_ACCESSORS = {
+  giocatore: x => x.p.Nome_completo,
+  minuti: x => x.d.minuti,
+  falli: x => x.d.falli,
+  indice: x => x.d.indiceFalli ?? -Infinity,
+  prob: x => x.prob ?? -Infinity,
+};
+
 function renderCardDrought(home, away){
   if (!DB) return;
   const minMin = Number(document.getElementById('dritMinMin').value);
   const scopeSquadra = document.getElementById('dritScopeSquadra').value !== 'TUTTE'; // default: squadra attuale
   const probTable = computeFoulCardProbabilityTable(DB.matchLog);
 
-  function block(teamList, targetId){
+  function computeRows(teamList){
     const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && teamList.includes(p.Team_ID_Rif));
-    const rows = players
+    return players
       .map(p => {
         const teamFiltro = scopeSquadra ? p.Team_ID_Rif : null;
         const d = computeCardDrought(DB.matchLog, p.Player_ID, teamFiltro);
@@ -745,10 +772,32 @@ function renderCardDrought(home, away){
         const prob = estimateCardProbability(avgFalli, probTable);
         return { p, d, prob };
       })
-      .filter(x => x.d.minuti >= minMin && x.d.indiceFalli != null)
-      .sort((a, b) => b.prob - a.prob)
-      .slice(0, 10);
-    document.getElementById(targetId).innerHTML = rows.map((x, i) => `<tr>
+      .filter(x => x.d.minuti >= minMin && x.d.indiceFalli != null);
+  }
+
+  dritRowsCache.home = computeRows(home);
+  dritRowsCache.away = computeRows(away);
+  renderDritSide('home');
+  renderDritSide('away');
+}
+
+function renderDritSide(side){
+  const targetId = side === 'home' ? 'dritBodyHome' : 'dritBodyAway';
+  let rows = [...dritRowsCache[side]];
+  const state = dritSortState[side];
+  if (state.key) {
+    const acc = DRIT_ACCESSORS[state.key];
+    rows.sort((a, b) => {
+      const va = acc(a), vb = acc(b);
+      if (va < vb) return -1 * state.dir;
+      if (va > vb) return 1 * state.dir;
+      return 0;
+    });
+  } else {
+    rows.sort((a, b) => (b.prob ?? -Infinity) - (a.prob ?? -Infinity)); // default: probabilità decrescente
+  }
+  rows = rows.slice(0, 10);
+  document.getElementById(targetId).innerHTML = rows.map((x, i) => `<tr>
       <td class="metricname">${i + 1}</td>
       <td>${x.p.Nome_completo}<div class="subtle">${x.p.Squadra_Rif} · ${x.p.Posizione_Analitica}</div></td>
       <td class="num">${x.d.minuti}</td>
@@ -756,11 +805,33 @@ function renderCardDrought(home, away){
       <td class="num">${x.d.indiceFalli.toFixed(2)}</td>
       <td class="num rank">${x.prob != null ? Math.round(x.prob*100)+'%' : '—'}</td>
     </tr>`).join('') || '<tr><td class="subtle" colspan="6">Nessun giocatore sopra la soglia scelta.</td></tr>';
-  }
-
-  block(home, 'dritBodyHome');
-  block(away, 'dritBodyAway');
+  updateDritArrows(side);
 }
+
+function updateDritArrows(side){
+  const tableId = side === 'home' ? 'dritTableHome' : 'dritTableAway';
+  document.querySelectorAll(`#${tableId} th.sortable`).forEach(th => {
+    const arrow = th.querySelector('.arrow');
+    arrow.textContent = th.dataset.key === dritSortState[side].key ? (dritSortState[side].dir === 1 ? '▲' : '▼') : '';
+  });
+}
+
+document.querySelectorAll('#dritTableHome th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if (dritSortState.home.key === key) dritSortState.home.dir *= -1;
+    else dritSortState.home = { key, dir: 1 };
+    renderDritSide('home');
+  });
+});
+document.querySelectorAll('#dritTableAway th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if (dritSortState.away.key === key) dritSortState.away.dir *= -1;
+    else dritSortState.away = { key, dir: 1 };
+    renderDritSide('away');
+  });
+});
 document.getElementById('dritMinMin').addEventListener('change', () => {
   const giornata = Number(document.getElementById('srGiornata').value);
   const { home, away } = teamsForGiornata(giornata);

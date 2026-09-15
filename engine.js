@@ -566,6 +566,10 @@ function computeTeamStreak(calendar, teamId, venue, key, n) {
       case 'nonVince': cond = golFatti <= golSubiti; break;
       case 'nonPerde': cond = golFatti >= golSubiti; break;
       case 'nonPareggia': cond = golFatti !== golSubiti; break;
+      case 'noNGolFatti': cond = golFatti !== n; break; // "non segna ESATTAMENTE n gol da..."
+      case 'noNGolSubiti': cond = golSubiti !== n; break;
+      case 'noOver25': cond = golFatti + golSubiti <= 2; break; // partita NON sopra i 2.5 gol totali
+      case 'noUnder25': cond = golFatti + golSubiti >= 3; break; // partita NON sotto i 2.5 gol totali
       default: cond = false;
     }
     if (cond) streak++;
