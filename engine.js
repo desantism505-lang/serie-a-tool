@@ -190,7 +190,7 @@ function computeTeamStats(matchLog, team, segmento) {
   out.Gialli = sum(fatti, 'Gialli');
   out.Rossi = sum(fatti, 'Rossi');
   out.Cartellini = out.Gialli + out.Rossi;
-  out.Cartellini_90 = per90(fatti, null) && null; // non usato a valle
+  out.Cartellini_90 = partite ? out.Cartellini / partite : null;
   out.Possesso_Medio = possessoRows.length
     ? possessoRows.reduce((a, b) => a + b, 0) / partite
     : null;
@@ -730,5 +730,6 @@ if (typeof module !== 'undefined') {
     computeCardDrought,
     computeFoulCardProbabilityTable,
     estimateCardProbability,
+    BASELINE_THRESHOLDS,
   };
 }

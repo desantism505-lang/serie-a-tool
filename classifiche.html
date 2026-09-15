@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#16241D" />
-<title>Serie A 2026/27 — Arbitri</title>
+<title>Serie A 2026/27 — Classifiche</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -401,13 +401,25 @@
   }
 
 </style>
+<style>
+  .classGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:14px;}
+  .classCard{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .classCard h3{margin:0 0 10px;font-size:14px;color:var(--text);}
+  .classCard table{width:100%;border-collapse:collapse;font-size:13px;}
+  .classCard td, .classCard th{padding:4px 4px;}
+  .classCard th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  .classCard td.num, .classCard th.num{text-align:right;}
+  .classCard tr:not(:last-child) td{border-bottom:1px solid var(--line);}
+  .classRank{color:var(--muted);width:20px;display:inline-block;}
+  .classEmpty{color:var(--muted);font-size:13px;padding:8px 0;}
+</style>
 </head>
 <body>
 
 <header>
   <div>
-    <h1>Serie A 2026/27 <span>· Arbitri</span></h1>
-    <p>Falli e cartellini medi per arbitro, calcolati sui dati grezzi di MATCH_LOG — split casa/trasferta, campione sempre dichiarato. Nessuna soglia minima nasconde i numeri: con poche partite dirette il valore oscilla molto, guarda sempre N.</p>
+    <h1>Serie A 2026/27 <span>· Classifiche</span></h1>
+    <p>Top 10 per ogni fondamentale — giocatori e squadre, Totale o Media (per90), Totale/Casa/Trasferta. Solo chi ha raggiunto il campione minimo entra in classifica: niente exploit isolati travestiti da record.</p>
   </div>
   <div class="fileload">
     <span id="dataStatus">dati non caricati</span>
@@ -419,43 +431,46 @@
   <a href="serie.html">Serie &amp; Ritardi</a>
   <a href="index.html">Matchup Engine</a>
   <a href="scanner.html">Scanner &amp; Screener</a>
-  <a href="arbitri.html" class="active">Arbitri</a>
-  <a href="classifiche.html">Classifiche</a>
+  <a href="arbitri.html">Arbitri</a>
+  <a href="classifiche.html" class="active">Classifiche</a>
 </nav>
 
-<main style="max-width:1180px;margin:0 auto;padding:24px 28px 0;">
+<main style="max-width:1280px;margin:0 auto;padding:24px 28px 40px;">
 
-<section id="arbitriSection">
-  <div class="panel">
-    <h2>Tutti gli arbitri <span class="tag" id="arbCount"></span></h2>
-    <div class="body">
-      <div style="overflow-x:auto;">
-      <table class="stat" id="arbTable" style="margin-top:4px;min-width:900px;">
-        <thead>
-          <tr>
-            <th class="sortable" data-key="arbitro" title="Nome arbitro (nomi inseriti con maiuscole/minuscole diverse vengono uniti automaticamente)">Arbitro<span class="arrow"></span></th>
-            <th class="num sortable" data-key="nPartite" title="Numero di partite dirette in questo campionato — con pochissime partite la media oscilla molto">N partite<span class="arrow"></span></th>
-            <th class="num sortable" data-key="falliCasa" title="Falli commessi medi, per partita, dalla squadra di casa nelle partite dirette da questo arbitro">Falli casa<span class="arrow"></span></th>
-            <th class="num sortable" data-key="falliTrasferta" title="Falli commessi medi, per partita, dalla squadra in trasferta nelle partite dirette da questo arbitro">Falli trasferta<span class="arrow"></span></th>
-            <th class="num sortable" data-key="falliTotali" title="Falli commessi medi totali (casa + trasferta) per partita">Falli tot.<span class="arrow"></span></th>
-            <th class="num sortable" data-key="cartCasa" title="Gialli + rossi medi della squadra di casa per partita">Cart. casa<span class="arrow"></span></th>
-            <th class="num sortable" data-key="cartTrasferta" title="Gialli + rossi medi della squadra in trasferta per partita">Cart. trasferta<span class="arrow"></span></th>
-            <th class="num sortable" data-key="cartTotali" title="Gialli + rossi medi totali per partita">Cart. tot.<span class="arrow"></span></th>
-          </tr>
-        </thead>
-        <tbody id="arbBody"></tbody>
-      </table>
-      </div>
-      <div class="subtle" id="arbEmpty">Carica il file per vedere le statistiche.</div>
-      <div class="subtle" style="margin-top:8px;">Clicca un'intestazione per ordinare. Il conteggio è per nome arbitro normalizzato (maiuscole/minuscole non contano come persone diverse). Con N basso (1-2 partite) trattare i numeri come indicativi, non come statistica affidabile.</div>
-    </div>
+<div class="controls" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
+  <div class="ctrl">
+    <label>Segmento</label>
+    <select id="clSegmento">
+      <option value="TOTALE">Totale</option>
+      <option value="HOME">Casa</option>
+      <option value="AWAY">Trasferta</option>
+    </select>
   </div>
+  <div class="ctrl">
+    <label>Vista</label>
+    <select id="clVista">
+      <option value="90">Media (per90)</option>
+      <option value="tot">Totale stagione</option>
+    </select>
+  </div>
+</div>
+
+<section>
+  <h2 style="margin:20px 0 4px;">Giocatori</h2>
+  <div class="subtle" style="margin-bottom:4px;">Entrano in classifica solo i giocatori con almeno 90 minuti in stagione (Totale) o almeno 2 presenze nel segmento scelto (Casa/Trasferta) — sotto soglia, il campione è troppo piccolo per dire qualcosa.</div>
+  <div class="classGrid" id="clPlayerGrid"></div>
+</section>
+
+<section>
+  <h2 style="margin:28px 0 4px;">Squadre</h2>
+  <div class="subtle" style="margin-bottom:4px;">Entrano in classifica solo le squadre con almeno 3 partite (Totale) o 2 (Casa/Trasferta) nel segmento scelto. I Corner sono già "a partita" per natura — qui Media e Totale coincidono nella scala, cambia solo se sommato o diviso per le partite.</div>
+  <div class="classGrid" id="clTeamGrid"></div>
 </section>
 
 </main>
 
 <footer>
-  Calcolo locale, nessun dato inviato altrove. Statistiche sui gol/falli/cartellini reali di MATCH_LOG, unite al foglio ARBITRI tramite Match_ID.
+  Calcolo locale, nessun dato inviato altrove. Numeri ricalcolati dagli stessi dati grezzi usati in tutte le altre pagine del sito.
 </footer>
 
 <script src="engine.js"></script>
@@ -490,8 +505,8 @@ function loadWorkbook(wb){
 
   DB = { rosters, calendar, matchLog: buildIndexes(matchLog), arbitri };
   document.getElementById('dataStatus').textContent =
-    `${rosters.length} giocatori · ${calendar.length} partite · ${arbitri.length} partite con arbitro`;
-  renderArbitriTable();
+    `${rosters.length} giocatori · ${calendar.length} partite`;
+  renderClassifiche();
 }
 
 function loadFromJSON(D){
@@ -501,8 +516,8 @@ function loadFromJSON(D){
   const arbitri = (D.arbitri || []).filter(r => r.Match_ID);
   DB = { rosters, calendar, matchLog: buildIndexes(matchLog), arbitri };
   document.getElementById('dataStatus').textContent =
-    `${rosters.length} giocatori · ${calendar.length} partite · ${arbitri.length} partite con arbitro (dati inclusi)`;
-  renderArbitriTable();
+    `${rosters.length} giocatori · ${calendar.length} partite (dati inclusi)`;
+  renderClassifiche();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -510,7 +525,7 @@ window.addEventListener('DOMContentLoaded', () => {
   fetch('./data.json')
     .then(r => { if (!r.ok) throw new Error('no data.json'); return r.json(); })
     .then(loadFromJSON)
-    .catch(() => { /* niente data.json raggiungibile: resta il caricamento manuale */ });
+    .catch(() => {});
 });
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
@@ -524,102 +539,124 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   reader.readAsArrayBuffer(file);
 });
 
-// --- Tabella ordinabile ---
-let arbResults = [];
-let sortState = { key: 'nPartite', dir: -1 };
+document.getElementById('clSegmento').addEventListener('change', () => { if (DB) renderClassifiche(); });
+document.getElementById('clVista').addEventListener('change', () => { if (DB) renderClassifiche(); });
 
-const SORT_ACCESSORS = {
-  arbitro: r => r.Arbitro.toLowerCase(),
-  nPartite: r => r.N_Partite,
-  falliCasa: r => r.Falli_Casa_Medi ?? -Infinity,
-  falliTrasferta: r => r.Falli_Trasferta_Medi ?? -Infinity,
-  falliTotali: r => r.Falli_Totali_Medi ?? -Infinity,
-  cartCasa: r => r.Cartellini_Casa_Medi ?? -Infinity,
-  cartTrasferta: r => r.Cartellini_Trasferta_Medi ?? -Infinity,
-  cartTotali: r => r.Cartellini_Totali_Medi ?? -Infinity,
-};
+// --- Metriche ---
+const PLAYER_METRICS = [
+  ['Tiri', 'Tiri', 'Tiri_90'],
+  ['SOT', 'Tiri in porta', 'SOT_90'],
+  ['FC', 'Falli commessi', 'FC_90'],
+  ['FD', 'Falli subiti', 'FD_90'],
+  ['Cartellini', 'Cartellini', 'Cartellini_90'],
+];
 
-// Overrides arbitro inseriti a mano dal Matchup Engine — stesso localStorage,
-// così compaiono anche in questa tabella riepilogativa (stesso dispositivo).
-const ARBITRO_OVERRIDES_KEY = 'arbitroOverrides_v1';
-function loadArbitroOverrides(){
-  try { return JSON.parse(localStorage.getItem(ARBITRO_OVERRIDES_KEY) || '{}'); }
-  catch(e){ return {}; }
-}
-function arbitriEffettivi(){
-  const overrides = loadArbitroOverrides();
-  const daExcel = new Set(DB.arbitri.map(a => a.Match_ID));
-  const extra = Object.entries(overrides)
-    .filter(([matchId]) => !daExcel.has(matchId))
-    .map(([matchId, nome]) => {
-      const m = DB.calendar.find(c => c.Match_ID === matchId);
-      return m ? { Match_ID: matchId, Giornata: m.Giornata, Arbitro: nome, Home_ID: m.Home_ID, Home: m.Home, Away_ID: m.Away_ID, Away: m.Away } : null;
-    })
-    .filter(Boolean);
-  return [...DB.arbitri, ...extra];
-}
+const TEAM_METRICS = [
+  ['Tiri_Fatti', 'Tiri fatti', 'Tiri_Fatti_90'],
+  ['Tiri_Subiti', 'Tiri subiti', 'Tiri_Subiti_90'],
+  ['SOT_Fatti', 'Tiri in porta fatti', 'SOT_Fatti_90'],
+  ['SOT_Subiti', 'Tiri in porta subiti', 'SOT_Subiti_90'],
+  ['Falli_Fatti', 'Falli commessi', 'Falli_Fatti_90'],
+  ['Falli_Subiti', 'Falli subiti', 'Falli_Subiti_90'],
+  ['Cartellini', 'Cartellini', 'Cartellini_90'],
+];
 
-function fmt1(v){ return v == null ? '—' : v.toFixed(1); }
-
-function renderArbitriTable(){
-  if (!DB) return;
-  arbResults = computeAllArbitroStats(DB.matchLog, arbitriEffettivi());
-  document.getElementById('arbCount').textContent = `${arbResults.length} arbitri`;
-  applySortAndRender();
-}
-
-function applySortAndRender(){
-  if (sortState.key) {
-    const acc = SORT_ACCESSORS[sortState.key];
-    arbResults = [...arbResults].sort((a, b) => {
-      const va = acc(a), vb = acc(b);
-      if (va < vb) return -1 * sortState.dir;
-      if (va > vb) return 1 * sortState.dir;
-      return 0;
-    });
+function topPlayers(segmento, totKey, k90Key, n){
+  const out = [];
+  for (const p of DB.rosters) {
+    if (p.Attivo_SerieA !== 'SI') continue;
+    const s = computePlayerStats(DB.matchLog, p.Player_ID, segmento);
+    if (s.Partite === 0) continue;
+    if (segmento === 'TOTALE' && s.Minuti < BASELINE_THRESHOLDS.minMinutiStagione) continue;
+    if (segmento !== 'TOTALE' && s.Partite < BASELINE_THRESHOLDS.minNVenue) continue;
+    const value = vista === '90' ? s[k90Key] : s[totKey];
+    if (value == null) continue;
+    out.push({ nome: p.Nome_completo, squadra: p.Squadra_Rif, value, partite: s.Partite });
   }
-  renderArbBody();
-  updateSortArrows();
+  out.sort((a,b) => b.value - a.value);
+  return out.slice(0, n);
 }
 
-function updateSortArrows(){
-  document.querySelectorAll('#arbTable th.sortable').forEach(th => {
-    const arrow = th.querySelector('.arrow');
-    arrow.textContent = th.dataset.key === sortState.key ? (sortState.dir === 1 ? '▲' : '▼') : '';
-  });
-}
-
-document.querySelectorAll('#arbTable th.sortable').forEach(th => {
-  th.addEventListener('click', () => {
-    const key = th.dataset.key;
-    if (sortState.key === key) sortState.dir *= -1;
-    else sortState = { key, dir: 1 };
-    applySortAndRender();
-  });
-});
-
-function renderArbBody(){
-  const body = document.getElementById('arbBody');
-  const empty = document.getElementById('arbEmpty');
-  if (!arbResults.length) {
-    body.innerHTML = '';
-    empty.style.display = 'block';
-    empty.textContent = DB ? 'Nessun arbitro trovato nei dati caricati.' : 'Carica il file per vedere le statistiche.';
-    return;
+function topTeams(segmento, totKey, k90Key, n){
+  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
+  const minSample = segmento === 'TOTALE' ? 3 : 2;
+  const out = [];
+  for (const t of teamsAll) {
+    const s = computeTeamStats(DB.matchLog, t, segmento);
+    if (s.Partite < minSample) continue;
+    const value = vista === '90' ? s[k90Key] : s[totKey];
+    if (value == null) continue;
+    const nome = (DB.rosters.find(r => r.Team_ID_Rif === t) || {}).Squadra_Rif || t;
+    out.push({ nome, value, partite: s.Partite });
   }
-  empty.style.display = 'none';
-  body.innerHTML = arbResults.map(r => `
+  out.sort((a,b) => b.value - a.value);
+  return out.slice(0, n);
+}
+
+function topTeamsCorner(segmento, tipo, n){
+  // tipo: 'fatti' o 'concessi'
+  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
+  const minSample = segmento === 'TOTALE' ? 3 : 2;
+  const out = [];
+  for (const t of teamsAll) {
+    const matches = teamCornerMatches(DB.calendar, t, segmento);
+    if (matches.length < minSample) continue;
+    const key = tipo === 'fatti' ? 'Corner' : 'CornerConcessi';
+    const tot = matches.reduce((a,m) => a + (m[key] || 0), 0);
+    const value = vista === '90' ? tot / matches.length : tot;
+    const nome = (DB.rosters.find(r => r.Team_ID_Rif === t) || {}).Squadra_Rif || t;
+    out.push({ nome, value, partite: matches.length });
+  }
+  out.sort((a,b) => b.value - a.value);
+  return out.slice(0, n);
+}
+
+function fmtVal(v){
+  return Number.isInteger(v) ? String(v) : v.toFixed(2);
+}
+
+function tableHTML(titolo, rows, unitLabel){
+  if (!rows.length) {
+    return `<div class="classCard"><h3>${titolo}</h3><div class="classEmpty">Nessuno raggiunge il campione minimo in questo segmento.</div></div>`;
+  }
+  const body = rows.map((r, i) => `
     <tr>
-      <td class="metricname">${r.Arbitro}</td>
-      <td class="num">${r.N_Partite}</td>
-      <td class="num">${fmt1(r.Falli_Casa_Medi)}</td>
-      <td class="num">${fmt1(r.Falli_Trasferta_Medi)}</td>
-      <td class="num">${fmt1(r.Falli_Totali_Medi)}</td>
-      <td class="num">${fmt1(r.Cartellini_Casa_Medi)}</td>
-      <td class="num">${fmt1(r.Cartellini_Trasferta_Medi)}</td>
-      <td class="num">${fmt1(r.Cartellini_Totali_Medi)}</td>
-    </tr>
-  `).join('');
+      <td><span class="classRank">${i+1}.</span> ${r.nome}${r.squadra ? ` <span class="subtle">(${r.squadra})</span>` : ''}</td>
+      <td class="num">${fmtVal(r.value)}</td>
+      <td class="num subtle">${r.partite}</td>
+    </tr>`).join('');
+  return `
+    <div class="classCard">
+      <h3>${titolo}</h3>
+      <table>
+        <thead><tr><th>Nome</th><th class="num">${unitLabel}</th><th class="num">Partite</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
+
+let vista = '90';
+
+function renderClassifiche(){
+  if (!DB) return;
+  const segmento = document.getElementById('clSegmento').value;
+  vista = document.getElementById('clVista').value;
+  const unitLabel = vista === '90' ? 'Media' : 'Totale';
+
+  const playerGrid = document.getElementById('clPlayerGrid');
+  playerGrid.innerHTML = PLAYER_METRICS.map(([totKey, label, k90Key]) => {
+    const rows = topPlayers(segmento, totKey, k90Key, 10);
+    return tableHTML(label, rows, unitLabel);
+  }).join('');
+
+  const teamGrid = document.getElementById('clTeamGrid');
+  let teamHtml = TEAM_METRICS.map(([totKey, label, k90Key]) => {
+    const rows = topTeams(segmento, totKey, k90Key, 10);
+    return tableHTML(label, rows, unitLabel);
+  }).join('');
+  teamHtml += tableHTML('Corner fatti', topTeamsCorner(segmento, 'fatti', 10), unitLabel);
+  teamHtml += tableHTML('Corner concessi', topTeamsCorner(segmento, 'concessi', 10), unitLabel);
+  teamGrid.innerHTML = teamHtml;
 }
 </script>
 </body>
