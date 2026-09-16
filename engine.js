@@ -759,5 +759,6 @@ if (typeof module !== 'undefined') {
     computeFoulCardProbabilityTable,
     estimateCardProbability,
     BASELINE_THRESHOLDS,
+    SHRINK_K,
   };
 }

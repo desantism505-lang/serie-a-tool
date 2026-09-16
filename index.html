@@ -686,7 +686,9 @@ function render(){
   const roleMetrics = [
     ['Tiri concessi al ruolo /90', 'Tiri_Concessi_90'],
     ['SOT concessi al ruolo /90', 'SOT_Concessi_90'],
-    ['Falli contro il ruolo /90', 'Falli_Contro_Ruolo_90'],
+    ['Falli commessi dal ruolo /90', 'Falli_Contro_Ruolo_90'],
+    ['Falli subiti dal ruolo /90', 'FalliSubiti_Ruolo_90'],
+    ['Cartellini al ruolo /90', 'Cartellini_Ruolo_90'],
   ];
   const roleRows = roleMetrics.map(([label, col]) => {
     const list = roleRankTable(col);
@@ -705,6 +707,33 @@ function render(){
   ];
   const baseCol = playerVenue === 'HOME' ? '_BASE_HOME' : '_BASE_AWAY';
   const baseStatus = playerVenue === 'HOME' ? baseline.Stato_HOME : baseline.Stato_AWAY;
+
+  // Proiezione aggiustata: Baseline × fattore-ruolo, con il fattore tirato
+  // verso 1.0 (nessuna correzione) se il campione di prestazioni di quel
+  // ruolo contro questo avversario è piccolo — stessa identica logica di
+  // shrinkage già usata per Baseline e per le proiezioni squadra, mai
+  // fusa dentro il numero Baseline stesso: qui resta un secondo numero
+  // separato, per non nascondere quanto ci si può fidare della correzione.
+  const BASELINE_ROLE_MAP = {
+    Tiri: 'Tiri_Concessi_90', SOT: 'SOT_Concessi_90', FC: 'Falli_Contro_Ruolo_90',
+    FD: 'FalliSubiti_Ruolo_90', Cart: 'Cartellini_Ruolo_90',
+  };
+  const nRuolo = roleConc.N_Prestazioni_Ruolo;
+  const adjRows = baseMetrics.map(([label, key]) => {
+    const baseVal = baseline[key + baseCol];
+    const roleCol = BASELINE_ROLE_MAP[key];
+    const roleVal = roleConc[roleCol];
+    const list = roleRankTable(roleCol);
+    const validi = list.filter(x => x.value != null && x.partite >= minSample);
+    const leagueAvg = validi.length ? validi.reduce((a,x) => a + x.value, 0) / validi.length : null;
+    let fattore = 1, rawRatio = null;
+    if (roleVal != null && leagueAvg) {
+      rawRatio = roleVal / leagueAvg;
+      fattore = 1 + (rawRatio - 1) * (nRuolo / (nRuolo + SHRINK_K));
+    }
+    const proiezione = baseVal != null ? baseVal * fattore : null;
+    return { label, baseVal, roleVal, leagueAvg, rawRatio, fattore, proiezione, nRuolo };
+  });
 
   main.innerHTML = `
     <div style="margin-bottom:18px;">
@@ -766,13 +795,17 @@ function render(){
       </div>
 
       <div class="panel">
-        <h2><span class="info-title" title="Una stima unica che combina 4 fonti pesate: media stagione (40%), media nel venue di oggi (30%), ultime 10 gare (20%), ultime 5 (10%) — con i pesi ridotti automaticamente se il campione è piccolo (shrinkage). Esempio: se in stagione fa 3 tiri/90 ma nelle ultime 3 partite ne fa 5, la Baseline sale ma non del tutto, perché il dato recente è ancora poco solido.">Baseline</span> <span class="tag">${playerVenue} ${statusPill(baseStatus)}</span></h2>
+        <h2><span class="info-title" title="Tre numeri distinti, mai fusi in uno solo. 'Baseline' combina stagione/venue/L10/L5 con shrinkage (come sempre). 'Ruolo concesso' è quanto l'avversario concede a questo ruolo in questo venue, rispetto alla media di lega. 'Proiezione aggiustata' moltiplica Baseline per quel fattore — ma il fattore è tirato verso 1.0 (nessuna correzione) se il campione di prestazioni di quel ruolo contro questo avversario è ancora piccolo, così un campione minuscolo non stravolge il numero finale.">Baseline</span> <span class="tag">${playerVenue} ${statusPill(baseStatus)}</span></h2>
         <div class="body">
           <table class="stat">
-            <tr><th>Metrica</th><th class="num">Baseline /90</th></tr>
-            ${baseMetrics.map(([label,key]) => `<tr><td class="metricname">${label}</td><td class="num"><span class="baseline-value">${fmt(baseline[key+baseCol])}</span></td></tr>`).join('')}
+            <tr><th>Metrica</th><th class="num">Baseline /90</th><th class="num" title="Quanto l'avversario concede a questo ruolo in questo venue, diviso la media di lega per lo stesso ruolo/venue. Sopra 1 = avversario più permeabile della media, sotto 1 = più solido.">Ruolo conc. (vs media lega)</th><th class="num" title="Il rapporto qui sopra, tirato verso 1.0 in proporzione a quante prestazioni di quel ruolo l'avversario ha già affrontato (N riportato accanto) — con poche prestazioni il fattore resta vicino a 1, cioè quasi nessuna correzione.">Fattore (N)</th><th class="num" title="Baseline × Fattore — il numero finale, con la correzione già applicata e visibile nelle colonne precedenti.">Proiezione aggiustata</th></tr>
+            ${adjRows.map(r => {
+              const ratioTxt = r.rawRatio != null ? fmt(r.rawRatio,2) + '×' : '—';
+              const fattoreTxt = `${fmt(r.fattore,2)}× <span class="subtle">(N=${r.nRuolo})</span>`;
+              return `<tr><td class="metricname">${r.label}</td><td class="num"><span class="baseline-value">${fmt(r.baseVal)}</span></td><td class="num">${ratioTxt}</td><td class="num">${fattoreTxt}</td><td class="num"><span class="baseline-value">${fmt(r.proiezione)}</span></td></tr>`;
+            }).join('')}
           </table>
-          <div class="subtle" style="margin-top:10px;">Media pesata: stagione 40% · venue 30% · L10 20% · L5 10%, normalizzata sulle componenti disponibili. Volume, non probabilità.</div>
+          <div class="subtle" style="margin-top:10px;">Baseline: media pesata stagione 40% · venue 30% · L10 20% · L5 10%. Fattore ruolo: stesso shrinkage (k=3) già usato per Baseline e per le proiezioni squadra — con N=0-2 prestazioni il fattore resta praticamente 1.0, con N alto si avvicina al rapporto pieno. Volume, non probabilità.</div>
         </div>
       </div>
 
@@ -1494,15 +1527,15 @@ function renderRoleVulnTable(oppTeamId, oppVenue, oppLabel){
 function renderRoleVulnerabilityPanel(match){
   return `
     <div class="panel section-gap">
-      <h2>Rank ruolo <span class="tag" style="flex:1;">quanto ogni avversario concede a ciascun ruolo — solo squadre, nessun giocatore specifico</span></h2>
+      <h2>Rank ruolo <span class="tag" style="flex:1;">quanto ogni squadra concede a ciascun ruolo, nel proprio venue di questa partita</span></h2>
       <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;overflow-x:auto;">
         <div>
-          <div style="font-weight:600;margin-bottom:4px;"><span style="color:var(--accent);">${match.Away}</span> <span class="subtle">— avversario di chi gioca in casa, nel suo venue trasferta</span></div>
-          ${renderRoleVulnTable(match.Away_ID, 'AWAY', match.Away)}
+          <div style="font-weight:600;margin-bottom:4px;">Casa — <span style="color:var(--accent);">${match.Home}</span></div>
+          ${renderRoleVulnTable(match.Home_ID, 'HOME', match.Home)}
         </div>
         <div>
-          <div style="font-weight:600;margin-bottom:4px;"><span style="color:var(--accent);">${match.Home}</span> <span class="subtle">— avversario di chi gioca in trasferta, nel suo venue casa</span></div>
-          ${renderRoleVulnTable(match.Home_ID, 'HOME', match.Home)}
+          <div style="font-weight:600;margin-bottom:4px;">Trasferta — <span style="color:var(--accent);">${match.Away}</span></div>
+          ${renderRoleVulnTable(match.Away_ID, 'AWAY', match.Away)}
         </div>
       </div>
     </div>`;
