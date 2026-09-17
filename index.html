@@ -322,6 +322,10 @@
   th.sortable{cursor:pointer;user-select:none;}
   th.sortable:hover{color:var(--text);}
   th.sortable .arrow{opacity:0.7;font-size:9px;margin-left:3px;}
+  .iqx-header td{padding:8px 6px;font-family:'Space Grotesk',sans-serif;}
+  .iqx-row td{padding:8px 0;border-bottom:1px dashed var(--line);}
+  .iqx-val{text-align:center;}
+  .iqx-metric{text-align:center;color:var(--text-2);}
   .panel-collapse-btn{
     background:none;
     border:1px solid var(--line);
@@ -629,6 +633,9 @@ function render(){
   const player = DB.rosters.find(p => p.Player_ID === playerId);
   const main = document.getElementById('main');
   if (!match || !player) { main.innerHTML = '<div class="empty">Seleziona un giocatore.</div>'; return; }
+
+  initMoState(match); // titolari spuntati: deve esistere prima del pannello Statistiche squadra
+  _roleLeagueAvgCache = {}; // reset cache ruolo-vs-lega per questo render
 
   const playerVenue = player.Team_ID_Rif === match.Home_ID ? 'HOME' : 'AWAY';
   const oppTeam = playerVenue === 'HOME' ? match.Away_ID : match.Home_ID;
@@ -1348,6 +1355,161 @@ function renderArbitroSnippet(match){
     </div>`;
 }
 
+// ---------------------------------------------------------------------------
+// Proiezione avanzata (Statistiche squadra): quando ci sono titolari spuntati
+// in "Confronto partita", la Proiezione per Tiri/SOT/Falli/Cartellini non usa
+// più la media dell'intera rosa, ma la somma dei singoli titolari — ciascuno
+// con il proprio fattore di aggiustamento per ruolo (stesso calcolo già
+// usato per la Proiezione aggiustata del pannello Baseline, qui ripetuto per
+// più giocatori). Falli e Cartellini ricevono in più il fattore arbitro.
+// Corner resta SEMPRE a livello squadra: non c'è attribuzione per giocatore
+// nei nostri dati, quindi titolari/ruolo/arbitro non si applicano lì.
+// ---------------------------------------------------------------------------
+const BASELINE_ROLE_MAP = {
+  Tiri: 'Tiri_Concessi_90', SOT: 'SOT_Concessi_90', FC: 'Falli_Contro_Ruolo_90', Cart: 'Cartellini_Ruolo_90',
+};
+let _roleLeagueAvgCache = {};
+function getRoleLeagueAvg(oppVenue, role, roleCol){
+  const k = oppVenue + '|' + role + '|' + roleCol;
+  if (k in _roleLeagueAvgCache) return _roleLeagueAvgCache[k];
+  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
+  const minSample = oppVenue === 'TOTALE' ? 3 : 2;
+  let sum = 0, n = 0;
+  for (const t of teamsAll) {
+    const ts = computeTeamStats(DB.matchLog, t, oppVenue);
+    const rc = computeRoleConcessions(DB.matchLog, t, oppVenue, role, ts.Partite);
+    if (rc[roleCol] != null && ts.Partite >= minSample) { sum += rc[roleCol]; n++; }
+  }
+  const avg = n ? sum / n : null;
+  _roleLeagueAvgCache[k] = avg;
+  return avg;
+}
+
+// Baseline "solo titolare" di UN giocatore per una metrica, aggiustata per
+// quanto l'avversario concede al suo ruolo specifico — fattore shrinkato sul
+// numero di prestazioni di quel ruolo che l'avversario ha già affrontato.
+function computePlayerRoleAdjustedProjection(playerId, teamId, venue, oppTeamId, oppVenue, metricKey){
+  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE', 'TITOLARE', teamId);
+  const pHome = computePlayerStats(DB.matchLog, playerId, 'HOME', 'TITOLARE', teamId);
+  const pAway = computePlayerStats(DB.matchLog, playerId, 'AWAY', 'TITOLARE', teamId);
+  const baseline = computeBaseline(pTot, pHome, pAway);
+  const baseCol = venue === 'HOME' ? '_BASE_HOME' : '_BASE_AWAY';
+  const baseVal = baseline[metricKey + baseCol];
+  if (baseVal == null) return { baseVal: null, roleVal: null, fattore: 1, proiezione: null, nRuolo: 0 };
+
+  const player = DB.rosters.find(p => p.Player_ID === playerId);
+  const role = player.Posizione_Analitica;
+  const oppStats = computeTeamStats(DB.matchLog, oppTeamId, oppVenue);
+  const roleConc = computeRoleConcessions(DB.matchLog, oppTeamId, oppVenue, role, oppStats.Partite);
+  const roleCol = BASELINE_ROLE_MAP[metricKey];
+  const roleVal = roleConc[roleCol];
+  const nRuolo = roleConc.N_Prestazioni_Ruolo;
+  const leagueAvg = getRoleLeagueAvg(oppVenue, role, roleCol);
+
+  let fattore = 1;
+  if (roleVal != null && leagueAvg) {
+    const rawRatio = roleVal / leagueAvg;
+    fattore = 1 + (rawRatio - 1) * (nRuolo / (nRuolo + SHRINK_K));
+  }
+  return { baseVal, roleVal, fattore, proiezione: baseVal * fattore, nRuolo };
+}
+
+// Fattore arbitro, solo per Falli e Cartellini: rapporto tra la sua media per
+// quel lato (casa/trasferta) e la media di lega, shrinkato sul numero di
+// partite dirette. Nessun arbitro assegnato/valido → fattore 1 (nessun
+// effetto), mai un valore mancante che rompe la catena di moltiplicazione.
+function computeArbitroFactorForSide(match, side, metricKey){
+  const arbitriEff = arbitriEffettivi();
+  const riga = arbitriEff.find(a => a.Match_ID === match.Match_ID && isArbitroNomeValido(a.Arbitro));
+  if (!riga) return { fattore: 1, nArbitro: 0, arbitroNome: null };
+  const s = computeArbitroStats(DB.matchLog, arbitriEff, riga.Arbitro);
+  if (!s.N_Partite) return { fattore: 1, nArbitro: 0, arbitroNome: s.Arbitro };
+
+  const arbVal = side === 'home'
+    ? (metricKey === 'Cart' ? s.Cartellini_Casa_Medi : s.Falli_Casa_Medi)
+    : (metricKey === 'Cart' ? s.Cartellini_Trasferta_Medi : s.Falli_Trasferta_Medi);
+
+  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
+  const leagueAvg = leagueAverageMetric(DB.matchLog, teamsAll, 'TOTALE', metricKey === 'Cart' ? 'Cart' : 'Falli', DB.calendar);
+
+  let fattore = 1;
+  if (arbVal != null && leagueAvg) {
+    const ratio = arbVal / leagueAvg;
+    fattore = 1 + (ratio - 1) * (s.N_Partite / (s.N_Partite + SHRINK_K));
+  }
+  return { fattore, nArbitro: s.N_Partite, arbitroNome: s.Arbitro };
+}
+
+// Riga di proiezione per UN lato (home/away) e UNA metrica: se ci sono
+// titolari spuntati, somma le loro proiezioni aggiustate per ruolo; altrimenti
+// ricade sulla proiezione a livello squadra (comportamento di sempre).
+const CENTRAL_METRICS = [
+  ['⚽', 'Tiri Totali', 'Tiri', 'Tiri'],
+  ['🎯', 'Tiri in porta', 'SOT', 'SOT'],
+  ['🥾', 'Falli', 'Falli', 'FC'],
+  ['🟨', 'Cartellini', 'Cart', 'Cart'],
+  ['🚩', 'Corner', 'Corner', null],
+];
+function computeSideProjectionRow(side, teamId, venue, oppTeamId, oppVenue, teamKey, playerKey, leagueAvgTeamKey, match){
+  let propria, concesso, proiezioneBase, nConc, usaTitolari = false;
+
+  if (playerKey && moState[side].checked.size > 0) {
+    usaTitolari = true;
+    let sumBase = 0, sumProiez = 0, sumConc = 0, sumN = 0, cnt = 0;
+    for (const pid of moState[side].checked) {
+      const r = computePlayerRoleAdjustedProjection(pid, teamId, venue, oppTeamId, oppVenue, playerKey);
+      if (r.baseVal == null) continue;
+      sumBase += r.baseVal;
+      sumProiez += r.proiezione;
+      if (r.roleVal != null) { sumConc += r.roleVal; sumN += r.nRuolo; cnt++; }
+    }
+    propria = sumBase;
+    concesso = cnt ? sumConc / cnt : null;
+    nConc = cnt ? Math.round(sumN / cnt) : 0;
+    proiezioneBase = sumProiez;
+  } else {
+    const p = multiplicativeProjection(DB.matchLog, teamId, venue, oppTeamId, oppVenue, teamKey, leagueAvgTeamKey, DB.calendar);
+    propria = p.ownAvgA;
+    concesso = p.concedeAvgB;
+    nConc = p.nB;
+    proiezioneBase = p.projection;
+  }
+
+  let fattoreArbitro = 1, nArbitro = 0;
+  if (playerKey && ['FC', 'Cart'].includes(playerKey) && proiezioneBase != null) {
+    const af = computeArbitroFactorForSide(match, side, playerKey);
+    fattoreArbitro = af.fattore;
+    nArbitro = af.nArbitro;
+  }
+  const proiezione = proiezioneBase != null ? proiezioneBase * fattoreArbitro : null;
+  return { propria, concesso, proiezione, usaTitolari, nConc, nArbitro, fattoreArbitro };
+}
+
+function renderCentralProjectionTable(match){
+  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
+  const leagueAvg = {};
+  TEAM_METRIC_LABELS.forEach(([key]) => { leagueAvg[key] = leagueAverageMetric(DB.matchLog, teamsAll, 'TOTALE', key, DB.calendar); });
+
+  const rows = CENTRAL_METRICS.map(([icon, label, teamKey, playerKey]) => {
+    const home = computeSideProjectionRow('home', match.Home_ID, 'HOME', match.Away_ID, 'AWAY', teamKey, playerKey, leagueAvg[teamKey], match);
+    const away = computeSideProjectionRow('away', match.Away_ID, 'AWAY', match.Home_ID, 'HOME', teamKey, playerKey, leagueAvg[teamKey], match);
+    const cell = (r) => {
+      if (r.proiezione == null) return `<td class="iqx-val num"><span class="baseline-value">—</span></td>`;
+      let detail = `propria: ${fmt(r.propria)} · conc: ${r.concesso != null ? fmt(r.concesso) : '—'}`;
+      if (r.usaTitolari) detail = 'titolari · ' + detail;
+      if (r.nArbitro > 0) detail += ` · arb: ${r.fattoreArbitro.toFixed(2)}× (N=${r.nArbitro})`;
+      return `<td class="iqx-val num"><span class="baseline-value" style="font-size:18px;">${fmt(r.proiezione)}</span><div class="subtle" style="font-size:11px;">${detail}</div></td>`;
+    };
+    return `<tr class="iqx-row"><td colspan="3" style="padding:0;"><table style="width:100%;"><tr>${cell(home)}<td class="iqx-metric" style="width:34%;text-align:center;font-weight:600;">${icon} ${label}</td>${cell(away)}</tr></table></td></tr>`;
+  }).join('');
+
+  return `
+    <table class="stat" id="centralProjTable" style="margin-bottom:18px;">
+      <tr class="iqx-header"><td class="num" style="text-align:center;color:var(--accent);font-weight:700;">${match.Home}</td><td style="text-align:center;font-weight:700;">Proiezione</td><td class="num" style="text-align:center;color:#5BA8E8;font-weight:700;">${match.Away}</td></tr>
+      ${rows}
+    </table>`;
+}
+
 function renderTeamStatsPanel(match){
   _teamStatsMatch = match;
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
@@ -1378,26 +1540,11 @@ function renderTeamStatsPanel(match){
       </tr>`;
     }).join('');
 
-    const projRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
-      const p = multiplicativeProjection(DB.matchLog, teamId, venue, oppTeamId, oppVenue, key, leagueAvg[key], DB.calendar);
-      return `<tr>
-        <td class="metricname">${label2}</td>
-        <td class="num">${p.ownAvgA != null ? p.ownAvgA.toFixed(1) : '—'} <span class="subtle">(N=${p.nA})</span></td>
-        <td class="num">${p.concedeAvgB != null ? p.concedeAvgB.toFixed(1) : '—'} <span class="subtle">(N=${p.nB})</span></td>
-        <td class="num rank">${p.projection != null ? p.projection.toFixed(1) : '—'}</td>
-      </tr>`;
-    }).join('');
-
     const rest = restDaysBefore(DB.calendar, teamId, match.Data);
 
     return `
       <div>
         <div class="metricname" style="margin-bottom:8px;">${label} <span class="subtle">(${totals.length} partite · riposo: ${rest != null ? rest + ' giorni' : '—'})</span></div>
-        <div class="subtle" style="margin-bottom:4px;">Proiezione per questa partita — media_lega × forza attacco × debolezza difesa avversario, con shrinkage sul campione</div>
-        <table class="stat" style="margin-bottom:16px;">
-          <tr><th>Metrica</th><th class="num">Media propria</th><th class="num">Concesso dall'avversario</th><th class="num">Proiezione</th></tr>
-          ${projRows}
-        </table>
         <div class="subtle" style="margin-bottom:4px;">Confronto diretto — quante volte ha fatto più dell'avversario, nella stessa gara</div>
         <table class="stat" style="margin-bottom:16px;">
           <tr><th>Metrica</th><th class="num">Vinto</th></tr>
@@ -1413,15 +1560,18 @@ function renderTeamStatsPanel(match){
 
   return `
     <div class="panel section-gap">
-      <h2><span class="info-title" title="Tre cose diverse. 'Proiezione' usa un modello a rapporti (media di lega × forza attacco × debolezza difesa avversario), con i rapporti tirati verso 1.0 se il campione è piccolo (shrinkage) — un numero stimato, non una probabilità. 'Confronto diretto' guarda chi ha fatto di più DENTRO la stessa partita, con gli avversari già affrontati in generale. 'Hit rate sulla linea' ti lascia scegliere qualunque soglia e mostra quante volte l'ha superata, sul solo totale della squadra. Verde = fascia alta, rosso = fascia bassa. Il riposo (giorni dall'ultima partita) è mostrato come informazione, non è integrato nel calcolo — verificato che non ha una correlazione affidabile nei nostri dati.">Statistiche squadra</span> <span class="tag" style="flex:1;">per venue reale della partita</span>
+      <h2><span class="info-title" title="Proiezione: somma dei titolari spuntati (dati solo-da-titolare, aggiustati per il ruolo dell'avversario, shrinkage indipendente) se ne hai scelti, altrimenti media di squadra × forza attacco × debolezza difesa avversario. Falli e Cartellini moltiplicano anche un fattore arbitro shrinkato sulle sue partite dirette. Corner resta sempre a livello squadra. 'Confronto diretto' guarda chi ha fatto di più DENTRO la stessa partita. 'Hit rate sulla linea' ti lascia scegliere qualunque soglia. Il riposo (giorni dall'ultima partita) è mostrato come informazione, non è integrato nel calcolo — verificato che non ha una correlazione affidabile nei nostri dati.">Statistiche squadra</span> <span class="tag" style="flex:1;">per venue reale della partita</span>
         <button class="panel-collapse-btn" onclick="togglePanelCollapse('teamStats')" id="panelBtn-teamStats">${panelCollapseState.teamStats ? 'espandi ▸' : 'minimizza ▾'}</button>
       </h2>
       <div id="panelBody-teamStats" style="${panelCollapseState.teamStats ? 'display:none;' : ''}">
-        <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;overflow-x:auto;">
+        <div class="body">
+          <div class="subtle" style="margin-bottom:6px;">Proiezione — se hai spuntato dei titolari in "Confronto partita" qui sotto, la somma usa i loro dati personali (solo da titolare) aggiustati per il ruolo dell'avversario; altrimenti usa la media dell'intera squadra. Falli e Cartellini includono anche l'arbitro assegnato. Corner resta sempre a livello squadra.</div>
+          ${renderCentralProjectionTable(match)}
+        </div>
+        <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;overflow-x:auto;padding-top:0;">
           ${side(match.Home_ID, 'HOME', match.Home + ' — Casa', match.Away_ID, 'AWAY')}
           ${side(match.Away_ID, 'AWAY', match.Away + ' — Trasferta', match.Home_ID, 'HOME')}
         </div>
-        <div class="body" style="padding-top:0;"><div class="subtle">La Proiezione è una media semplice tra due dati, spesso su 1-2 partite ciascuno — un riferimento per orientarti, non un numero su cui costruire quote con sicurezza.</div></div>
       </div>
     </div>`;
 }
@@ -1568,7 +1718,7 @@ const MO_STAT_KEYS = ['tiri', 'sot', 'fc', 'fd', 'cart'];
 const MO_STAT_LABELS = { tiri: 'Tiri/90', sot: 'SOT/90', fc: 'FC/90', fd: 'FD/90', cart: 'Cart/90' };
 const MO_STAT_TO_PV = { tiri: 'Tiri_90', sot: 'SOT_90', fc: 'FC_90', fd: 'FD_90', cart: 'Cartellini_90' };
 
-function renderMatchOverview(match){
+function initMoState(match){
   function buildSide(teamId, venue){
     const players = DB.rosters
       .filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId)
@@ -1590,7 +1740,9 @@ function renderMatchOverview(match){
   moState.away.sort = { key: 'tiri', dir: -1 };
   moState.home.checked = new Set();
   moState.away.checked = new Set();
+}
 
+function renderMatchOverview(match){
   return `<div id="moContainer">${renderSidePanel('home', match.Home, 'Casa')}${renderSidePanel('away', match.Away, 'Trasferta')}</div>`;
 }
 
@@ -1664,6 +1816,8 @@ function toggleMoCheck(side, playerId){
   if (st.checked.has(playerId)) st.checked.delete(playerId);
   else st.checked.add(playerId);
   document.getElementById('moSummary-' + side).innerHTML = renderMoSummaryHtml(side);
+  const centralEl = document.getElementById('centralProjTable');
+  if (centralEl && _teamStatsMatch) centralEl.outerHTML = renderCentralProjectionTable(_teamStatsMatch);
 }
 
 function toggleMoSide(side){
