@@ -323,9 +323,10 @@
   th.sortable:hover{color:var(--text);}
   th.sortable .arrow{opacity:0.7;font-size:9px;margin-left:3px;}
   .iqx-header td{padding:8px 6px;font-family:'Space Grotesk',sans-serif;}
-  .iqx-row td{padding:8px 0;border-bottom:1px dashed var(--line);}
-  .iqx-val{text-align:center;}
-  .iqx-metric{text-align:center;color:var(--text-2);}
+  table.stat td.iqx-row, .iqx-row td{padding:10px 0;border-bottom:1px dashed var(--line);}
+  table.stat td.iqx-val, .iqx-val{text-align:center !important;}
+  table.stat td.iqx-metric, .iqx-metric{text-align:center !important;color:var(--text-2);font-weight:600;}
+  .iqx-num{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:var(--text);}
   .panel-collapse-btn{
     background:none;
     border:1px solid var(--line);
@@ -1485,27 +1486,55 @@ function computeSideProjectionRow(side, teamId, venue, oppTeamId, oppVenue, team
   return { propria, concesso, proiezione, usaTitolari, nConc, nArbitro, fattoreArbitro };
 }
 
+// Punteggio di solidità (0-1) di una cella di proiezione: quanto campione
+// c'è dietro alle correzioni applicate (ruolo, arbitro) — stessa logica di
+// shrinkage già usata ovunque, qui riletta come indicatore di fiducia.
+// Non dice "questo si verificherà", dice solo "questa correzione poggia su
+// più dati delle altre" — per questo evidenziamo "dato più solido", non
+// "più probabile".
+function computeSolidita(r){
+  const shrink = (n) => n / (n + SHRINK_K);
+  const soloRuolo = shrink(r.nConc || 0);
+  const soloArbitro = r.nArbitro > 0 ? shrink(r.nArbitro) : 1; // non applicabile = neutro, non penalizza
+  return soloRuolo * soloArbitro;
+}
+
 function renderCentralProjectionTable(match){
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
   const leagueAvg = {};
   TEAM_METRIC_LABELS.forEach(([key]) => { leagueAvg[key] = leagueAverageMetric(DB.matchLog, teamsAll, 'TOTALE', key, DB.calendar); });
 
-  const rows = CENTRAL_METRICS.map(([icon, label, teamKey, playerKey]) => {
+  const computed = CENTRAL_METRICS.map(([icon, label, teamKey, playerKey]) => {
     const home = computeSideProjectionRow('home', match.Home_ID, 'HOME', match.Away_ID, 'AWAY', teamKey, playerKey, leagueAvg[teamKey], match);
     const away = computeSideProjectionRow('away', match.Away_ID, 'AWAY', match.Home_ID, 'HOME', teamKey, playerKey, leagueAvg[teamKey], match);
-    const cell = (r) => {
-      if (r.proiezione == null) return `<td class="iqx-val num"><span class="baseline-value">—</span></td>`;
+    home.solidita = home.proiezione != null ? computeSolidita(home) : -1;
+    away.solidita = away.proiezione != null ? computeSolidita(away) : -1;
+    return { icon, label, home, away };
+  });
+
+  // Trovo la cella più solida su tutta la tabella (5 metriche x 2 lati)
+  let best = { solidita: -1 };
+  for (const row of computed) {
+    if (row.home.solidita > best.solidita) best = { solidita: row.home.solidita, label: row.label, side: 'home' };
+    if (row.away.solidita > best.solidita) best = { solidita: row.away.solidita, label: row.label, side: 'away' };
+  }
+
+  const rows = computed.map(row => {
+    const cell = (r, side) => {
+      if (r.proiezione == null) return `<td class="iqx-val">—</td>`;
       let detail = `propria: ${fmt(r.propria)} · conc: ${r.concesso != null ? fmt(r.concesso) : '—'}`;
       if (r.usaTitolari) detail = 'titolari · ' + detail;
       if (r.nArbitro > 0) detail += ` · arb: ${r.fattoreArbitro.toFixed(2)}× (N=${r.nArbitro})`;
-      return `<td class="iqx-val num"><span class="baseline-value" style="font-size:18px;">${fmt(r.proiezione)}</span><div class="subtle" style="font-size:11px;">${detail}</div></td>`;
+      const isBest = row.label === best.label && side === best.side;
+      const boxStyle = isBest ? 'border:1px solid var(--line);border-radius:8px;background:var(--panel-2);padding:6px 4px;' : '';
+      return `<td class="iqx-val" style="${boxStyle}"><div class="iqx-num">${fmt(r.proiezione)}</div><div class="subtle" style="font-size:11px;margin-top:2px;">${detail}</div>${isBest ? '<div class="subtle" style="font-size:10px;color:var(--muted);margin-top:2px;">● dato più solido</div>' : ''}</td>`;
     };
-    return `<tr class="iqx-row"><td colspan="3" style="padding:0;"><table style="width:100%;"><tr>${cell(home)}<td class="iqx-metric" style="width:34%;text-align:center;font-weight:600;">${icon} ${label}</td>${cell(away)}</tr></table></td></tr>`;
+    return `<tr class="iqx-row"><td colspan="3" style="padding:0;"><table style="width:100%;"><tr>${cell(row.home,'home')}<td class="iqx-metric" style="width:34%;">${row.icon} ${row.label}</td>${cell(row.away,'away')}</tr></table></td></tr>`;
   }).join('');
 
   return `
     <table class="stat" id="centralProjTable" style="margin-bottom:18px;">
-      <tr class="iqx-header"><td class="num" style="text-align:center;color:var(--accent);font-weight:700;">${match.Home}</td><td style="text-align:center;font-weight:700;">Proiezione</td><td class="num" style="text-align:center;color:#5BA8E8;font-weight:700;">${match.Away}</td></tr>
+      <tr class="iqx-header"><td class="iqx-val" style="color:var(--text);font-weight:700;">${match.Home}</td><td class="iqx-metric" style="font-weight:700;">Proiezione</td><td class="iqx-val" style="color:var(--text-2);font-weight:700;">${match.Away}</td></tr>
       ${rows}
     </table>`;
 }
