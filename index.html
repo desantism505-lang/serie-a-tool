@@ -1489,14 +1489,41 @@ function computeSideProjectionRow(side, teamId, venue, oppTeamId, oppVenue, team
 // Punteggio di solidità (0-1) di una cella di proiezione: quanto campione
 // c'è dietro alle correzioni applicate (ruolo, arbitro) — stessa logica di
 // shrinkage già usata ovunque, qui riletta come indicatore di fiducia.
-// Non dice "questo si verificherà", dice solo "questa correzione poggia su
-// più dati delle altre" — per questo evidenziamo "dato più solido", non
-// "più probabile".
 function computeSolidita(r){
   const shrink = (n) => n / (n + SHRINK_K);
   const soloRuolo = shrink(r.nConc || 0);
   const soloArbitro = r.nArbitro > 0 ? shrink(r.nArbitro) : 1; // non applicabile = neutro, non penalizza
   return soloRuolo * soloArbitro;
+}
+
+// "Segnale più forte" tra tutte le 10 caselle (5 metriche x 2 lati): non un
+// numero nuovo, non una proiezione — la direzione (Over/Under X, o "vince il
+// duello") che si è verificata più spesso storicamente, pesata dal campione.
+// Combina due frequenze REALI già osservate: l'hit rate sulla linea attuale
+// e il confronto diretto — mai la Proiezione stessa, che è una media, non
+// una frequenza. "Decisività" = quanto la frequenza si allontana dal 50%
+// (un 50/50 non è un segnale, per quanti dati ci siano dietro).
+function computeSignalStrength(teamId, teamKey, venue){
+  const shrink = (n) => n / (n + SHRINK_K);
+  const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
+  const duels = computeTeamDuelTotals(DB.matchLog, teamId, venue, DB.calendar);
+  const lineVal = teamLineState[teamLineKey(teamId, teamKey)] ?? TEAM_LINE_SETS[teamKey][1];
+  const hOver = teamHitRate(totals, teamKey, lineVal, 'over');
+  const hUnder = teamHitRate(totals, teamKey, lineVal, 'under');
+  const hitBest = (hOver.n && hUnder.n)
+    ? (hOver.rate >= hUnder.rate
+        ? { label: `Over ${fmt(lineVal,1)}`, rate: hOver.rate, n: hOver.n }
+        : { label: `Under ${fmt(lineVal,1)}`, rate: hUnder.rate, n: hUnder.n })
+    : null;
+  const d = teamDuelRecord(duels, teamKey);
+  const duelInfo = d.n ? { rate: d.rate, n: d.n } : null;
+
+  const decHit = hitBest ? Math.abs(hitBest.rate - 0.5) * 2 * shrink(hitBest.n) : null;
+  const decDuel = duelInfo ? Math.abs(duelInfo.rate - 0.5) * 2 * shrink(duelInfo.n) : null;
+  const parts = [decHit, decDuel].filter(x => x != null);
+  const confidence = parts.length ? parts.reduce((a,b) => a+b, 0) / parts.length : 0;
+
+  return { confidence, hitBest, duelInfo };
 }
 
 function renderCentralProjectionTable(match){
@@ -1507,39 +1534,50 @@ function renderCentralProjectionTable(match){
   const computed = CENTRAL_METRICS.map(([icon, label, teamKey, playerKey]) => {
     const home = computeSideProjectionRow('home', match.Home_ID, 'HOME', match.Away_ID, 'AWAY', teamKey, playerKey, leagueAvg[teamKey], match);
     const away = computeSideProjectionRow('away', match.Away_ID, 'AWAY', match.Home_ID, 'HOME', teamKey, playerKey, leagueAvg[teamKey], match);
-    home.solidita = home.proiezione != null ? computeSolidita(home) : -1;
-    away.solidita = away.proiezione != null ? computeSolidita(away) : -1;
-    return { icon, label, home, away };
+    const sigHome = computeSignalStrength(match.Home_ID, teamKey, 'HOME');
+    const sigAway = computeSignalStrength(match.Away_ID, teamKey, 'AWAY');
+    return { icon, label, teamKey, home, away, sigHome, sigAway };
   });
 
-  // Trovo la cella più solida su tutta la tabella (5 metriche x 2 lati)
-  let best = { solidita: -1 };
+  // Cerco il segnale più forte su tutte le 10 caselle (5 metriche x 2 lati) —
+  // uno solo, non uno per riga.
+  let best = { confidence: -1 };
   for (const row of computed) {
-    if (row.home.solidita > best.solidita) best = { solidita: row.home.solidita, label: row.label, side: 'home' };
-    if (row.away.solidita > best.solidita) best = { solidita: row.away.solidita, label: row.label, side: 'away' };
+    if (row.sigHome.confidence > best.confidence) best = { confidence: row.sigHome.confidence, label: row.label, side: 'home', teamName: match.Home, sig: row.sigHome };
+    if (row.sigAway.confidence > best.confidence) best = { confidence: row.sigAway.confidence, label: row.label, side: 'away', teamName: match.Away, sig: row.sigAway };
   }
 
   const rows = computed.map(row => {
-    const cell = (r, side) => {
+    const cell = (r, isBest) => {
       if (r.proiezione == null) return `<td class="iqx-val">—</td>`;
       let detail = `propria: ${fmt(r.propria)} · conc: ${r.concesso != null ? fmt(r.concesso) : '—'}`;
       if (r.usaTitolari) detail = 'titolari · ' + detail;
       if (r.nArbitro > 0) detail += ` · arb: ${r.fattoreArbitro.toFixed(2)}× (N=${r.nArbitro})`;
-      const isBest = row.label === best.label && side === best.side;
+      const pillStyle = isBest ? ' style="background:#5BA8E8;color:#FFFFFF;"' : '';
       return `<td class="iqx-val">
-        <span class="baseline-value">${fmt(r.proiezione)}</span>
+        <span class="baseline-value"${pillStyle}>${fmt(r.proiezione)}</span>
         <div class="subtle" style="margin-top:4px;">${detail}</div>
-        ${isBest ? '<div class="subtle" style="color:var(--muted);margin-top:2px;">● dato più solido</div>' : ''}
       </td>`;
     };
-    return `<tr class="iqx-row">${cell(row.home,'home')}<td class="iqx-metric">${row.icon} ${row.label}</td>${cell(row.away,'away')}</tr>`;
+    const isBestHome = row.label === best.label && best.side === 'home';
+    const isBestAway = row.label === best.label && best.side === 'away';
+    return `<tr class="iqx-row">${cell(row.home, isBestHome)}<td class="iqx-metric">${row.icon} ${row.label}</td>${cell(row.away, isBestAway)}</tr>`;
   }).join('');
 
+  const bestBox = best.confidence > 0 ? `
+    <div class="subtle" style="margin-top:10px;padding:8px 10px;border:1px solid #5BA8E8;border-radius:8px;background:var(--panel-2);">
+      <strong style="color:#5BA8E8;">Segnale più forte del blocco:</strong> ${best.teamName} — ${best.label}
+      ${best.sig.hitBest ? ` · ${best.sig.hitBest.label} nel ${Math.round(best.sig.hitBest.rate*100)}% delle partite (${best.sig.hitBest.n})` : ''}
+      ${best.sig.duelInfo ? ` · duello vinto ${Math.round(best.sig.duelInfo.rate*100)}% (${best.sig.duelInfo.n})` : ''}
+      <div style="margin-top:2px;">Frequenza storica osservata, non una previsione — pesata dal campione dietro.</div>
+    </div>` : '';
+
   return `
-    <table class="stat iqx-table" id="centralProjTable" style="margin-bottom:18px;">
+    <table class="stat iqx-table" id="centralProjTable" style="margin-bottom:8px;">
       <tr class="iqx-header"><td class="iqx-val" style="color:var(--text);font-weight:700;">${match.Home}</td><td class="iqx-metric" style="font-weight:700;">Proiezione</td><td class="iqx-val" style="color:var(--text);font-weight:700;">${match.Away}</td></tr>
       ${rows}
-    </table>`;
+    </table>
+    ${bestBox}`;
 }
 
 function renderTeamStatsPanel(match){
