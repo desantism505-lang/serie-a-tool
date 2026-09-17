@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#16241D" />
+<title>Serie A 2026/27 — Multigol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0B1210;--panel:#16241D;--panel-2:#101B15;--panel-header:#233529;--zebra:#1C2A21;
+  --line:#2F4438;--text:#FFFFFF;--text-2:#D7E3D3;--muted:#93A897;
+  --accent:#D4FF6B;--accent-dim:#8FA83E;--accent-ink:#12210C;
+  --warn:#F2A65A;--warn-ink:#3D2408;--bad:#E8735B;--bad-ink:#3D0F08;--blue:#5BA8E8;
+  --radius:14px;--radius-sm:8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text-2);font-family:'Inter',sans-serif;font-variant-numeric:tabular-nums;line-height:1.5;min-height:100vh}
+h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:-.01em;color:var(--text)}
+a{color:var(--accent)}
+header{padding:24px 32px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+header h1{font-size:21px;margin:0}
+header h1 span{color:var(--accent)}
+header p{margin:6px 0 0;color:var(--muted);font-size:13px;max-width:560px}
+.fileload{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.fileload input{display:none}
+.fileload label{border:1px solid var(--line);padding:9px 16px;border-radius:var(--radius-sm);cursor:pointer;color:var(--text-2);font-weight:500}
+.fileload label:hover{border-color:var(--accent-dim);background:var(--panel)}
+#dataStatus{color:var(--accent);font-weight:600}
+nav.sitenav{display:flex;gap:4px;padding:16px 32px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.sitenav a{display:inline-block;padding:10px 16px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
+nav.sitenav a:hover{color:var(--text)}
+nav.sitenav a.active{color:var(--accent);border-bottom-color:var(--accent)}
+.controls{display:flex;gap:12px;padding:16px 32px;border-bottom:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap}
+.ctrl{flex:1 1 220px;padding:12px 18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm)}
+.ctrl label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500}
+.ctrl select{width:100%;background:var(--panel);border:none;color:var(--text);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;padding:2px 0}
+select,input,button{color-scheme:dark;font-family:'Inter',sans-serif}
+main{padding:32px 32px 60px;max-width:1220px;margin:0 auto}
+.panel{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);overflow:hidden;margin-top:24px}
+.panel h2{font-size:14px;margin:0;padding:14px 20px;background:var(--panel-header);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;color:var(--accent)}
+.panel h2 .tag{font-family:'Inter',sans-serif;font-weight:500;font-size:11px;color:var(--muted)}
+.body{padding:18px 20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:850px){.grid2,.grid3{grid-template-columns:1fr}.controls{padding:14px 18px}main{padding:22px 18px 50px}header,nav.sitenav{padding-left:18px;padding-right:18px}}
+.subtle{color:var(--muted);font-size:11px}
+.metricname{color:var(--text);font-weight:600}
+table.stat{width:100%;border-collapse:collapse;font-size:12.5px}
+table.stat th{text-align:left;font-weight:700;color:var(--accent);background:var(--panel-header);padding:9px 10px;font-size:10px;letter-spacing:.03em;text-transform:uppercase}
+table.stat td{padding:9px 10px;color:var(--text-2);font-weight:500;border-bottom:1px solid rgba(47,68,56,.5)}
+table.stat tr:last-child td{border-bottom:none}
+table.stat td.num,table.stat th.num{text-align:right}
+.card{border:1px solid var(--line);background:var(--panel-2);border-radius:10px;padding:14px}
+.card-title{font-family:'Space Grotesk',sans-serif;color:var(--text);font-size:13px;font-weight:700;margin-bottom:4px}
+.big{font-family:'Space Grotesk',sans-serif;color:var(--text);font-size:25px;font-weight:700}
+.accent{color:var(--accent)}
+.blue{color:var(--blue)}
+.warn{color:var(--warn)}
+.bad{color:var(--bad)}
+.bar{height:8px;background:var(--line);border-radius:999px;overflow:hidden;margin-top:5px}
+.bar > span{display:block;height:100%;background:var(--accent);border-radius:999px}
+.dist-row{display:grid;grid-template-columns:36px 1fr 48px;gap:8px;align-items:center;margin:7px 0;font-size:11px}
+.pill{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid var(--line);border-radius:999px;font-size:10px;font-weight:700}
+.pill.good{border-color:var(--accent-dim);color:var(--accent)}
+.pill.mid{border-color:var(--warn);color:var(--warn)}
+.pill.low{border-color:var(--bad);color:var(--bad)}
+.pill.info{border-color:var(--blue);color:var(--blue)}
+.match-head{margin-bottom:12px}
+.match-title{font-size:20px;color:var(--accent);margin:0 0 4px}
+.kpi-line{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.natural-box{border:1px solid var(--blue);border-radius:10px;background:var(--panel-2);padding:12px;margin-top:10px}
+.intersection{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--blue)}
+.section-note{padding:10px 20px 0;color:var(--muted);font-size:11px}
+.empty{padding:50px 20px;text-align:center;color:var(--muted)}
+footer{padding:24px 32px 48px;color:var(--muted);font-size:11px;max-width:1220px;margin:0 auto}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Serie A 2026/27 <span>· Multigol Lab</span></h1>
+    <p>Distribuzione gol, fasce Multigol, matchup produzione/concessione e screener di giornata. Venue reale sempre separato: Casa vs HOME, Trasferta vs AWAY.</p>
+  </div>
+  <div class="fileload">
+    <span id="dataStatus">dati non caricati</span>
+    <label for="fileInput">Carica file aggiornato (.xlsx)</label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" />
+  </div>
+</header>
+
+<nav class="sitenav">
+  <a href="serie.html">Serie &amp; Ritardi</a>
+  <a href="index.html">Matchup Engine</a>
+  <a href="scanner.html">Scanner &amp; Screener</a>
+  <a href="multigol.html" class="active">Multigol</a>
+  <a href="arbitri.html">Arbitri</a>
+  <a href="classifiche.html">Classifiche</a>
+</nav>
+
+<div class="controls">
+  <div class="ctrl">
+    <label>Giornata</label>
+    <select id="selGiornata"></select>
+  </div>
+  <div class="ctrl">
+    <label>Partita</label>
+    <select id="selMatch"></select>
+  </div>
+</div>
+
+<main id="main"><div class="empty">Caricamento dati…</div></main>
+
+<footer>
+  Frequenze storiche descrittive, non probabilità di esito. Lo screener privilegia fasce strette e convergenza tra produzione propria e concessione avversaria; non sostituisce quota e valutazione del prezzo.
+</footer>
+
+<script>
+let DB = null;
+
+const TEAM_RANGES = [[0,2],[1,2],[1,3],[2,3],[2,4]];
+const TOTAL_RANGES = [[1,3],[2,4],[2,5],[3,5]];
+const NATURAL_CANDIDATES = [[0,1],[1,2],[2,3],[0,2],[1,3],[2,4],[0,3],[1,4],[0,4]];
+const NATURAL_MIN_COVER = 0.70;
+
+function toISO(v){
+  if (v == null) return null;
+  if (typeof v === 'number' && window.XLSX) {
+    const d = XLSX.SSF.parse_date_code(v);
+    if (!d) return null;
+    return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  const s = String(v);
+  const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[0] : s;
+}
+function num(v){
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(String(v).replace(',','.'));
+  return Number.isFinite(n) ? n : null;
+}
+function pick(row, keys){
+  for(const k of keys){
+    if(row && row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+  }
+  return null;
+}
+function scoreOf(m){
+  const home = num(pick(m,['Gol_Casa','Gol_Home','Home_Goals','HomeGoals','GF_Home','GolCasa','Score_Home','HomeScore','FTHG']));
+  const away = num(pick(m,['Gol_Trasferta','Gol_Away','Away_Goals','AwayGoals','GF_Away','GolTrasferta','Score_Away','AwayScore','FTAG']));
+  if(home !== null && away !== null) return {home,away};
+  const raw = pick(m,['Risultato','Risultato_Finale','Score','Final_Score','FinalScore']);
+  if(raw != null){
+    const mm = String(raw).match(/(\d+)\s*[-–:]\s*(\d+)/);
+    if(mm) return {home:Number(mm[1]),away:Number(mm[2])};
+  }
+  return null;
+}
+function normalizeCalendar(rows){
+  return rows.map(r => ({...r, Data:toISO(r.Data)}));
+}
+function sheetToRows(wb,name){
+  const ws = wb.Sheets[name];
+  return ws ? XLSX.utils.sheet_to_json(ws,{defval:null,raw:true}) : [];
+}
+function loadWorkbook(wb){
+  const calendar = normalizeCalendar(sheetToRows(wb,'CALENDAR').filter(r=>r.Match_ID));
+  DB = {calendar};
+  afterLoad('Excel');
+}
+function loadFromJSON(D){
+  DB = {calendar:normalizeCalendar((D.calendar||[]).filter(r=>r.Match_ID))};
+  afterLoad('data.json');
+}
+function afterLoad(source){
+  const done = DB.calendar.filter(m=>scoreOf(m)).length;
+  document.getElementById('dataStatus').textContent = `${DB.calendar.length} partite · ${done} risultati · ${source}`;
+  populateGiornate();
+}
+window.addEventListener('DOMContentLoaded',()=>{
+  fetch('./data.json')
+    .then(r=>{if(!r.ok)throw new Error();return r.json()})
+    .then(loadFromJSON)
+    .catch(()=>document.getElementById('main').innerHTML='<div class="empty">data.json non disponibile. Carica il file Excel aggiornato.</div>');
+});
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=ev=>loadWorkbook(XLSX.read(ev.target.result,{type:'array'}));
+  rd.readAsArrayBuffer(f);
+});
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function defaultGiornata(){
+  const future=DB.calendar.filter(m=>m.Data && m.Data>=todayISO());
+  if(future.length) return Math.min(...future.map(m=>Number(m.Giornata)).filter(Number.isFinite));
+  return Math.max(...DB.calendar.map(m=>Number(m.Giornata)).filter(Number.isFinite));
+}
+function populateGiornate(){
+  const gs=[...new Set(DB.calendar.map(m=>Number(m.Giornata)).filter(Number.isFinite))].sort((a,b)=>a-b);
+  const sel=document.getElementById('selGiornata');
+  sel.innerHTML=gs.map(g=>`<option value="${g}">Giornata ${g}</option>`).join('');
+  const d=defaultGiornata(); if(gs.includes(d)) sel.value=String(d);
+  sel.onchange=populateMatches;
+  populateMatches();
+}
+function populateMatches(){
+  const g=Number(document.getElementById('selGiornata').value);
+  const ms=DB.calendar.filter(m=>Number(m.Giornata)===g);
+  const sel=document.getElementById('selMatch');
+  sel.innerHTML=ms.map(m=>`<option value="${m.Match_ID}">${m.Home} – ${m.Away}</option>`).join('');
+  sel.onchange=render;
+  render();
+}
+
+function completedTeamMatches(teamId,venue){
+  return DB.calendar
+    .filter(m=>{
+      const s=scoreOf(m); if(!s)return false;
+      return venue==='HOME' ? m.Home_ID===teamId : m.Away_ID===teamId;
+    })
+    .map(m=>{
+      const s=scoreOf(m);
+      return {
+        match:m,
+        gf: venue==='HOME'?s.home:s.away,
+        ga: venue==='HOME'?s.away:s.home,
+        total:s.home+s.away
+      };
+    });
+}
+function hit(values,[lo,hi]){
+  if(!values.length)return {hits:0,n:0,rate:null};
+  const hits=values.filter(v=>v>=lo&&v<=hi).length;
+  return {hits,n:values.length,rate:hits/values.length};
+}
+function fmtPct(x){ return x==null?'—':Math.round(x*100)+'%'; }
+function fmt(x,d=2){ return x==null||Number.isNaN(x)?'—':Number(x).toFixed(d).replace(/\.00$/,''); }
+function mean(xs){ return xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null; }
+function sd(xs){
+  if(xs.length<2)return null;
+  const m=mean(xs); return Math.sqrt(xs.reduce((a,x)=>a+(x-m)**2,0)/(xs.length-1));
+}
+function distribution(values){
+  const out=[0,1,2,3,4].map(k=>({label:k<4?String(k):'4+',count:0,rate:0}));
+  for(const v of values){ out[v>=4?4:v].count++; }
+  out.forEach(x=>x.rate=values.length?x.count/values.length:0);
+  return out;
+}
+function rangeLabel(r){ return `${r[0]}-${r[1]}`; }
+function naturalRange(values){
+  if(!values.length)return null;
+  const candidates=NATURAL_CANDIDATES
+    .map(r=>({range:r,...hit(values,r),width:r[1]-r[0]}))
+    .filter(x=>x.rate>=NATURAL_MIN_COVER)
+    .sort((a,b)=>a.width-b.width || b.rate-a.rate || a.range[0]-b.range[0]);
+  if(candidates.length)return candidates[0];
+  const fallback=NATURAL_CANDIDATES
+    .map(r=>({range:r,...hit(values,r),width:r[1]-r[0]}))
+    .sort((a,b)=>b.rate-a.rate || a.width-b.width);
+  return fallback[0]||null;
+}
+function overlap(a,b){
+  if(!a||!b)return null;
+  const lo=Math.max(a.range[0],b.range[0]), hi=Math.min(a.range[1],b.range[1]);
+  return lo<=hi?[lo,hi]:null;
+}
+function stability(values,range){
+  if(!values.length)return {label:'N/D',cls:'low',sd:null,rate:null};
+  const h=hit(values,range), s=sd(values);
+  let label='Bassa',cls='low';
+  if(h.rate>=.8 && (s==null||s<=1.0)){label='Alta';cls='good'}
+  else if(h.rate>=.65){label='Media';cls='mid'}
+  return {label,cls,sd:s,rate:h.rate};
+}
+function convergence(prod,conc){
+  if(prod==null||conc==null)return {label:'N/D',cls:'low'};
+  const min=Math.min(prod,conc), gap=Math.abs(prod-conc);
+  if(min>=.70 && gap<=.20)return {label:'Alta',cls:'good'};
+  if(min>=.55 && gap<=.30)return {label:'Media',cls:'mid'};
+  return {label:'Bassa',cls:'low'};
+}
+function distHtml(values){
+  const d=distribution(values);
+  return d.map(x=>`
+    <div class="dist-row">
+      <span>${x.label}</span>
+      <div class="bar"><span style="width:${Math.round(x.rate*100)}%"></span></div>
+      <span class="num">${fmtPct(x.rate)}</span>
+    </div>`).join('');
+}
+function rangesTable(values,ranges,label){
+  return `<table class="stat">
+    <tr><th>${label}</th><th class="num">Record</th><th class="num">Hit</th><th class="num">Stabilità</th></tr>
+    ${ranges.map(r=>{
+      const h=hit(values,r), st=stability(values,r);
+      return `<tr><td class="metricname">${rangeLabel(r)}</td><td class="num">${h.hits}/${h.n}</td><td class="num">${fmtPct(h.rate)}</td><td class="num"><span class="pill ${st.cls}">${st.label}</span></td></tr>`;
+    }).join('')}
+  </table>`;
+}
+function totalProfile(teamId,venue){
+  const rows=completedTeamMatches(teamId,venue);
+  return {rows, gf:rows.map(x=>x.gf),ga:rows.map(x=>x.ga),total:rows.map(x=>x.total)};
+}
+
+function render(){
+  if(!DB)return;
+  const id=document.getElementById('selMatch').value;
+  const m=DB.calendar.find(x=>x.Match_ID===id);
+  if(!m){document.getElementById('main').innerHTML='<div class="empty">Seleziona una partita.</div>';return}
+
+  const H=totalProfile(m.Home_ID,'HOME');
+  const A=totalProfile(m.Away_ID,'AWAY');
+
+  // Matchup: produzione della squadra vs gol subiti dall'avversaria nel venue reale.
+  const homeProd=H.gf, homeOppConcede=A.ga;
+  const awayProd=A.gf, awayOppConcede=H.ga;
+
+  const hNat=naturalRange(homeProd), hConcNat=naturalRange(homeOppConcede);
+  const aNat=naturalRange(awayProd), aConcNat=naturalRange(awayOppConcede);
+  const hInt=overlap(hNat,hConcNat), aInt=overlap(aNat,aConcNat);
+
+  const main=document.getElementById('main');
+  main.innerHTML=`
+    <!-- 1. MATCH -->
+    <div class="match-head">
+      <h2 class="match-title">${m.Home} – ${m.Away}</h2>
+      <div class="subtle">Giornata ${m.Giornata} · ${m.Data||'data non disponibile'} · analisi venue: ${m.Home} HOME / ${m.Away} AWAY</div>
+      <div class="kpi-line">
+        <span class="pill info">${H.rows.length} gare HOME ${m.Home}</span>
+        <span class="pill info">${A.rows.length} gare AWAY ${m.Away}</span>
+        <span class="pill ${Math.min(H.rows.length,A.rows.length)>=3?'good':'mid'}">${Math.min(H.rows.length,A.rows.length)>=3?'campione utilizzabile':'campione ridotto'}</span>
+      </div>
+    </div>
+
+    <!-- 2. PROFILO SQUADRA -->
+    <section class="panel">
+      <h2>1 · Profilo squadra <span class="tag">distribuzione gol + Multigol squadra nel venue reale</span></h2>
+      <div class="body grid2">
+        <div>
+          <div class="card-title">${m.Home} — Casa</div>
+          <div class="grid2">
+            <div class="card">
+              <div class="card-title">Gol segnati</div>
+              <div class="big">${fmt(mean(H.gf))}<span class="subtle"> media</span></div>
+              ${distHtml(H.gf)}
+            </div>
+            <div class="card">
+              <div class="card-title">Gol subiti</div>
+              <div class="big">${fmt(mean(H.ga))}<span class="subtle"> media</span></div>
+              ${distHtml(H.ga)}
+            </div>
+          </div>
+          <div style="margin-top:14px">${rangesTable(H.gf,TEAM_RANGES,'MG Casa')}</div>
+        </div>
+        <div>
+          <div class="card-title">${m.Away} — Trasferta</div>
+          <div class="grid2">
+            <div class="card">
+              <div class="card-title">Gol segnati</div>
+              <div class="big">${fmt(mean(A.gf))}<span class="subtle"> media</span></div>
+              ${distHtml(A.gf)}
+            </div>
+            <div class="card">
+              <div class="card-title">Gol subiti</div>
+              <div class="big">${fmt(mean(A.ga))}<span class="subtle"> media</span></div>
+              ${distHtml(A.ga)}
+            </div>
+          </div>
+          <div style="margin-top:14px">${rangesTable(A.gf,TEAM_RANGES,'MG Trasferta')}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. PROFILO TOTALE -->
+    <section class="panel">
+      <h2>2 · Profilo totale partita <span class="tag">Multigol totale + stabilità storica</span></h2>
+      <div class="body grid2">
+        <div>
+          <div class="card-title">${m.Home} HOME — gol totali nelle sue partite</div>
+          ${rangesTable(H.total,TOTAL_RANGES,'MG Totale')}
+          <div class="subtle" style="margin-top:8px">Media totale: ${fmt(mean(H.total))} · dispersione: ${fmt(sd(H.total))}</div>
+        </div>
+        <div>
+          <div class="card-title">${m.Away} AWAY — gol totali nelle sue partite</div>
+          ${rangesTable(A.total,TOTAL_RANGES,'MG Totale')}
+          <div class="subtle" style="margin-top:8px">Media totale: ${fmt(mean(A.total))} · dispersione: ${fmt(sd(A.total))}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. MATCHUP + FASCIA NATURALE -->
+    <section class="panel">
+      <h2>3 · Matchup &amp; fascia naturale <span class="tag">produzione propria vs concessione avversaria</span></h2>
+      <div class="section-note">La “convergenza” non è una probabilità: misura quanto i due profili storici puntano verso la stessa fascia.</div>
+      <div class="body grid2">
+        ${matchupCard(m.Home,'HOME',m.Away,'AWAY',homeProd,homeOppConcede,hNat,hConcNat,hInt)}
+        ${matchupCard(m.Away,'AWAY',m.Home,'HOME',awayProd,awayOppConcede,aNat,aConcNat,aInt)}
+      </div>
+    </section>
+
+    <!-- 5. SCREENER -->
+    <section class="panel">
+      <h2>4 · Screener giornata <span class="tag">range più coerenti tra produzione, concessione e ampiezza fascia</span></h2>
+      <div class="body" style="overflow-x:auto">${renderScreener(Number(m.Giornata))}</div>
+    </section>
+  `;
+}
+
+function matchupCard(team,venue,opp,oppVenue,prod,conc,natP,natC,intR){
+  const pRate=natP?.rate??null, cRate=natC?.rate??null;
+  const conv=convergence(pRate,cRate);
+  const finalRange=intR || natP?.range || null;
+  const st=finalRange?stability(prod,finalRange):null;
+  return `<div class="card">
+    <div class="card-title">${team} ${venue}</div>
+    <table class="stat">
+      <tr><th>Profilo</th><th>Fascia naturale</th><th class="num">Hit</th></tr>
+      <tr><td>Produzione ${team}</td><td class="metricname">${natP?rangeLabel(natP.range):'—'}</td><td class="num">${natP?`${natP.hits}/${natP.n} · ${fmtPct(natP.rate)}`:'—'}</td></tr>
+      <tr><td>Concessione ${opp} ${oppVenue}</td><td class="metricname">${natC?rangeLabel(natC.range):'—'}</td><td class="num">${natC?`${natC.hits}/${natC.n} · ${fmtPct(natC.rate)}`:'—'}</td></tr>
+    </table>
+    <div class="natural-box">
+      <div class="subtle">Intersezione strategica</div>
+      <div class="intersection">${finalRange?rangeLabel(finalRange):'N/D'}</div>
+      <div class="kpi-line">
+        <span class="pill ${conv.cls}">Convergenza ${conv.label}</span>
+        ${st?`<span class="pill ${st.cls}">Stabilità ${st.label}</span>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function screenerRowsForMatch(m){
+  const H=totalProfile(m.Home_ID,'HOME'), A=totalProfile(m.Away_ID,'AWAY');
+  const candidates=[];
+
+  function addTeam(team,label,prod,conc,ranges){
+    for(const r of ranges){
+      const p=hit(prod,r), c=hit(conc,r);
+      if(!p.n||!c.n)continue;
+      const conv=convergence(p.rate,c.rate);
+      // score solo descrittivo: favorisce entrambe le frequenze alte e fasce strette.
+      const width=r[1]-r[0]+1;
+      const score=(Math.min(p.rate,c.rate)*.65 + ((p.rate+c.rate)/2)*.35) / Math.sqrt(width);
+      candidates.push({match:`${m.Home} – ${m.Away}`,market:label,team,range:r,p,c,conv,score,n:Math.min(p.n,c.n)});
+    }
+  }
+  addTeam(m.Home,'MG Casa',H.gf,A.ga,TEAM_RANGES);
+  addTeam(m.Away,'MG Trasferta',A.gf,H.ga,TEAM_RANGES);
+
+  for(const r of TOTAL_RANGES){
+    const h=hit(H.total,r),a=hit(A.total,r);
+    if(!h.n||!a.n)continue;
+    const conv=convergence(h.rate,a.rate);
+    const width=r[1]-r[0]+1;
+    const score=(Math.min(h.rate,a.rate)*.65+((h.rate+a.rate)/2)*.35)/Math.sqrt(width);
+    candidates.push({match:`${m.Home} – ${m.Away}`,market:'MG Totale',team:'—',range:r,p:h,c:a,conv,score,n:Math.min(h.n,a.n)});
+  }
+  return candidates;
+}
+function renderScreener(g){
+  const matches=DB.calendar.filter(m=>Number(m.Giornata)===g);
+  let rows=matches.flatMap(screenerRowsForMatch)
+    .filter(x=>x.n>=2)
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,18);
+
+  if(!rows.length)return '<div class="subtle">Campione insufficiente per lo screener.</div>';
+  return `<table class="stat">
+    <tr>
+      <th>Partita</th><th>Mercato</th><th>Squadra</th><th>Fascia</th>
+      <th class="num">Produzione</th><th class="num">Concessione / altro lato</th>
+      <th class="num">N min.</th><th>Convergenza</th>
+    </tr>
+    ${rows.map(x=>`<tr>
+      <td class="metricname">${x.match}</td>
+      <td>${x.market}</td>
+      <td>${x.team}</td>
+      <td class="metricname">${rangeLabel(x.range)}</td>
+      <td class="num">${x.p.hits}/${x.p.n} · ${fmtPct(x.p.rate)}</td>
+      <td class="num">${x.c.hits}/${x.c.n} · ${fmtPct(x.c.rate)}</td>
+      <td class="num">${x.n}</td>
+      <td><span class="pill ${x.conv.cls}">${x.conv.label}</span></td>
+    </tr>`).join('')}
+  </table>
+  <div class="subtle" style="margin-top:8px">Ordinamento: convergenza delle frequenze con penalizzazione delle fasce più larghe. Non è un ranking di valore senza quota.</div>`;
+}
+</script>
+</body>
+</html>
