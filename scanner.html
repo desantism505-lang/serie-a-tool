@@ -425,21 +425,6 @@
 </nav>
 
 
-<div class="miniform">
-  <div>
-    <label>Giornata (per "+ Aggiungi" manuale sotto)</label>
-    <select id="selGiornata"></select>
-  </div>
-  <div>
-    <label>Partita</label>
-    <select id="selMatch"></select>
-  </div>
-  <div>
-    <label>Giocatore</label>
-    <select id="selPlayer"></select>
-  </div>
-</div>
-
 <main style="max-width:1180px;margin:0 auto;padding:24px 28px 0;">
 
 <section id="scannerSection">
@@ -488,6 +473,23 @@
         <label><input type="checkbox" class="scnLineaChk" value="3.5" checked /> 3.5</label>
       </div>
 
+      <div class="filter-group" id="scnFilterPanel" style="margin-bottom:6px;background:var(--panel-2);padding:10px;border-radius:8px;">
+        <span class="filter-label">Filtra risultati:</span>
+        <input type="text" id="scnFText" placeholder="cerca giocatore/partita" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:170px;" />
+        <select id="scnFCV" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
+          <option value="">Consistenza: tutte</option>
+          <option value="stabile">stabile</option>
+          <option value="variabile">variabile</option>
+          <option value="incostante">incostante</option>
+        </select>
+        <input type="text" inputmode="decimal" id="scnFHitMin" placeholder="Hit venue min. %" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:130px;" />
+        <input type="text" inputmode="decimal" id="scnFEdgeMin" placeholder="Edge min. pp" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:110px;" />
+        <input type="text" inputmode="decimal" id="scnFEvMin" placeholder="EV min. €" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:100px;" />
+        <input type="text" inputmode="decimal" id="scnFQuotaMin" placeholder="Quota min." style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:90px;" />
+        <input type="text" inputmode="decimal" id="scnFQuotaMax" placeholder="Quota max." style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:90px;" />
+        <button id="scnFClear" class="secondary">Pulisci filtri</button>
+      </div>
+
       <div style="overflow-x:auto;">
       <table class="stat" id="scnTable" style="margin-top:14px;min-width:1250px;">
         <thead>
@@ -501,53 +503,75 @@
             <th class="sortable" data-key="cv" title="Coefficiente di variazione: quanto oscilla la prestazione partita per partita. Sotto 0.5 = giocatore regolare, sopra 1 = molto incostante, anche con la stessa media">Consistenza<span class="arrow"></span></th>
             <th class="num sortable" data-key="hitVenue" title="Quante volte, storicamente, in quel venue ha superato questa esatta linea. ± indica l'incertezza (intervallo di Wilson) dato il campione">Hit venue<span class="arrow"></span></th>
             <th class="num sortable" data-key="hitStag" title="Come sopra ma su tutta la stagione, senza distinguere casa/trasferta">Hit stag.<span class="arrow"></span></th>
-            <th class="num" title="Scrivi qui la quota decimale del bookmaker per questa esatta giocata">Quota</th>
+            <th class="num sortable" data-key="quota" title="Scrivi qui la quota decimale del bookmaker per questa esatta giocata">Quota<span class="arrow"></span></th>
             <th class="num sortable" data-key="prob" title="Probabilità implicita nella quota = 1 / quota">Prob. impl.<span class="arrow"></span></th>
             <th class="num sortable" data-key="edge" title="Hit rate venue meno probabilità implicita. Positivo = il book paga più di quanto i tuoi dati suggeriscano probabile">Edge<span class="arrow"></span></th>
             <th class="num sortable" data-key="ev" title="Valore atteso per 1€ puntato, usando l'hit rate venue come probabilità reale: (hit rate × quota) − 1. Positivo = scommessa a valore nel lungo periodo">EV /1€<span class="arrow"></span></th>
-            <th></th>
+            <th title="Salva questa giocata nella tabella Preferiti in fondo alla pagina">☆</th>
           </tr>
         </thead>
         <tbody id="scnBody"></tbody>
       </table>
       </div>
       <div class="subtle" id="scnEmpty">Scegli giornata, filtri e criterio, poi "Scansiona".</div>
-      <div class="subtle" style="margin-top:8px;">Venue sempre quello reale della partita (chi è casa/trasferta in quel match). "Media &gt; Linea" è il filtro più largo e più debole; "Hit rate" è più rigoroso — usa il primo per allargare la ricerca, il secondo prima di scrivere una quota. Clicca un'intestazione di colonna per ordinare.</div>
+      <div class="subtle" style="margin-top:8px;">Venue sempre quello reale della partita (chi è casa/trasferta in quel match). "Media &gt; Linea" è il filtro più largo e più debole; "Hit rate" è più rigoroso — usa il primo per allargare la ricerca, il secondo prima di scrivere una quota. Clicca un'intestazione di colonna per ordinare. Clicca la stella per salvare una giocata tra i Preferiti.</div>
     </div>
   </div>
 </section>
 
 <section id="screenerSection" style="margin-top:24px;">
   <div class="panel">
-    <h2>Screener quote <span class="tag">tracciate manualmente o aggiunte dallo Scanner — sopravvivono al cambio pagina</span></h2>
+    <h2>Preferiti <span class="tag">giocate salvate dallo Scanner con la stella — sopravvivono al cambio pagina</span></h2>
     <div class="body">
-      <div class="screener-form">
-        <select id="scrMercato">
-          <option value="TIRI">Tiri</option>
-          <option value="TIRI_IN_PORTA">Tiri in porta</option>
-          <option value="FALLI_COMMESSI">Falli commessi</option>
-          <option value="FALLI_SUBITI">Falli subiti</option>
-          <option value="CARTELLINO">Cartellino</option>
+      <div class="filter-group" id="scrFilterPanel" style="margin-bottom:10px;background:var(--panel-2);padding:10px;border-radius:8px;">
+        <span class="filter-label">Filtra preferiti:</span>
+        <input type="text" id="scrFText" placeholder="cerca giocatore/partita" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:170px;" />
+        <select id="scrFCV" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
+          <option value="">Consistenza: tutte</option>
+          <option value="stabile">stabile</option>
+          <option value="variabile">variabile</option>
+          <option value="incostante">incostante</option>
         </select>
-        <select id="scrLinea"></select>
-        <button id="scrAdd">+ Aggiungi giocatore/linea corrente (dal riquadro in alto)</button>
-        <button id="scrClear" class="secondary">Svuota tutto</button>
+        <input type="text" inputmode="decimal" id="scrFHitMin" placeholder="Hit venue min. %" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:130px;" />
+        <input type="text" inputmode="decimal" id="scrFEdgeMin" placeholder="Edge min. pp" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:110px;" />
+        <input type="text" inputmode="decimal" id="scrFEvMin" placeholder="EV min. €" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:100px;" />
+        <input type="text" inputmode="decimal" id="scrFQuotaMin" placeholder="Quota min." style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:90px;" />
+        <input type="text" inputmode="decimal" id="scrFQuotaMax" placeholder="Quota max." style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:90px;" />
+        <select id="scrFEsito" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
+          <option value="">Storico: tutte</option>
+          <option value="vinta">vinta</option>
+          <option value="persa">persa</option>
+          <option value="null">non verificata</option>
+        </select>
+        <button id="scrFClear" class="secondary">Pulisci filtri</button>
+      </div>
+      <div class="screener-form">
+        <button id="scrClear" class="secondary">Svuota tutti i preferiti</button>
       </div>
       <div style="overflow-x:auto;">
       <table class="stat" id="scrTable" style="margin-top:14px;min-width:1100px;">
         <thead>
           <tr>
-            <th>Giocatore</th><th>Mercato</th><th class="num">Linea</th>
-            <th class="num">Media venue /90</th><th class="num">Media L3 /90</th><th>Consistenza</th>
-            <th class="num">Hit stag.</th><th class="num">Hit venue</th>
-            <th class="num">Quota</th><th class="num">Prob. impl.</th><th class="num">Edge</th><th class="num">EV /1€</th>
-            <th>Valutazione</th><th>Storico</th><th></th>
+            <th class="sortable" data-key="giocatore">Giocatore<span class="arrow"></span></th>
+            <th class="sortable" data-key="mercato">Mercato<span class="arrow"></span></th>
+            <th class="num sortable" data-key="linea">Linea<span class="arrow"></span></th>
+            <th class="num sortable" data-key="mediaVenue">Media venue /90<span class="arrow"></span></th>
+            <th class="num sortable" data-key="mediaL3">Media L3 /90<span class="arrow"></span></th>
+            <th class="sortable" data-key="cv">Consistenza<span class="arrow"></span></th>
+            <th class="num sortable" data-key="hitStag">Hit stag.<span class="arrow"></span></th>
+            <th class="num sortable" data-key="hitVenue">Hit venue<span class="arrow"></span></th>
+            <th class="num sortable" data-key="quota">Quota<span class="arrow"></span></th>
+            <th class="num sortable" data-key="prob">Prob. impl.<span class="arrow"></span></th>
+            <th class="num sortable" data-key="edge">Edge<span class="arrow"></span></th>
+            <th class="num sortable" data-key="ev">EV /1€<span class="arrow"></span></th>
+            <th class="sortable" data-key="valutazione">Valutazione<span class="arrow"></span></th>
+            <th>Storico</th><th></th>
           </tr>
         </thead>
         <tbody id="scrBody"></tbody>
       </table>
       </div>
-      <div class="subtle" id="scrEmpty">Nessuna giocata in lista. Seleziona un giocatore sopra, scegli mercato e linea, poi "Aggiungi".</div>
+      <div class="subtle" id="scrEmpty">Nessun preferito ancora. Vai su Scanner, scansiona una giornata e clicca la stella ☆ sulle giocate che ti interessano.</div>
       <div class="subtle" id="scrSummary" style="margin-top:8px;color:var(--accent);"></div>
       <div class="subtle" style="margin-top:8px;">*Senza quota inserita, "Favorevole/Sfavorevole" usa il criterio media &gt; linea — più debole dell'edge reale, che richiede la quota.</div>
     </div>
@@ -657,17 +681,13 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // Selettori a cascata (Giornata -> Partita -> Giocatore): servono solo per il
-// tasto "+ Aggiungi" manuale dello Screener. Riempiono anche il selettore
-// Giornata dello Scanner.
+// Popola le giornate per lo Scanner — non serve più altro selettore, il
+// vecchio form manuale dello Screener è stato sostituito dal pulsante
+// stella direttamente sulle righe scansionate.
 // ---------------------------------------------------------------------------
 function populateGiornate(){
   const giornate = [...new Set(DB.calendar.map(r => r.Giornata))].sort((a,b)=>a-b);
   const auto = prossimaGiornata(DB.calendar);
-  const sel = document.getElementById('selGiornata');
-  sel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
-  sel.onchange = populateMatches;
-  if (giornate.includes(auto)) sel.value = String(auto);
-  populateMatches();
   const scnSel = document.getElementById('scnGiornata');
   scnSel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
   scnSel.onchange = populateScnMatch;
@@ -680,28 +700,6 @@ function populateScnMatch(){
   const sel = document.getElementById('scnMatch');
   sel.innerHTML = '<option value="ALL">Tutte le partite</option>' +
     matches.map(m => `<option value="${m.Match_ID}">${m.Home} – ${m.Away}</option>`).join('');
-}
-function populateMatches(){
-  const g = Number(document.getElementById('selGiornata').value);
-  const matches = DB.calendar.filter(r => r.Giornata === g);
-  const sel = document.getElementById('selMatch');
-  sel.innerHTML = matches
-    .map(m => `<option value="${m.Match_ID}">${m.Home} – ${m.Away}</option>`)
-    .join('');
-  sel.onchange = populatePlayers;
-  populatePlayers();
-}
-function populatePlayers(){
-  const matchId = document.getElementById('selMatch').value;
-  const match = DB.calendar.find(m => m.Match_ID === matchId);
-  const sel = document.getElementById('selPlayer');
-  if (!match) { sel.innerHTML = ''; return; }
-  const players = DB.rosters
-    .filter(r => r.Attivo_SerieA === 'SI' && (r.Team_ID_Rif === match.Home_ID || r.Team_ID_Rif === match.Away_ID))
-    .sort((a,b) => a.Nome_completo.localeCompare(b.Nome_completo));
-  sel.innerHTML = players
-    .map(p => `<option value="${p.Player_ID}">${p.Nome_completo} (${p.Squadra_Rif})</option>`)
-    .join('');
 }
 
 function fmt(v, d=2){
@@ -876,10 +874,64 @@ const SORT_ACCESSORS = {
   cv: r => r.cv ?? Infinity, // incostante in fondo quando si ordina "meno instabile prima"
   hitVenue: r => r.hitVenue ?? -Infinity,
   hitStag: r => r.hitStag ?? -Infinity,
+  quota: r => derived(r).quota ?? -Infinity,
   prob: r => derived(r).prob ?? -Infinity,
   edge: r => derived(r).edge ?? -Infinity,
   ev: r => derived(r).ev ?? -Infinity,
 };
+
+// Chiave stabile per una riga scansionata: identifica la stessa giocata
+// (giocatore + mercato + linea + partita) indipendentemente dall'ordine o
+// dal fatto che la scansione sia stata rilanciata — serve per sapere se è
+// già tra i preferiti e per non salvarla due volte.
+function favKeyOf(r){ return `${r.player.Player_ID}|${r.mercato}|${r.linea}|${r.match.Match_ID}`; }
+function isFavorited(r){ return screenerRows.some(x => x.favKey === favKeyOf(r)); }
+
+function cvLabel(cv){
+  if (cv == null) return null;
+  if (cv < 0.5) return 'stabile';
+  if (cv < 1) return 'variabile';
+  return 'incostante';
+}
+
+// Filtri Scanner: ognuno opzionale, si combinano con AND — lasciarli vuoti
+// non esclude nulla.
+function scnFilters(){
+  return {
+    text: (document.getElementById('scnFText').value || '').trim().toLowerCase(),
+    cv: document.getElementById('scnFCV').value,
+    hitMin: Number(String(document.getElementById('scnFHitMin').value).replace(',', '.')) || null,
+    edgeMin: Number(String(document.getElementById('scnFEdgeMin').value).replace(',', '.')) || null,
+    evMin: Number(String(document.getElementById('scnFEvMin').value).replace(',', '.')) || null,
+    quotaMin: Number(String(document.getElementById('scnFQuotaMin').value).replace(',', '.')) || null,
+    quotaMax: Number(String(document.getElementById('scnFQuotaMax').value).replace(',', '.')) || null,
+  };
+}
+function applyScnFilters(rows){
+  const f = scnFilters();
+  return rows.filter(r => {
+    if (f.text) {
+      const hay = `${r.player.Nome_completo} ${r.match.Home} ${r.match.Away}`.toLowerCase();
+      if (!hay.includes(f.text)) return false;
+    }
+    if (f.cv && cvLabel(r.cv) !== f.cv) return false;
+    if (f.hitMin != null && (r.hitVenue == null || r.hitVenue * 100 < f.hitMin)) return false;
+    const { quota, edge, ev } = derived(r);
+    if (f.edgeMin != null && (edge == null || edge * 100 < f.edgeMin)) return false;
+    if (f.evMin != null && (ev == null || ev < f.evMin)) return false;
+    if (f.quotaMin != null && (quota == null || quota < f.quotaMin)) return false;
+    if (f.quotaMax != null && (quota == null || quota > f.quotaMax)) return false;
+    return true;
+  });
+}
+['scnFText','scnFCV','scnFHitMin','scnFEdgeMin','scnFEvMin','scnFQuotaMin','scnFQuotaMax'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderScan);
+  document.getElementById(id).addEventListener('change', renderScan);
+});
+document.getElementById('scnFClear').addEventListener('click', () => {
+  ['scnFText','scnFCV','scnFHitMin','scnFEdgeMin','scnFEvMin','scnFQuotaMin','scnFQuotaMax'].forEach(id => { document.getElementById(id).value = ''; });
+  renderScan();
+});
 
 function applySortAndRender(){
   if (sortState.key) {
@@ -918,18 +970,26 @@ document.querySelectorAll('#scnTable th.sortable').forEach(th => {
 function renderScan(){
   const body = document.getElementById('scnBody');
   const empty = document.getElementById('scnEmpty');
+  const filtered = applyScnFilters(scanResults);
   if (!scanResults.length){
     body.innerHTML = '';
     empty.style.display = 'block';
     empty.textContent = DB ? 'Nessun caso trovato con questi filtri per questa giornata.' : 'Scegli giornata, filtri e criterio, poi "Scansiona".';
     return;
   }
+  if (!filtered.length){
+    body.innerHTML = '';
+    empty.style.display = 'block';
+    empty.textContent = 'Nessuna riga soddisfa i filtri impostati sopra.';
+    return;
+  }
   empty.style.display = 'none';
-  body.innerHTML = scanResults.map((r, i) => {
+  body.innerHTML = filtered.map((r) => {
+    const i = scanResults.indexOf(r);
     const { quota, prob, edge, ev } = derived(r);
     const [lo, hi] = wilsonInterval(r.hitVenue, r.nVenue);
     const ciTxt = (lo != null) ? `<span class="subtle">±${Math.round((hi - lo) / 2 * 100)}pp</span>` : '';
-    const lowN = r.nVenue < 5;
+    const fav = isFavorited(r);
     return `<tr>
     <td class="metricname">${r.player.Nome_completo}<div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
@@ -944,27 +1004,35 @@ function renderScan(){
     <td class="num">${prob != null ? pct(prob) : '—'}</td>
     <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
     <td class="num ${ev != null && ev > 0 ? 'verdict-fav' : (ev != null ? 'verdict-nofav' : '')}">${ev != null ? (ev>0?'+':'') + ev.toFixed(2)+'€' : '—'}</td>
-    <td><button class="rowdel" style="color:var(--accent);" onclick="addScanToScreener(${i})">+ traccia</button></td>
+    <td><button class="rowdel" style="color:var(--accent);font-size:16px;" title="${fav ? 'Rimuovi dai preferiti' : 'Salva tra i preferiti'}" onclick="toggleFavorite(${i})">${fav ? '★' : '☆'}</button></td>
   </tr>`;
   }).join('');
 }
-function addScanToScreener(i){
+function toggleFavorite(i){
   const r = scanResults[i];
   if (!r) return;
-  const { quota } = derived(r);
-  screenerRows.push({
-    id: Date.now() + Math.random(),
-    giornata: r.match.Giornata,
-    partita: `${r.match.Home} – ${r.match.Away}`,
-    giocatore: r.player.Nome_completo,
-    mercato: r.mercato, linea: r.linea, venue: r.venue,
-    mediaStag: r.mediaStag, mediaVenue: r.mediaVenue,
-    mediaL3: computePlayerStats(DB.matchLog, r.player.Player_ID, 'TOTALE', null, r.player.Team_ID_Rif)['L3_' + r.avgKey],
-    cv: r.cv,
-    hitStag: r.hitStag, hitVenue: r.hitVenue, nVenue: r.nVenue,
-    esito: null, quota,
-  });
+  const key = favKeyOf(r);
+  const existingIdx = screenerRows.findIndex(x => x.favKey === key);
+  if (existingIdx >= 0) {
+    screenerRows.splice(existingIdx, 1);
+  } else {
+    const { quota } = derived(r);
+    screenerRows.push({
+      id: Date.now() + Math.random(),
+      favKey: key,
+      giornata: r.match.Giornata,
+      partita: `${r.match.Home} – ${r.match.Away}`,
+      giocatore: r.player.Nome_completo,
+      mercato: r.mercato, linea: r.linea, venue: r.venue,
+      mediaStag: r.mediaStag, mediaVenue: r.mediaVenue,
+      mediaL3: computePlayerStats(DB.matchLog, r.player.Player_ID, 'TOTALE', null, r.player.Team_ID_Rif)['L3_' + r.avgKey],
+      cv: r.cv,
+      hitStag: r.hitStag, hitVenue: r.hitVenue, nVenue: r.nVenue,
+      esito: null, quota,
+    });
+  }
   saveScreenerRows();
+  renderScan();
   renderScreener();
 }
 
@@ -1013,54 +1081,8 @@ function saveScreenerRows(){
 
 let screenerRows = loadScreenerRows();
 
-function populateScrLinee(){
-  const mercato = document.getElementById('scrMercato').value;
-  const sel = document.getElementById('scrLinea');
-  sel.innerHTML = MARKET_LINES[mercato].map(([l]) => `<option value="${l}">${l}</option>`).join('');
-}
-document.getElementById('scrMercato').addEventListener('change', populateScrLinee);
-
-document.getElementById('scrAdd').addEventListener('click', () => {
-  if (!DB) return;
-  const matchId = document.getElementById('selMatch').value;
-  const playerId = document.getElementById('selPlayer').value;
-  const match = DB.calendar.find(m => m.Match_ID === matchId);
-  const player = DB.rosters.find(p => p.Player_ID === playerId);
-  if (!match || !player) return;
-  const mercato = document.getElementById('scrMercato').value;
-  const linea = Number(document.getElementById('scrLinea').value);
-  const def = MARKET_LINES[mercato].find(([l]) => l === linea);
-  if (!def) return;
-  const [, avgKey, hitKey, cvKey] = def;
-
-  // Vincolo verificato: il venue del giocatore viene SEMPRE dalla partita
-  // selezionata (chi è Home_ID / Away_ID in quel match), mai un default.
-  const venue = player.Team_ID_Rif === match.Home_ID ? 'HOME' : 'AWAY';
-  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE', null, player.Team_ID_Rif);
-  const pVenue = computePlayerStats(DB.matchLog, playerId, venue, null, player.Team_ID_Rif);
-  const pL3 = pTot; // le finestre L3/L5/L10 vivono già dentro pTot (calcolate su tutta la stagione)
-
-  screenerRows.push({
-    id: Date.now() + Math.random(),
-    giornata: match.Giornata,
-    partita: `${match.Home} – ${match.Away}`,
-    giocatore: player.Nome_completo,
-    mercato, linea, venue,
-    mediaStag: pTot[avgKey],
-    mediaVenue: pVenue[avgKey],
-    mediaL3: pL3['L3_' + avgKey],
-    cv: pVenue[cvKey],
-    hitStag: pTot[hitKey],
-    hitVenue: pVenue[hitKey],
-    nVenue: pVenue.Partite,
-    esito: null, quota: null, // null | 'vinta' | 'persa'
-  });
-  saveScreenerRows();
-  renderScreener();
-});
-
 document.getElementById('scrClear').addEventListener('click', () => {
-  if (!confirm('Svuotare tutta la lista, compreso lo storico esiti già segnati?')) return;
+  if (!confirm('Svuotare tutti i preferiti, compreso lo storico esiti già segnati?')) return;
   screenerRows = [];
   saveScreenerRows();
   renderScreener();
@@ -1086,31 +1108,127 @@ function removeScrRow(id){
   renderScreener();
 }
 
+function scrDerived(r){
+  const prob = r.quota ? 1 / r.quota : null;
+  const edge = (prob != null && r.hitVenue != null) ? r.hitVenue - prob : null;
+  const ev = (r.quota && r.hitVenue != null) ? (r.hitVenue * r.quota - 1) : null;
+  const hasQuota = r.quota != null;
+  const favorevole = hasQuota ? (edge != null && edge > 0) : (r.mediaVenue != null && r.mediaVenue > r.linea);
+  return { prob, edge, ev, hasQuota, favorevole };
+}
+
+const SCR_SORT_ACCESSORS = {
+  giocatore: r => r.giocatore,
+  mercato: r => MARKET_LABELS[r.mercato],
+  linea: r => r.linea,
+  mediaVenue: r => r.mediaVenue ?? -Infinity,
+  mediaL3: r => r.mediaL3 ?? -Infinity,
+  cv: r => r.cv ?? Infinity,
+  hitStag: r => r.hitStag ?? -Infinity,
+  hitVenue: r => r.hitVenue ?? -Infinity,
+  quota: r => r.quota ?? -Infinity,
+  prob: r => scrDerived(r).prob ?? -Infinity,
+  edge: r => scrDerived(r).edge ?? -Infinity,
+  ev: r => scrDerived(r).ev ?? -Infinity,
+  valutazione: r => (scrDerived(r).favorevole ? 1 : 0),
+};
+let scrSortState = { key: null, dir: 1 };
+
+function scrFilters(){
+  return {
+    text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
+    cv: document.getElementById('scrFCV').value,
+    hitMin: Number(String(document.getElementById('scrFHitMin').value).replace(',', '.')) || null,
+    edgeMin: Number(String(document.getElementById('scrFEdgeMin').value).replace(',', '.')) || null,
+    evMin: Number(String(document.getElementById('scrFEvMin').value).replace(',', '.')) || null,
+    quotaMin: Number(String(document.getElementById('scrFQuotaMin').value).replace(',', '.')) || null,
+    quotaMax: Number(String(document.getElementById('scrFQuotaMax').value).replace(',', '.')) || null,
+    esito: document.getElementById('scrFEsito').value,
+  };
+}
+function applyScrFilters(rows){
+  const f = scrFilters();
+  return rows.filter(r => {
+    if (f.text) {
+      const hay = `${r.giocatore} ${r.partita}`.toLowerCase();
+      if (!hay.includes(f.text)) return false;
+    }
+    if (f.cv && cvLabel(r.cv) !== f.cv) return false;
+    if (f.hitMin != null && (r.hitVenue == null || r.hitVenue * 100 < f.hitMin)) return false;
+    const { edge, ev } = scrDerived(r);
+    if (f.edgeMin != null && (edge == null || edge * 100 < f.edgeMin)) return false;
+    if (f.evMin != null && (ev == null || ev < f.evMin)) return false;
+    if (f.quotaMin != null && (r.quota == null || r.quota < f.quotaMin)) return false;
+    if (f.quotaMax != null && (r.quota == null || r.quota > f.quotaMax)) return false;
+    if (f.esito) {
+      if (f.esito === 'null') { if (r.esito != null) return false; }
+      else if (r.esito !== f.esito) return false;
+    }
+    return true;
+  });
+}
+['scrFText','scrFCV','scrFHitMin','scrFEdgeMin','scrFEvMin','scrFQuotaMin','scrFQuotaMax','scrFEsito'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderScreener);
+  document.getElementById(id).addEventListener('change', renderScreener);
+});
+document.getElementById('scrFClear').addEventListener('click', () => {
+  ['scrFText','scrFHitMin','scrFEdgeMin','scrFEvMin','scrFQuotaMin','scrFQuotaMax'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('scrFCV').value = '';
+  document.getElementById('scrFEsito').value = '';
+  renderScreener();
+});
+document.querySelectorAll('#scrTable th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if (scrSortState.key === key) scrSortState.dir *= -1;
+    else scrSortState = { key, dir: 1 };
+    renderScreener();
+  });
+});
+
 function renderScreener(){
   const body = document.getElementById('scrBody');
   const empty = document.getElementById('scrEmpty');
   const summary = document.getElementById('scrSummary');
+  document.querySelectorAll('#scrTable th.sortable').forEach(th => {
+    const arrow = th.querySelector('.arrow');
+    arrow.textContent = th.dataset.key === scrSortState.key ? (scrSortState.dir === 1 ? '▲' : '▼') : '';
+  });
   if (!screenerRows.length){
     body.innerHTML = '';
     empty.style.display = 'block';
+    empty.textContent = 'Nessun preferito ancora. Vai su Scanner, scansiona una giornata e clicca la stella ☆ sulle giocate che ti interessano.';
+    summary.textContent = '';
+    return;
+  }
+  let rows = applyScrFilters(screenerRows);
+  if (scrSortState.key) {
+    const acc = SCR_SORT_ACCESSORS[scrSortState.key];
+    rows = [...rows].sort((a, b) => {
+      const va = acc(a), vb = acc(b);
+      if (va < vb) return -1 * scrSortState.dir;
+      if (va > vb) return 1 * scrSortState.dir;
+      return 0;
+    });
+  }
+  if (!rows.length){
+    body.innerHTML = '';
+    empty.style.display = 'block';
+    empty.textContent = 'Nessun preferito soddisfa i filtri impostati sopra.';
     summary.textContent = '';
     return;
   }
   empty.style.display = 'none';
 
   const verified = screenerRows.filter(r => r.esito != null);
-  const favVerified = verified.filter(r => (r.quota ? (r.hitVenue - 1/r.quota) > 0 : (r.mediaVenue != null && r.mediaVenue > r.linea)));
+  const favVerified = verified.filter(r => scrDerived(r).favorevole);
   const favWon = favVerified.filter(r => r.esito === 'vinta').length;
   summary.textContent = verified.length
     ? `Storico: ${verified.length} giocate verificate · segnalate a valore/favorevoli: ${favVerified.length}, realizzate ${favWon} (${favVerified.length ? Math.round(favWon/favVerified.length*100) : 0}%)`
     : 'Nessuna giocata ancora verificata — segna Vinta/Persa dopo la partita per costruire lo storico.';
 
-  body.innerHTML = screenerRows.map(r => {
-    const prob = r.quota ? 1 / r.quota : null;
-    const edge = (prob != null && r.hitVenue != null) ? r.hitVenue - prob : null;
-    const ev = (r.quota && r.hitVenue != null) ? (r.hitVenue * r.quota - 1) : null;
-    const hasQuota = r.quota != null;
-    const favorevole = hasQuota ? (edge != null && edge > 0) : (r.mediaVenue != null && r.mediaVenue > r.linea);
+  body.innerHTML = rows.map(r => {
+    const { prob, edge, ev, hasQuota, favorevole } = scrDerived(r);
     const valutazioneLabel = hasQuota
       ? (favorevole ? 'Valore' : 'Nessun valore')
       : (favorevole ? 'Favorevole (media)*' : 'Sfavorevole (media)*');
@@ -1138,7 +1256,6 @@ function renderScreener(){
     </tr>`;
   }).join('');
 }
-populateScrLinee();
 renderScreener();
 </script>
 </body>
