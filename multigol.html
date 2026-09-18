@@ -59,7 +59,7 @@ table.stat tr:last-child td{border-bottom:none}
 table.stat td.num,table.stat th.num{text-align:right}
 .card{border:1px solid var(--line);background:var(--panel-2);border-radius:10px;padding:14px}
 .card-title{font-family:'Space Grotesk',sans-serif;color:var(--text);font-size:13px;font-weight:700;margin-bottom:4px}
-.big{font-family:'Space Grotesk',sans-serif;color:var(--text);font-size:25px;font-weight:700}
+.big{font-family:'Space Grotesk',sans-serif;color:var(--text);font-size:20px;font-weight:700}
 .accent{color:var(--accent)}
 .blue{color:var(--blue)}
 .warn{color:var(--warn)}
@@ -152,8 +152,8 @@ function pick(row, keys){
   return null;
 }
 function scoreOf(m){
-  const home = num(pick(m,['Gol_Casa','Gol_Home','Home_Goals','HomeGoals','GF_Home','GolCasa','Score_Home','HomeScore','FTHG']));
-  const away = num(pick(m,['Gol_Trasferta','Gol_Away','Away_Goals','AwayGoals','GF_Away','GolTrasferta','Score_Away','AwayScore','FTAG']));
+  const home = num(pick(m,['Gol_Casa','Gol_Home','Home_Goals','HomeGoals','GF_Home','GolCasa','Score_Home','HomeScore','FTHG','Home_Score']));
+  const away = num(pick(m,['Gol_Trasferta','Gol_Away','Away_Goals','AwayGoals','GF_Away','GolTrasferta','Score_Away','AwayScore','FTAG','Away_Score']));
   if(home !== null && away !== null) return {home,away};
   const raw = pick(m,['Risultato','Risultato_Finale','Score','Final_Score','FinalScore']);
   if(raw != null){
