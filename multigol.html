@@ -57,6 +57,9 @@ table.stat th{text-align:left;font-weight:700;color:var(--accent);background:var
 table.stat td{padding:9px 10px;color:var(--text-2);font-weight:500;border-bottom:1px solid rgba(47,68,56,.5)}
 table.stat tr:last-child td{border-bottom:none}
 table.stat td.num,table.stat th.num{text-align:right}
+th.sortable{cursor:pointer;user-select:none;}
+th.sortable:hover{color:var(--text);}
+th.sortable .arrow{opacity:0.7;font-size:9px;margin-left:3px;}
 .card{border:1px solid var(--line);background:var(--panel-2);border-radius:10px;padding:14px}
 .card-title{font-family:'Space Grotesk',sans-serif;color:var(--text);font-size:13px;font-weight:700;margin-bottom:4px}
 .big{font-family:'Space Grotesk',sans-serif;color:var(--text);font-size:20px;font-weight:700}
@@ -309,6 +312,29 @@ function totalProfile(teamId,venue){
   return {rows, gf:rows.map(x=>x.gf),ga:rows.map(x=>x.ga),total:rows.map(x=>x.total)};
 }
 
+function ouTable(values){
+  const n = values.length;
+  if (!n) return '<div class="subtle">Campione insufficiente.</div>';
+  const over = values.filter(v=>v>=3).length;
+  const under = n - over;
+  return `<table class="stat">
+    <tr><th>Over/Under 2,5</th><th class="num">Hit</th></tr>
+    <tr><td class="metricname">Over 2,5</td><td class="num">${over}/${n} · ${fmtPct(over/n)}</td></tr>
+    <tr><td class="metricname">Under 2,5</td><td class="num">${under}/${n} · ${fmtPct(under/n)}</td></tr>
+  </table>`;
+}
+function bttsTable(rows){
+  const n = rows.length;
+  if (!n) return '<div class="subtle">Campione insufficiente.</div>';
+  const yes = rows.filter(r=>r.gf>0 && r.ga>0).length;
+  const no = n - yes;
+  return `<table class="stat">
+    <tr><th>Gol-NoGol</th><th class="num">Hit</th></tr>
+    <tr><td class="metricname">Gol (entrambe segnano)</td><td class="num">${yes}/${n} · ${fmtPct(yes/n)}</td></tr>
+    <tr><td class="metricname">NoGol</td><td class="num">${no}/${n} · ${fmtPct(no/n)}</td></tr>
+  </table>`;
+}
+
 function render(){
   if(!DB)return;
   const id=document.getElementById('selMatch').value;
@@ -338,6 +364,23 @@ function render(){
         <span class="pill ${Math.min(H.rows.length,A.rows.length)>=3?'good':'mid'}">${Math.min(H.rows.length,A.rows.length)>=3?'campione utilizzabile':'campione ridotto'}</span>
       </div>
     </div>
+
+    <!-- LEGENDA -->
+    <section class="panel">
+      <h2>Legenda <span class="tag">termini usati in questa pagina</span></h2>
+      <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:12px;">
+        <div><strong class="metricname">MG (Multigol)</strong> — mercato che vince se i gol rientrano in un intervallo dato (es. "1-3" vince con 1, 2 o 3 gol).</div>
+        <div><strong class="metricname">MG Casa / Trasferta</strong> — fasce sui gol segnati dalla singola squadra, nel suo venue reale di questa partita.</div>
+        <div><strong class="metricname">MG Totale</strong> — fasce sui gol complessivi della partita, entrambe le squadre insieme.</div>
+        <div><strong class="metricname">Hit</strong> — quante volte, storicamente, il valore è caduto dentro quella fascia (es. "3/4 · 75%").</div>
+        <div><strong class="metricname">Fascia naturale</strong> — la fascia più stretta che copre almeno il 70% delle partite osservate, non semplicemente quella con l'hit rate più alto in assoluto.</div>
+        <div><strong class="metricname">Convergenza</strong> — quanto la fascia naturale di produzione (una squadra) e quella di concessione (l'avversario) puntano nella stessa direzione.</div>
+        <div><strong class="metricname">Stabilità</strong> — quanto è costante nel tempo l'hit rate di quella fascia per quella squadra (frequenza alta + bassa dispersione dei gol = "Alta").</div>
+        <div><strong class="metricname">N min.</strong> — il campione più piccolo tra i due lati confrontati (es. produzione vs concessione): è quello che conta davvero per giudicare l'affidabilità.</div>
+        <div><strong class="metricname">Over/Under 2,5</strong> — mercato standard italiano: vince Over con 3+ gol totali in partita, Under con 2 o meno.</div>
+        <div><strong class="metricname">Gol-NoGol (BTTS)</strong> — vince "Gol" se entrambe le squadre segnano nella stessa partita, "NoGol" altrimenti.</div>
+      </div>
+    </section>
 
     <!-- 2. PROFILO SQUADRA -->
     <section class="panel">
@@ -380,17 +423,21 @@ function render(){
 
     <!-- 3. PROFILO TOTALE -->
     <section class="panel">
-      <h2>2 · Profilo totale partita <span class="tag">Multigol totale + stabilità storica</span></h2>
+      <h2>2 · Profilo totale partita <span class="tag">Multigol totale, Over/Under 2,5, Gol-NoGol</span></h2>
       <div class="body grid2">
         <div>
           <div class="card-title">${m.Home} HOME — gol totali nelle sue partite</div>
           ${rangesTable(H.total,TOTAL_RANGES,'MG Totale')}
           <div class="subtle" style="margin-top:8px">Media totale: ${fmt(mean(H.total))} · dispersione: ${fmt(sd(H.total))}</div>
+          <div style="margin-top:14px">${ouTable(H.total)}</div>
+          <div style="margin-top:14px">${bttsTable(H.rows)}</div>
         </div>
         <div>
           <div class="card-title">${m.Away} AWAY — gol totali nelle sue partite</div>
           ${rangesTable(A.total,TOTAL_RANGES,'MG Totale')}
           <div class="subtle" style="margin-top:8px">Media totale: ${fmt(mean(A.total))} · dispersione: ${fmt(sd(A.total))}</div>
+          <div style="margin-top:14px">${ouTable(A.total)}</div>
+          <div style="margin-top:14px">${bttsTable(A.rows)}</div>
         </div>
       </div>
     </section>
@@ -408,7 +455,7 @@ function render(){
     <!-- 5. SCREENER -->
     <section class="panel">
       <h2>4 · Screener giornata <span class="tag">range più coerenti tra produzione, concessione e ampiezza fascia</span></h2>
-      <div class="body" style="overflow-x:auto">${renderScreener(Number(m.Giornata))}</div>
+      <div class="body" style="overflow-x:auto"><div id="screenerWrap">${renderScreener(Number(m.Giornata))}</div></div>
     </section>
   `;
 }
@@ -464,20 +511,51 @@ function screenerRowsForMatch(m){
   }
   return candidates;
 }
+let screenerRows = [];
+let screenerSort = { key: 'score', dir: -1 };
+let screenerGiornata = null;
+const CONV_WEIGHT = { 'Alta': 2, 'Media': 1, 'Bassa': 0, 'N/D': -1 };
+const SCREENER_ACCESSORS = {
+  match: x => x.match,
+  market: x => x.market,
+  team: x => x.team,
+  range: x => x.range[0] * 100 + x.range[1],
+  prate: x => x.p.rate ?? -1,
+  crate: x => x.c.rate ?? -1,
+  n: x => x.n,
+  conv: x => CONV_WEIGHT[x.conv.label] ?? -2,
+  score: x => x.score,
+};
+const SCREENER_COLUMNS = [
+  ['match', 'Partita', ''], ['market', 'Mercato', ''], ['team', 'Squadra', ''],
+  ['range', 'Fascia', ''], ['prate', 'Produzione', 'num'], ['crate', 'Concessione / altro lato', 'num'],
+  ['n', 'N min.', 'num'], ['conv', 'Convergenza', ''],
+];
+
 function renderScreener(g){
+  screenerGiornata = g;
   const matches=DB.calendar.filter(m=>Number(m.Giornata)===g);
-  let rows=matches.flatMap(screenerRowsForMatch)
+  screenerRows=matches.flatMap(screenerRowsForMatch)
     .filter(x=>x.n>=2)
     .sort((a,b)=>b.score-a.score)
     .slice(0,18);
+  return renderScreenerTable();
+}
 
-  if(!rows.length)return '<div class="subtle">Campione insufficiente per lo screener.</div>';
-  return `<table class="stat">
-    <tr>
-      <th>Partita</th><th>Mercato</th><th>Squadra</th><th>Fascia</th>
-      <th class="num">Produzione</th><th class="num">Concessione / altro lato</th>
-      <th class="num">N min.</th><th>Convergenza</th>
-    </tr>
+function renderScreenerTable(){
+  if(!screenerRows.length)return '<div class="subtle">Campione insufficiente per lo screener.</div>';
+  const rows = [...screenerRows].sort((a,b) => {
+    const acc = SCREENER_ACCESSORS[screenerSort.key];
+    const va = acc(a), vb = acc(b);
+    if (va < vb) return -1 * screenerSort.dir;
+    if (va > vb) return 1 * screenerSort.dir;
+    return 0;
+  });
+  const head = SCREENER_COLUMNS.map(([key, label, cls]) =>
+    `<th class="sortable ${cls}" data-key="${key}" onclick="sortScreener('${key}')">${label}<span class="arrow">${screenerSort.key===key ? (screenerSort.dir===1?'▲':'▼') : ''}</span></th>`
+  ).join('');
+  return `<table class="stat" id="screenerTable">
+    <tr>${head}</tr>
     ${rows.map(x=>`<tr>
       <td class="metricname">${x.match}</td>
       <td>${x.market}</td>
@@ -489,8 +567,17 @@ function renderScreener(g){
       <td><span class="pill ${x.conv.cls}">${x.conv.label}</span></td>
     </tr>`).join('')}
   </table>
-  <div class="subtle" style="margin-top:8px">Ordinamento: convergenza delle frequenze con penalizzazione delle fasce più larghe. Non è un ranking di valore senza quota.</div>`;
+  <div class="subtle" style="margin-top:8px">Ordine di default: convergenza delle frequenze con penalizzazione delle fasce più larghe. Clicca un'intestazione per ordinare diversamente. Non è un ranking di valore senza quota.</div>`;
+}
+
+function sortScreener(key){
+  if (screenerSort.key === key) screenerSort.dir *= -1;
+  else screenerSort = { key, dir: 1 };
+  const wrap = document.getElementById('screenerWrap');
+  if (wrap) wrap.innerHTML = renderScreenerTable();
 }
 </script>
+</body>
+</html>
 </body>
 </html>
