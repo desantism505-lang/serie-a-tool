@@ -349,6 +349,9 @@
     font-size:12px;
     background:var(--panel-2);
   }
+  .chkfilter{display:inline-flex;flex-wrap:wrap;align-items:center;gap:2px 8px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);}
+  .chkfilter-label{color:var(--muted);font-weight:600;margin-right:2px;}
+  .chkfilter label{display:inline-flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;}
   .filter-group label{
     display:flex;
     align-items:center;
@@ -483,11 +486,33 @@
           <option value="variabile">variabile</option>
           <option value="incostante">incostante</option>
         </select>
-        <input type="text" inputmode="decimal" id="scnFHitMin" placeholder="Hit venue min. %" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:130px;" />
-        <input type="text" inputmode="decimal" id="scnFEdgeMin" placeholder="Edge min. pp" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:110px;" />
-        <input type="text" inputmode="decimal" id="scnFEvMin" placeholder="EV min. €" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:100px;" />
-        <input type="text" inputmode="decimal" id="scnFQuotaMin" placeholder="Quota min." style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:90px;" />
-        <input type="text" inputmode="decimal" id="scnFQuotaMax" placeholder="Quota max." style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:90px;" />
+        <div class="chkfilter"><span class="chkfilter-label">Hit venue:</span>
+          <label><input type="checkbox" class="scnFHitChk" value="0-59" /> sotto 60%</label>
+          <label><input type="checkbox" class="scnFHitChk" value="60-74" /> 60–74%</label>
+          <label><input type="checkbox" class="scnFHitChk" value="75-89" /> 75–89%</label>
+          <label><input type="checkbox" class="scnFHitChk" value="90-100" /> 90–100%</label>
+        </div>
+        <div class="chkfilter"><span class="chkfilter-label">Edge:</span>
+          <label><input type="checkbox" class="scnFEdgeChk" value="neg" /> negativo</label>
+          <label><input type="checkbox" class="scnFEdgeChk" value="0-9" /> 0–9pp</label>
+          <label><input type="checkbox" class="scnFEdgeChk" value="10-19" /> 10–19pp</label>
+          <label><input type="checkbox" class="scnFEdgeChk" value="20-999" /> 20pp+</label>
+        </div>
+        <div class="chkfilter"><span class="chkfilter-label">EV:</span>
+          <label><input type="checkbox" class="scnFEvChk" value="neg" /> negativo</label>
+          <label><input type="checkbox" class="scnFEvChk" value="0-0.19" /> 0–0,19€</label>
+          <label><input type="checkbox" class="scnFEvChk" value="0.2-0.49" /> 0,20–0,49€</label>
+          <label><input type="checkbox" class="scnFEvChk" value="0.5-999" /> 0,50€+</label>
+        </div>
+        <div class="chkfilter"><span class="chkfilter-label">Quota:</span>
+          <label><input type="checkbox" class="scnFQuotaChk" value="1.00-1.20" /> 1.00–1.20</label>
+          <label><input type="checkbox" class="scnFQuotaChk" value="1.21-1.40" /> 1.21–1.40</label>
+          <label><input type="checkbox" class="scnFQuotaChk" value="1.41-1.60" /> 1.41–1.60</label>
+          <label><input type="checkbox" class="scnFQuotaChk" value="1.61-1.80" /> 1.61–1.80</label>
+          <label><input type="checkbox" class="scnFQuotaChk" value="1.81-2.00" /> 1.81–2.00</label>
+          <label><input type="checkbox" class="scnFQuotaChk" value="2.01-2.50" /> 2.01–2.50</label>
+          <label><input type="checkbox" class="scnFQuotaChk" value="2.51-999" /> 2.51+</label>
+        </div>
         <button id="scnFClear" class="secondary">Pulisci filtri</button>
       </div>
 
@@ -533,11 +558,33 @@
           <option value="variabile">variabile</option>
           <option value="incostante">incostante</option>
         </select>
-        <input type="text" inputmode="decimal" id="scrFHitMin" placeholder="Hit venue min. %" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:130px;" />
-        <input type="text" inputmode="decimal" id="scrFEdgeMin" placeholder="Edge min. pp" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:110px;" />
-        <input type="text" inputmode="decimal" id="scrFEvMin" placeholder="EV min. €" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:100px;" />
-        <input type="text" inputmode="decimal" id="scrFQuotaMin" placeholder="Quota min." style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:90px;" />
-        <input type="text" inputmode="decimal" id="scrFQuotaMax" placeholder="Quota max." style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:90px;" />
+        <div class="chkfilter"><span class="chkfilter-label">Hit venue:</span>
+          <label><input type="checkbox" class="scrFHitChk" value="0-59" /> sotto 60%</label>
+          <label><input type="checkbox" class="scrFHitChk" value="60-74" /> 60–74%</label>
+          <label><input type="checkbox" class="scrFHitChk" value="75-89" /> 75–89%</label>
+          <label><input type="checkbox" class="scrFHitChk" value="90-100" /> 90–100%</label>
+        </div>
+        <div class="chkfilter"><span class="chkfilter-label">Edge:</span>
+          <label><input type="checkbox" class="scrFEdgeChk" value="neg" /> negativo</label>
+          <label><input type="checkbox" class="scrFEdgeChk" value="0-9" /> 0–9pp</label>
+          <label><input type="checkbox" class="scrFEdgeChk" value="10-19" /> 10–19pp</label>
+          <label><input type="checkbox" class="scrFEdgeChk" value="20-999" /> 20pp+</label>
+        </div>
+        <div class="chkfilter"><span class="chkfilter-label">EV:</span>
+          <label><input type="checkbox" class="scrFEvChk" value="neg" /> negativo</label>
+          <label><input type="checkbox" class="scrFEvChk" value="0-0.19" /> 0–0,19€</label>
+          <label><input type="checkbox" class="scrFEvChk" value="0.2-0.49" /> 0,20–0,49€</label>
+          <label><input type="checkbox" class="scrFEvChk" value="0.5-999" /> 0,50€+</label>
+        </div>
+        <div class="chkfilter"><span class="chkfilter-label">Quota:</span>
+          <label><input type="checkbox" class="scrFQuotaChk" value="1.00-1.20" /> 1.00–1.20</label>
+          <label><input type="checkbox" class="scrFQuotaChk" value="1.21-1.40" /> 1.21–1.40</label>
+          <label><input type="checkbox" class="scrFQuotaChk" value="1.41-1.60" /> 1.41–1.60</label>
+          <label><input type="checkbox" class="scrFQuotaChk" value="1.61-1.80" /> 1.61–1.80</label>
+          <label><input type="checkbox" class="scrFQuotaChk" value="1.81-2.00" /> 1.81–2.00</label>
+          <label><input type="checkbox" class="scrFQuotaChk" value="2.01-2.50" /> 2.01–2.50</label>
+          <label><input type="checkbox" class="scrFQuotaChk" value="2.51-999" /> 2.51+</label>
+        </div>
         <select id="scrFEsito" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
           <option value="">Storico: tutte</option>
           <option value="vinta">vinta</option>
@@ -897,15 +944,40 @@ function cvLabel(cv){
 
 // Filtri Scanner: ognuno opzionale, si combinano con AND — lasciarli vuoti
 // non esclude nulla.
+// Interpreta un valore "min-max" (es. "60-74", "20-999", "neg") in un
+// intervallo numerico [min, max]. "neg" = qualunque valore sotto zero.
+// value vuoto = nessun filtro (torna null).
+// Interpreta un valore "min-max" (es. "60-74") o "neg" in un intervallo
+// numerico [min, max]. Usato per trasformare le caselle spuntate in bucket.
+function parseBucket(value){
+  if (value === 'neg') return [-Infinity, -0.0001];
+  const [lo, hi] = value.split('-').map(Number);
+  return [lo, hi];
+}
+// Tutti i bucket delle caselle spuntate per una categoria di filtro. Nessuna
+// spuntata = nessun filtro su quella categoria (array vuoto).
+function bucketsFromChecked(selector){
+  return getCheckedValues(selector).map(parseBucket);
+}
+// Vero se il valore cade in ALMENO UNO dei bucket spuntati (OR tra le
+// caselle della stessa categoria) — nessuna spuntata = passa sempre.
+function inAnyBucket(val, buckets){
+  if (!buckets.length) return true;
+  if (val == null) return false;
+  return buckets.some(b => val >= b[0] && val <= b[1]);
+}
+
+// Filtri Scanner: ogni categoria (testo, consistenza, hit, edge, ev, quota)
+// è opzionale e si combina con le altre in AND; dentro la stessa categoria
+// più caselle spuntate si combinano in OR (es. "60–74%" o "90–100%" insieme).
 function scnFilters(){
   return {
     text: (document.getElementById('scnFText').value || '').trim().toLowerCase(),
     cv: document.getElementById('scnFCV').value,
-    hitMin: Number(String(document.getElementById('scnFHitMin').value).replace(',', '.')) || null,
-    edgeMin: Number(String(document.getElementById('scnFEdgeMin').value).replace(',', '.')) || null,
-    evMin: Number(String(document.getElementById('scnFEvMin').value).replace(',', '.')) || null,
-    quotaMin: Number(String(document.getElementById('scnFQuotaMin').value).replace(',', '.')) || null,
-    quotaMax: Number(String(document.getElementById('scnFQuotaMax').value).replace(',', '.')) || null,
+    hitBuckets: bucketsFromChecked('.scnFHitChk'),
+    edgeBuckets: bucketsFromChecked('.scnFEdgeChk'),
+    evBuckets: bucketsFromChecked('.scnFEvChk'),
+    quotaBuckets: bucketsFromChecked('.scnFQuotaChk'),
   };
 }
 function applyScnFilters(rows){
@@ -916,21 +988,23 @@ function applyScnFilters(rows){
       if (!hay.includes(f.text)) return false;
     }
     if (f.cv && cvLabel(r.cv) !== f.cv) return false;
-    if (f.hitMin != null && (r.hitVenue == null || r.hitVenue * 100 < f.hitMin)) return false;
+    if (!inAnyBucket(r.hitVenue != null ? r.hitVenue * 100 : null, f.hitBuckets)) return false;
     const { quota, edge, ev } = derived(r);
-    if (f.edgeMin != null && (edge == null || edge * 100 < f.edgeMin)) return false;
-    if (f.evMin != null && (ev == null || ev < f.evMin)) return false;
-    if (f.quotaMin != null && (quota == null || quota < f.quotaMin)) return false;
-    if (f.quotaMax != null && (quota == null || quota > f.quotaMax)) return false;
+    if (!inAnyBucket(edge != null ? edge * 100 : null, f.edgeBuckets)) return false;
+    if (!inAnyBucket(ev, f.evBuckets)) return false;
+    if (!inAnyBucket(quota, f.quotaBuckets)) return false;
     return true;
   });
 }
-['scnFText','scnFCV','scnFHitMin','scnFEdgeMin','scnFEvMin','scnFQuotaMin','scnFQuotaMax'].forEach(id => {
-  document.getElementById(id).addEventListener('input', renderScan);
-  document.getElementById(id).addEventListener('change', renderScan);
+document.getElementById('scnFText').addEventListener('input', renderScan);
+document.getElementById('scnFCV').addEventListener('change', renderScan);
+document.querySelectorAll('.scnFHitChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => {
+  chk.addEventListener('change', renderScan);
 });
 document.getElementById('scnFClear').addEventListener('click', () => {
-  ['scnFText','scnFCV','scnFHitMin','scnFEdgeMin','scnFEvMin','scnFQuotaMin','scnFQuotaMax'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('scnFText').value = '';
+  document.getElementById('scnFCV').value = '';
+  document.querySelectorAll('.scnFHitChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => { chk.checked = false; });
   renderScan();
 });
 
@@ -1204,11 +1278,10 @@ function scrFilters(){
   return {
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
     cv: document.getElementById('scrFCV').value,
-    hitMin: Number(String(document.getElementById('scrFHitMin').value).replace(',', '.')) || null,
-    edgeMin: Number(String(document.getElementById('scrFEdgeMin').value).replace(',', '.')) || null,
-    evMin: Number(String(document.getElementById('scrFEvMin').value).replace(',', '.')) || null,
-    quotaMin: Number(String(document.getElementById('scrFQuotaMin').value).replace(',', '.')) || null,
-    quotaMax: Number(String(document.getElementById('scrFQuotaMax').value).replace(',', '.')) || null,
+    hitBuckets: bucketsFromChecked('.scrFHitChk'),
+    edgeBuckets: bucketsFromChecked('.scrFEdgeChk'),
+    evBuckets: bucketsFromChecked('.scrFEvChk'),
+    quotaBuckets: bucketsFromChecked('.scrFQuotaChk'),
     esito: document.getElementById('scrFEsito').value,
   };
 }
@@ -1220,12 +1293,11 @@ function applyScrFilters(rows){
       if (!hay.includes(f.text)) return false;
     }
     if (f.cv && cvLabel(r.cv) !== f.cv) return false;
-    if (f.hitMin != null && (r.hitVenue == null || r.hitVenue * 100 < f.hitMin)) return false;
+    if (!inAnyBucket(r.hitVenue != null ? r.hitVenue * 100 : null, f.hitBuckets)) return false;
     const { edge, ev } = scrDerived(r);
-    if (f.edgeMin != null && (edge == null || edge * 100 < f.edgeMin)) return false;
-    if (f.evMin != null && (ev == null || ev < f.evMin)) return false;
-    if (f.quotaMin != null && (r.quota == null || r.quota < f.quotaMin)) return false;
-    if (f.quotaMax != null && (r.quota == null || r.quota > f.quotaMax)) return false;
+    if (!inAnyBucket(edge != null ? edge * 100 : null, f.edgeBuckets)) return false;
+    if (!inAnyBucket(ev, f.evBuckets)) return false;
+    if (!inAnyBucket(r.quota, f.quotaBuckets)) return false;
     if (f.esito) {
       if (f.esito === 'null') { if (r.esito != null) return false; }
       else if (r.esito !== f.esito) return false;
@@ -1233,14 +1305,17 @@ function applyScrFilters(rows){
     return true;
   });
 }
-['scrFText','scrFCV','scrFHitMin','scrFEdgeMin','scrFEvMin','scrFQuotaMin','scrFQuotaMax','scrFEsito'].forEach(id => {
-  document.getElementById(id).addEventListener('input', renderScreener);
-  document.getElementById(id).addEventListener('change', renderScreener);
+document.getElementById('scrFText').addEventListener('input', renderScreener);
+document.getElementById('scrFCV').addEventListener('change', renderScreener);
+document.getElementById('scrFEsito').addEventListener('change', renderScreener);
+document.querySelectorAll('.scrFHitChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => {
+  chk.addEventListener('change', renderScreener);
 });
 document.getElementById('scrFClear').addEventListener('click', () => {
-  ['scrFText','scrFHitMin','scrFEdgeMin','scrFEvMin','scrFQuotaMin','scrFQuotaMax'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('scrFText').value = '';
   document.getElementById('scrFCV').value = '';
   document.getElementById('scrFEsito').value = '';
+  document.querySelectorAll('.scrFHitChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
   renderScreener();
 });
 document.querySelectorAll('#scrTable th.sortable').forEach(th => {
