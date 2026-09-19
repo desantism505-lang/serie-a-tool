@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg:#0B1210;
@@ -1014,10 +1015,15 @@ function toggleFavorite(i){
   const key = favKeyOf(r);
   const existingIdx = screenerRows.findIndex(x => x.favKey === key);
   if (existingIdx >= 0) {
+    const removedId = screenerRows[existingIdx].id;
     screenerRows.splice(existingIdx, 1);
+    if (sb) {
+      sb.from('preferiti').delete().eq('id', String(removedId))
+        .then(({ error }) => { if (error) console.warn('Supabase: rimozione preferito non riuscita.', error); });
+    }
   } else {
     const { quota } = derived(r);
-    screenerRows.push({
+    const nuovo = {
       id: Date.now() + Math.random(),
       favKey: key,
       giornata: r.match.Giornata,
@@ -1029,7 +1035,12 @@ function toggleFavorite(i){
       cv: r.cv,
       hitStag: r.hitStag, hitVenue: r.hitVenue, nVenue: r.nVenue,
       esito: null, quota,
-    });
+    };
+    screenerRows.push(nuovo);
+    if (sb) {
+      sb.from('preferiti').insert(scrRowToCloud(nuovo))
+        .then(({ error }) => { if (error) console.warn('Supabase: salvataggio preferito non riuscito, resta solo su questo dispositivo.', error); });
+    }
   }
   saveScreenerRows();
   renderScan();
@@ -1067,6 +1078,9 @@ document.getElementById('scnExport').addEventListener('click', () => {
 });
 
 const SCR_STORAGE_KEY = 'sa_screener_rows_v1';
+const SB_URL = 'https://bcvpqrxcdzzcnomlwtum.supabase.co';
+const SB_KEY = 'sb_publishable__rJ8XozGID78cfl0t4Fdmw_BoNP9A7k';
+const sb = (typeof window.supabase !== 'undefined') ? window.supabase.createClient(SB_URL, SB_KEY) : null;
 
 function loadScreenerRows(){
   try {
@@ -1079,13 +1093,53 @@ function saveScreenerRows(){
   catch (e) { /* storage non disponibile: la lista resta solo in sessione */ }
 }
 
+// Conversione riga JS (camelCase) <-> riga tabella Supabase (snake_case).
+function scrRowToCloud(r){
+  return {
+    id: String(r.id), fav_key: r.favKey, giornata: r.giornata, partita: r.partita,
+    giocatore: r.giocatore, mercato: r.mercato, linea: r.linea, venue: r.venue,
+    media_stag: r.mediaStag, media_venue: r.mediaVenue, media_l3: r.mediaL3, cv: r.cv,
+    hit_stag: r.hitStag, hit_venue: r.hitVenue, n_venue: r.nVenue,
+    esito: r.esito, quota: r.quota,
+  };
+}
+function scrRowFromCloud(row){
+  return {
+    id: row.id, favKey: row.fav_key, giornata: row.giornata, partita: row.partita,
+    giocatore: row.giocatore, mercato: row.mercato, linea: row.linea, venue: row.venue,
+    mediaStag: row.media_stag, mediaVenue: row.media_venue, mediaL3: row.media_l3, cv: row.cv,
+    hitStag: row.hit_stag, hitVenue: row.hit_venue, nVenue: row.n_venue,
+    esito: row.esito, quota: row.quota,
+  };
+}
+// Scarica i preferiti salvati da altri dispositivi, una volta al
+// caricamento pagina. Se Supabase non risponde, resta valido solo il
+// localStorage — nessun blocco, nessun errore visibile all'utente.
+async function syncScreenerFromCloud(){
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('preferiti').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    screenerRows = data.map(scrRowFromCloud);
+    saveScreenerRows();
+    renderScreener();
+  } catch (e) {
+    console.warn('Supabase: sincronizzazione preferiti non riuscita, resto sui dati locali.', e);
+  }
+}
+
 let screenerRows = loadScreenerRows();
+if (sb) syncScreenerFromCloud();
 
 document.getElementById('scrClear').addEventListener('click', () => {
   if (!confirm('Svuotare tutti i preferiti, compreso lo storico esiti già segnati?')) return;
   screenerRows = [];
   saveScreenerRows();
   renderScreener();
+  if (sb) {
+    sb.from('preferiti').delete().not('id', 'is', null)
+      .then(({ error }) => { if (error) console.warn('Supabase: svuotamento remoto non riuscito.', error); });
+  }
 });
 
 function scrSetEsito(id, esito){
@@ -1093,6 +1147,10 @@ function scrSetEsito(id, esito){
   if (r) r.esito = (r.esito === esito) ? null : esito; // click di nuovo = annulla
   saveScreenerRows();
   renderScreener();
+  if (sb && r) {
+    sb.from('preferiti').update({ esito: r.esito }).eq('id', String(id))
+      .then(({ error }) => { if (error) console.warn('Supabase: aggiornamento esito non riuscito.', error); });
+  }
 }
 function scrSetQuota(id, val){
   const r = screenerRows.find(r => r.id === id);
@@ -1101,11 +1159,19 @@ function scrSetQuota(id, val){
   r.quota = (val === '' || Number.isNaN(q) || q <= 1) ? null : q;
   saveScreenerRows();
   renderScreener();
+  if (sb) {
+    sb.from('preferiti').update({ quota: r.quota }).eq('id', String(id))
+      .then(({ error }) => { if (error) console.warn('Supabase: aggiornamento quota non riuscito.', error); });
+  }
 }
 function removeScrRow(id){
   screenerRows = screenerRows.filter(r => r.id !== id);
   saveScreenerRows();
   renderScreener();
+  if (sb) {
+    sb.from('preferiti').delete().eq('id', String(id))
+      .then(({ error }) => { if (error) console.warn('Supabase: rimozione preferito non riuscita.', error); });
+  }
 }
 
 function scrDerived(r){

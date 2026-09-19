@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg:#0B1210;
@@ -1357,21 +1358,57 @@ function updateTeamLineRow(teamId, key, venue){
 }
 
 // Overrides arbitro inseriti a mano dalla pagina (per partite non ancora
-// presenti nel foglio ARBITRI dell'Excel) — salvati in localStorage, quindi
-// visibili solo su QUESTO browser/dispositivo, stessa logica già in uso per
-// lo storico dello Screener. L'Excel ha sempre la priorità se la partita è
-// già presente lì: l'override serve solo a colmare il vuoto nel frattempo.
+// presenti nel foglio ARBITRI dell'Excel). Salvati SEMPRE in localStorage
+// (risposta immediata, funziona anche offline) e in più sincronizzati con
+// Supabase, quando raggiungibile, così lo stesso arbitro salvato compare
+// anche su un altro dispositivo/browser. Se Supabase non risponde (rete
+// assente, servizio in pausa) il sito continua a funzionare solo su
+// localStorage, esattamente come prima — nessuna funzione si blocca in
+// attesa della rete. L'Excel ha sempre la priorità se la partita è già
+// presente lì: l'override serve solo a colmare il vuoto nel frattempo.
 const ARBITRO_OVERRIDES_KEY = 'arbitroOverrides_v1';
+const SB_URL = 'https://bcvpqrxcdzzcnomlwtum.supabase.co';
+const SB_KEY = 'sb_publishable__rJ8XozGID78cfl0t4Fdmw_BoNP9A7k';
+const sb = (typeof window.supabase !== 'undefined') ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+
+let _arbitroOverridesCache = null;
 function loadArbitroOverrides(){
-  try { return JSON.parse(localStorage.getItem(ARBITRO_OVERRIDES_KEY) || '{}'); }
-  catch(e){ return {}; }
+  if (_arbitroOverridesCache) return _arbitroOverridesCache;
+  try { _arbitroOverridesCache = JSON.parse(localStorage.getItem(ARBITRO_OVERRIDES_KEY) || '{}'); }
+  catch(e){ _arbitroOverridesCache = {}; }
+  return _arbitroOverridesCache;
 }
 function saveArbitroOverride(matchId, nome){
   const overrides = loadArbitroOverrides();
   if (nome && nome.trim()) overrides[matchId] = nome.trim();
   else delete overrides[matchId];
   try { localStorage.setItem(ARBITRO_OVERRIDES_KEY, JSON.stringify(overrides)); } catch(e){}
+  if (sb) {
+    const p = (nome && nome.trim())
+      ? sb.from('arbitro_overrides').upsert({ match_id: matchId, arbitro: nome.trim() })
+      : sb.from('arbitro_overrides').delete().eq('match_id', matchId);
+    p.then(({ error }) => { if (error) console.warn('Supabase: salvataggio arbitro non riuscito, resta solo su questo dispositivo.', error); });
+  }
 }
+// Scarica gli arbitri salvati da altri dispositivi (una volta, al
+// caricamento pagina) e li fonde con quelli locali — se la rete manca o
+// Supabase non risponde, non succede nulla e resta valido solo il locale.
+async function syncArbitroOverridesFromCloud(){
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('arbitro_overrides').select('match_id, arbitro');
+    if (error) throw error;
+    const fresh = {};
+    for (const row of data) fresh[row.match_id] = row.arbitro;
+    _arbitroOverridesCache = fresh;
+    try { localStorage.setItem(ARBITRO_OVERRIDES_KEY, JSON.stringify(fresh)); } catch(e){}
+    if (typeof DB !== 'undefined' && DB) render();
+  } catch(e) {
+    console.warn('Supabase: sincronizzazione arbitri non riuscita, resto sui dati locali.', e);
+  }
+}
+if (sb) syncArbitroOverridesFromCloud();
+
 function arbitriEffettivi(){
   const overrides = loadArbitroOverrides();
   const daExcel = new Set(DB.arbitri.map(a => a.Match_ID));
