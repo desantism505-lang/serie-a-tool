@@ -352,6 +352,13 @@
   .chkfilter{display:inline-flex;flex-wrap:wrap;align-items:center;gap:2px 8px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);}
   .chkfilter-label{color:var(--muted);font-weight:600;margin-right:2px;}
   .chkfilter label{display:inline-flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;}
+  .msdrop{position:relative;display:inline-block;}
+  .msdrop-btn{background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Inter',sans-serif;}
+  .msdrop-btn:hover{border-color:var(--accent-dim);}
+  .msdrop-btn.active-filter{border-color:var(--accent);color:var(--accent);}
+  .msdrop-panel{position:absolute;top:100%;left:0;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;z-index:30;display:none;flex-direction:column;gap:5px;min-width:170px;box-shadow:0 6px 16px rgba(0,0,0,0.4);}
+  .msdrop-panel.open{display:flex;}
+  .msdrop-panel label{display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;font-size:12px;color:var(--text-2);}
   .filter-group label{
     display:flex;
     align-items:center;
@@ -486,32 +493,44 @@
           <option value="variabile">variabile</option>
           <option value="incostante">incostante</option>
         </select>
-        <div class="chkfilter"><span class="chkfilter-label">Hit venue:</span>
-          <label><input type="checkbox" class="scnFHitChk" value="0-59" /> sotto 60%</label>
-          <label><input type="checkbox" class="scnFHitChk" value="60-74" /> 60–74%</label>
-          <label><input type="checkbox" class="scnFHitChk" value="75-89" /> 75–89%</label>
-          <label><input type="checkbox" class="scnFHitChk" value="90-100" /> 90–100%</label>
+        <div class="msdrop" id="scnFHitDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFHitDrop')">Hit venue: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scnFHitChk" value="0-59" /> sotto 60%</label>
+            <label><input type="checkbox" class="scnFHitChk" value="60-74" /> 60–74%</label>
+            <label><input type="checkbox" class="scnFHitChk" value="75-89" /> 75–89%</label>
+            <label><input type="checkbox" class="scnFHitChk" value="90-100" /> 90–100%</label>
+          </div>
         </div>
-        <div class="chkfilter"><span class="chkfilter-label">Edge:</span>
-          <label><input type="checkbox" class="scnFEdgeChk" value="neg" /> negativo</label>
-          <label><input type="checkbox" class="scnFEdgeChk" value="0-9" /> 0–9pp</label>
-          <label><input type="checkbox" class="scnFEdgeChk" value="10-19" /> 10–19pp</label>
-          <label><input type="checkbox" class="scnFEdgeChk" value="20-999" /> 20pp+</label>
+        <div class="msdrop" id="scnFEdgeDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFEdgeDrop')">Edge: tutti ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scnFEdgeChk" value="neg" /> negativo</label>
+            <label><input type="checkbox" class="scnFEdgeChk" value="0-9" /> 0–9pp</label>
+            <label><input type="checkbox" class="scnFEdgeChk" value="10-19" /> 10–19pp</label>
+            <label><input type="checkbox" class="scnFEdgeChk" value="20-999" /> 20pp+</label>
+          </div>
         </div>
-        <div class="chkfilter"><span class="chkfilter-label">EV:</span>
-          <label><input type="checkbox" class="scnFEvChk" value="neg" /> negativo</label>
-          <label><input type="checkbox" class="scnFEvChk" value="0-0.19" /> 0–0,19€</label>
-          <label><input type="checkbox" class="scnFEvChk" value="0.2-0.49" /> 0,20–0,49€</label>
-          <label><input type="checkbox" class="scnFEvChk" value="0.5-999" /> 0,50€+</label>
+        <div class="msdrop" id="scnFEvDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFEvDrop')">EV: tutti ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scnFEvChk" value="neg" /> negativo</label>
+            <label><input type="checkbox" class="scnFEvChk" value="0-0.19" /> 0–0,19€</label>
+            <label><input type="checkbox" class="scnFEvChk" value="0.2-0.49" /> 0,20–0,49€</label>
+            <label><input type="checkbox" class="scnFEvChk" value="0.5-999" /> 0,50€+</label>
+          </div>
         </div>
-        <div class="chkfilter"><span class="chkfilter-label">Quota:</span>
-          <label><input type="checkbox" class="scnFQuotaChk" value="1.00-1.20" /> 1.00–1.20</label>
-          <label><input type="checkbox" class="scnFQuotaChk" value="1.21-1.40" /> 1.21–1.40</label>
-          <label><input type="checkbox" class="scnFQuotaChk" value="1.41-1.60" /> 1.41–1.60</label>
-          <label><input type="checkbox" class="scnFQuotaChk" value="1.61-1.80" /> 1.61–1.80</label>
-          <label><input type="checkbox" class="scnFQuotaChk" value="1.81-2.00" /> 1.81–2.00</label>
-          <label><input type="checkbox" class="scnFQuotaChk" value="2.01-2.50" /> 2.01–2.50</label>
-          <label><input type="checkbox" class="scnFQuotaChk" value="2.51-999" /> 2.51+</label>
+        <div class="msdrop" id="scnFQuotaDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFQuotaDrop')">Quota: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.00-1.20" /> 1.00–1.20</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.21-1.40" /> 1.21–1.40</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.41-1.60" /> 1.41–1.60</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.61-1.80" /> 1.61–1.80</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.81-2.00" /> 1.81–2.00</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="2.01-2.50" /> 2.01–2.50</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="2.51-999" /> 2.51+</label>
+          </div>
         </div>
         <button id="scnFClear" class="secondary">Pulisci filtri</button>
       </div>
@@ -558,32 +577,44 @@
           <option value="variabile">variabile</option>
           <option value="incostante">incostante</option>
         </select>
-        <div class="chkfilter"><span class="chkfilter-label">Hit venue:</span>
-          <label><input type="checkbox" class="scrFHitChk" value="0-59" /> sotto 60%</label>
-          <label><input type="checkbox" class="scrFHitChk" value="60-74" /> 60–74%</label>
-          <label><input type="checkbox" class="scrFHitChk" value="75-89" /> 75–89%</label>
-          <label><input type="checkbox" class="scrFHitChk" value="90-100" /> 90–100%</label>
+        <div class="msdrop" id="scrFHitDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFHitDrop')">Hit venue: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFHitChk" value="0-59" /> sotto 60%</label>
+            <label><input type="checkbox" class="scrFHitChk" value="60-74" /> 60–74%</label>
+            <label><input type="checkbox" class="scrFHitChk" value="75-89" /> 75–89%</label>
+            <label><input type="checkbox" class="scrFHitChk" value="90-100" /> 90–100%</label>
+          </div>
         </div>
-        <div class="chkfilter"><span class="chkfilter-label">Edge:</span>
-          <label><input type="checkbox" class="scrFEdgeChk" value="neg" /> negativo</label>
-          <label><input type="checkbox" class="scrFEdgeChk" value="0-9" /> 0–9pp</label>
-          <label><input type="checkbox" class="scrFEdgeChk" value="10-19" /> 10–19pp</label>
-          <label><input type="checkbox" class="scrFEdgeChk" value="20-999" /> 20pp+</label>
+        <div class="msdrop" id="scrFEdgeDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFEdgeDrop')">Edge: tutti ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFEdgeChk" value="neg" /> negativo</label>
+            <label><input type="checkbox" class="scrFEdgeChk" value="0-9" /> 0–9pp</label>
+            <label><input type="checkbox" class="scrFEdgeChk" value="10-19" /> 10–19pp</label>
+            <label><input type="checkbox" class="scrFEdgeChk" value="20-999" /> 20pp+</label>
+          </div>
         </div>
-        <div class="chkfilter"><span class="chkfilter-label">EV:</span>
-          <label><input type="checkbox" class="scrFEvChk" value="neg" /> negativo</label>
-          <label><input type="checkbox" class="scrFEvChk" value="0-0.19" /> 0–0,19€</label>
-          <label><input type="checkbox" class="scrFEvChk" value="0.2-0.49" /> 0,20–0,49€</label>
-          <label><input type="checkbox" class="scrFEvChk" value="0.5-999" /> 0,50€+</label>
+        <div class="msdrop" id="scrFEvDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFEvDrop')">EV: tutti ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFEvChk" value="neg" /> negativo</label>
+            <label><input type="checkbox" class="scrFEvChk" value="0-0.19" /> 0–0,19€</label>
+            <label><input type="checkbox" class="scrFEvChk" value="0.2-0.49" /> 0,20–0,49€</label>
+            <label><input type="checkbox" class="scrFEvChk" value="0.5-999" /> 0,50€+</label>
+          </div>
         </div>
-        <div class="chkfilter"><span class="chkfilter-label">Quota:</span>
-          <label><input type="checkbox" class="scrFQuotaChk" value="1.00-1.20" /> 1.00–1.20</label>
-          <label><input type="checkbox" class="scrFQuotaChk" value="1.21-1.40" /> 1.21–1.40</label>
-          <label><input type="checkbox" class="scrFQuotaChk" value="1.41-1.60" /> 1.41–1.60</label>
-          <label><input type="checkbox" class="scrFQuotaChk" value="1.61-1.80" /> 1.61–1.80</label>
-          <label><input type="checkbox" class="scrFQuotaChk" value="1.81-2.00" /> 1.81–2.00</label>
-          <label><input type="checkbox" class="scrFQuotaChk" value="2.01-2.50" /> 2.01–2.50</label>
-          <label><input type="checkbox" class="scrFQuotaChk" value="2.51-999" /> 2.51+</label>
+        <div class="msdrop" id="scrFQuotaDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFQuotaDrop')">Quota: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.00-1.20" /> 1.00–1.20</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.21-1.40" /> 1.21–1.40</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.41-1.60" /> 1.41–1.60</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.61-1.80" /> 1.61–1.80</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.81-2.00" /> 1.81–2.00</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="2.01-2.50" /> 2.01–2.50</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="2.51-999" /> 2.51+</label>
+          </div>
         </div>
         <select id="scrFEsito" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
           <option value="">Storico: tutte</option>
@@ -947,6 +978,31 @@ function cvLabel(cv){
 // Interpreta un valore "min-max" (es. "60-74", "20-999", "neg") in un
 // intervallo numerico [min, max]. "neg" = qualunque valore sotto zero.
 // value vuoto = nessun filtro (torna null).
+// Menu a tendina multi-selezione: si apre/chiude come un select normale, ma
+// dentro ci sono checkbox per poter spuntare più intervalli insieme. Un solo
+// pannello aperto alla volta; click fuori lo richiude senza perdere le
+// spunte già fatte.
+function toggleMsDrop(id){
+  const target = document.querySelector('#' + id + ' .msdrop-panel');
+  const wasOpen = target.classList.contains('open');
+  document.querySelectorAll('.msdrop-panel.open').forEach(p => p.classList.remove('open'));
+  if (!wasOpen) target.classList.add('open');
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.msdrop')) {
+    document.querySelectorAll('.msdrop-panel.open').forEach(p => p.classList.remove('open'));
+  }
+});
+// Aggiorna il testo del pulsante ("Hit venue: tutte" -> "Hit venue: 2 selez.")
+// e lo evidenzia quando il filtro è attivo, così si vede a colpo d'occhio
+// quali tendine hanno un filtro impostato senza doverle aprire.
+function updateMsDropLabel(dropId, baseLabel, checkboxSelector){
+  const n = getCheckedValues(checkboxSelector).length;
+  const btn = document.querySelector('#' + dropId + ' .msdrop-btn');
+  btn.textContent = (n ? `${baseLabel}: ${n} selez.` : `${baseLabel}: tutte`) + ' ▾';
+  btn.classList.toggle('active-filter', n > 0);
+}
+
 // Interpreta un valore "min-max" (es. "60-74") o "neg" in un intervallo
 // numerico [min, max]. Usato per trasformare le caselle spuntate in bucket.
 function parseBucket(value){
@@ -998,13 +1054,18 @@ function applyScnFilters(rows){
 }
 document.getElementById('scnFText').addEventListener('input', renderScan);
 document.getElementById('scnFCV').addEventListener('change', renderScan);
-document.querySelectorAll('.scnFHitChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => {
-  chk.addEventListener('change', renderScan);
-});
+document.querySelectorAll('.scnFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk'); renderScan(); }));
+document.querySelectorAll('.scnFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk'); renderScan(); }));
+document.querySelectorAll('.scnFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk'); renderScan(); }));
+document.querySelectorAll('.scnFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk'); renderScan(); }));
 document.getElementById('scnFClear').addEventListener('click', () => {
   document.getElementById('scnFText').value = '';
   document.getElementById('scnFCV').value = '';
   document.querySelectorAll('.scnFHitChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => { chk.checked = false; });
+  updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
+  updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
+  updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk');
+  updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk');
   renderScan();
 });
 
@@ -1308,14 +1369,19 @@ function applyScrFilters(rows){
 document.getElementById('scrFText').addEventListener('input', renderScreener);
 document.getElementById('scrFCV').addEventListener('change', renderScreener);
 document.getElementById('scrFEsito').addEventListener('change', renderScreener);
-document.querySelectorAll('.scrFHitChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => {
-  chk.addEventListener('change', renderScreener);
-});
+document.querySelectorAll('.scrFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk'); renderScreener(); }));
+document.querySelectorAll('.scrFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk'); renderScreener(); }));
+document.querySelectorAll('.scrFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFEvDrop','EV','.scrFEvChk'); renderScreener(); }));
+document.querySelectorAll('.scrFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk'); renderScreener(); }));
 document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFText').value = '';
   document.getElementById('scrFCV').value = '';
   document.getElementById('scrFEsito').value = '';
   document.querySelectorAll('.scrFHitChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
+  updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
+  updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk');
+  updateMsDropLabel('scrFEvDrop','EV','.scrFEvChk');
+  updateMsDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk');
   renderScreener();
 });
 document.querySelectorAll('#scrTable th.sortable').forEach(th => {
