@@ -48,6 +48,7 @@ main{padding:32px 32px 60px;max-width:1220px;margin:0 auto}
 .panel h2 .tag{font-family:'Inter',sans-serif;font-weight:500;font-size:11px;color:var(--muted)}
 .body{padding:18px 20px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 @media(max-width:850px){.grid2,.grid3{grid-template-columns:1fr}.controls{padding:14px 18px}main{padding:22px 18px 50px}header,nav.sitenav{padding-left:18px;padding-right:18px}}
 .subtle{color:var(--muted);font-size:11px}
@@ -127,8 +128,8 @@ footer{padding:24px 32px 48px;color:var(--muted);font-size:11px;max-width:1220px
 <script>
 let DB = null;
 
-const TEAM_RANGES = [[0,2],[1,2],[1,3],[2,3],[2,4]];
-const TOTAL_RANGES = [[1,3],[2,4],[2,5],[3,5]];
+const TEAM_RANGES = [[0,1],[0,2],[1,2],[1,3],[2,3],[2,4],[2,6]];
+const TOTAL_RANGES = [[0,1],[1,3],[2,4],[2,5],[3,5],[2,6]];
 const NATURAL_CANDIDATES = [[0,1],[1,2],[2,3],[0,2],[1,3],[2,4],[0,3],[1,4],[0,4]];
 const NATURAL_MIN_COVER = 0.70;
 
@@ -300,7 +301,7 @@ function distHtml(values){
 }
 function rangesTable(values,ranges,label){
   return `<table class="stat">
-    <tr><th>${label}</th><th class="num">Record</th><th class="num">Hit</th><th class="num">Stabilità</th></tr>
+    <tr><th title="Mercato Multigol: vince se i gol rientrano in questo intervallo (es. &quot;1-3&quot; vince con 1, 2 o 3 gol)">${label}</th><th class="num" title="Quante partite su quante osservate sono cadute dentro questa fascia">Record</th><th class="num" title="Il record qui a fianco, in percentuale">Hit</th><th class="num" title="Quanto è costante nel tempo l'hit rate di questa fascia: frequenza alta + bassa dispersione dei gol = Alta">Stabilità</th></tr>
     ${ranges.map(r=>{
       const h=hit(values,r), st=stability(values,r);
       return `<tr><td class="metricname">${rangeLabel(r)}</td><td class="num">${h.hits}/${h.n}</td><td class="num">${fmtPct(h.rate)}</td><td class="num"><span class="pill ${st.cls}">${st.label}</span></td></tr>`;
@@ -318,7 +319,7 @@ function ouTable(values){
   const over = values.filter(v=>v>=3).length;
   const under = n - over;
   return `<table class="stat">
-    <tr><th>Over/Under 2,5</th><th class="num">Hit</th></tr>
+    <tr><th title="Mercato standard italiano: vince Over con 3+ gol totali in partita, Under con 2 o meno">Over/Under 2,5</th><th class="num" title="Quante volte, storicamente, si è verificato">Hit</th></tr>
     <tr><td class="metricname">Over 2,5</td><td class="num">${over}/${n} · ${fmtPct(over/n)}</td></tr>
     <tr><td class="metricname">Under 2,5</td><td class="num">${under}/${n} · ${fmtPct(under/n)}</td></tr>
   </table>`;
@@ -329,7 +330,7 @@ function bttsTable(rows){
   const yes = rows.filter(r=>r.gf>0 && r.ga>0).length;
   const no = n - yes;
   return `<table class="stat">
-    <tr><th>Gol-NoGol</th><th class="num">Hit</th></tr>
+    <tr><th title="Vince &quot;Gol&quot; se entrambe le squadre segnano nella stessa partita, &quot;NoGol&quot; altrimenti">Gol-NoGol</th><th class="num" title="Quante volte, storicamente, si è verificato">Hit</th></tr>
     <tr><td class="metricname">Gol (entrambe segnano)</td><td class="num">${yes}/${n} · ${fmtPct(yes/n)}</td></tr>
     <tr><td class="metricname">NoGol</td><td class="num">${no}/${n} · ${fmtPct(no/n)}</td></tr>
   </table>`;
@@ -352,6 +353,12 @@ function render(){
   const aNat=naturalRange(awayProd), aConcNat=naturalRange(awayOppConcede);
   const hInt=overlap(hNat,hConcNat), aInt=overlap(aNat,aConcNat);
 
+  // Intersezione Totale: stessa identica logica (overlap di due fasce
+  // naturali), applicata ai gol totali di ciascuna squadra nel suo venue
+  // reale invece che a produzione/concessione — la tendenza di casa e
+  // trasferta a convergere sullo stesso numero di gol complessivi.
+  const hTotNat=naturalRange(H.total), aTotNat=naturalRange(A.total);
+
   const main=document.getElementById('main');
   main.innerHTML=`
     <!-- 1. MATCH -->
@@ -364,23 +371,6 @@ function render(){
         <span class="pill ${Math.min(H.rows.length,A.rows.length)>=3?'good':'mid'}">${Math.min(H.rows.length,A.rows.length)>=3?'campione utilizzabile':'campione ridotto'}</span>
       </div>
     </div>
-
-    <!-- LEGENDA -->
-    <section class="panel">
-      <h2>Legenda <span class="tag">termini usati in questa pagina</span></h2>
-      <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:12px;">
-        <div><strong class="metricname">MG (Multigol)</strong> — mercato che vince se i gol rientrano in un intervallo dato (es. "1-3" vince con 1, 2 o 3 gol).</div>
-        <div><strong class="metricname">MG Casa / Trasferta</strong> — fasce sui gol segnati dalla singola squadra, nel suo venue reale di questa partita.</div>
-        <div><strong class="metricname">MG Totale</strong> — fasce sui gol complessivi della partita, entrambe le squadre insieme.</div>
-        <div><strong class="metricname">Hit</strong> — quante volte, storicamente, il valore è caduto dentro quella fascia (es. "3/4 · 75%").</div>
-        <div><strong class="metricname">Fascia naturale</strong> — la fascia più stretta che copre almeno il 70% delle partite osservate, non semplicemente quella con l'hit rate più alto in assoluto.</div>
-        <div><strong class="metricname">Convergenza</strong> — quanto la fascia naturale di produzione (una squadra) e quella di concessione (l'avversario) puntano nella stessa direzione.</div>
-        <div><strong class="metricname">Stabilità</strong> — quanto è costante nel tempo l'hit rate di quella fascia per quella squadra (frequenza alta + bassa dispersione dei gol = "Alta").</div>
-        <div><strong class="metricname">N min.</strong> — il campione più piccolo tra i due lati confrontati (es. produzione vs concessione): è quello che conta davvero per giudicare l'affidabilità.</div>
-        <div><strong class="metricname">Over/Under 2,5</strong> — mercato standard italiano: vince Over con 3+ gol totali in partita, Under con 2 o meno.</div>
-        <div><strong class="metricname">Gol-NoGol (BTTS)</strong> — vince "Gol" se entrambe le squadre segnano nella stessa partita, "NoGol" altrimenti.</div>
-      </div>
-    </section>
 
     <!-- 2. PROFILO SQUADRA -->
     <section class="panel">
@@ -446,6 +436,11 @@ function render(){
     <section class="panel">
       <h2>3 · Matchup &amp; fascia naturale <span class="tag">produzione propria vs concessione avversaria</span></h2>
       <div class="section-note">La “convergenza” non è una probabilità: misura quanto i due profili storici puntano verso la stessa fascia.</div>
+      <div class="body grid3" style="margin-bottom:16px;">
+        ${intersectionSummaryBox('Intersezione strategica Casa', hNat, hConcNat, homeProd)}
+        ${intersectionSummaryBox('Intersezione strategica Totale', hTotNat, aTotNat, H.total.concat(A.total))}
+        ${intersectionSummaryBox('Intersezione strategica Trasferta', aNat, aConcNat, awayProd)}
+      </div>
       <div class="body grid2">
         ${matchupCard(m.Home,'HOME',m.Away,'AWAY',homeProd,homeOppConcede,hNat,hConcNat,hInt)}
         ${matchupCard(m.Away,'AWAY',m.Home,'HOME',awayProd,awayOppConcede,aNat,aConcNat,aInt)}
@@ -460,6 +455,23 @@ function render(){
   `;
 }
 
+function intersectionSummaryBox(titolo, natA, natB, valuesForStability){
+  const rateA = natA?.rate ?? null, rateB = natB?.rate ?? null;
+  const conv = convergence(rateA, rateB);
+  const finalRange = overlap(natA, natB) || natA?.range || null;
+  const st = finalRange ? stability(valuesForStability, finalRange) : null;
+  return `<div class="card">
+    <div class="card-title">${titolo}</div>
+    <div class="natural-box">
+      <div class="intersection" title="La fascia dove le due tendenze storiche (produzione e concessione, o gol totali di casa e trasferta) si sovrappongono">${finalRange?rangeLabel(finalRange):'N/D'}</div>
+      <div class="kpi-line">
+        <span class="pill ${conv.cls}" title="Quanto le due fasce naturali a monte puntano nella stessa direzione: Alta se entrambe le frequenze sono alte e vicine tra loro">Convergenza ${conv.label}</span>
+        ${st?`<span class="pill ${st.cls}" title="Quanto è costante nel tempo l'hit rate di questa fascia">Stabilità ${st.label}</span>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
 function matchupCard(team,venue,opp,oppVenue,prod,conc,natP,natC,intR){
   const pRate=natP?.rate??null, cRate=natC?.rate??null;
   const conv=convergence(pRate,cRate);
@@ -468,7 +480,7 @@ function matchupCard(team,venue,opp,oppVenue,prod,conc,natP,natC,intR){
   return `<div class="card">
     <div class="card-title">${team} ${venue}</div>
     <table class="stat">
-      <tr><th>Profilo</th><th>Fascia naturale</th><th class="num">Hit</th></tr>
+      <tr><th title="Il lato del confronto: quanto segna questa squadra, quanto concede l'avversario">Profilo</th><th title="La fascia più stretta che copre almeno il 70% delle partite osservate — non semplicemente quella con l'hit rate più alto in assoluto">Fascia naturale</th><th class="num" title="Quante volte, storicamente, è caduta dentro quella fascia">Hit</th></tr>
       <tr><td>Produzione ${team}</td><td class="metricname">${natP?rangeLabel(natP.range):'—'}</td><td class="num">${natP?`${natP.hits}/${natP.n} · ${fmtPct(natP.rate)}`:'—'}</td></tr>
       <tr><td>Concessione ${opp} ${oppVenue}</td><td class="metricname">${natC?rangeLabel(natC.range):'—'}</td><td class="num">${natC?`${natC.hits}/${natC.n} · ${fmtPct(natC.rate)}`:'—'}</td></tr>
     </table>
@@ -476,8 +488,8 @@ function matchupCard(team,venue,opp,oppVenue,prod,conc,natP,natC,intR){
       <div class="subtle">Intersezione strategica</div>
       <div class="intersection">${finalRange?rangeLabel(finalRange):'N/D'}</div>
       <div class="kpi-line">
-        <span class="pill ${conv.cls}">Convergenza ${conv.label}</span>
-        ${st?`<span class="pill ${st.cls}">Stabilità ${st.label}</span>`:''}
+        <span class="pill ${conv.cls}" title="Quanto la fascia naturale di produzione e quella di concessione puntano nella stessa direzione">Convergenza ${conv.label}</span>
+        ${st?`<span class="pill ${st.cls}" title="Quanto è costante nel tempo l'hit rate di questa fascia per questa squadra">Stabilità ${st.label}</span>`:''}
       </div>
     </div>
   </div>`;
@@ -527,9 +539,14 @@ const SCREENER_ACCESSORS = {
   score: x => x.score,
 };
 const SCREENER_COLUMNS = [
-  ['match', 'Partita', ''], ['market', 'Mercato', ''], ['team', 'Squadra', ''],
-  ['range', 'Fascia', ''], ['prate', 'Produzione', 'num'], ['crate', 'Concessione / altro lato', 'num'],
-  ['n', 'N min.', 'num'], ['conv', 'Convergenza', ''],
+  ['match', 'Partita', '', 'La partita a cui si riferisce questa riga'],
+  ['market', 'Mercato', '', 'Su cosa verte la fascia: MG Casa/Trasferta (gol di una squadra) o MG Totale (gol di tutta la partita)'],
+  ['team', 'Squadra', '', 'La squadra a cui si riferisce la produzione di questa riga'],
+  ['range', 'Fascia', '', 'Mercato Multigol: vince se i gol rientrano in questo intervallo (es. "1-3" vince con 1, 2 o 3 gol)'],
+  ['prate', 'Produzione', 'num', 'Quante volte, storicamente, la squadra ha segnato un numero di gol dentro questa fascia'],
+  ['crate', 'Concessione / altro lato', 'num', 'Quante volte, storicamente, la squadra avversaria ha concesso, o quante volte si è verificato sul lato opposto del confronto, un numero di gol dentro questa fascia'],
+  ['n', 'N min.', 'num', 'Il campione più piccolo tra i due lati confrontati — quello che conta davvero per giudicare quanto ci si può fidare'],
+  ['conv', 'Convergenza', '', 'Quanto Produzione e Concessione puntano nella stessa direzione: Alta se entrambe alte e vicine tra loro'],
 ];
 
 function renderScreener(g){
@@ -551,8 +568,8 @@ function renderScreenerTable(){
     if (va > vb) return 1 * screenerSort.dir;
     return 0;
   });
-  const head = SCREENER_COLUMNS.map(([key, label, cls]) =>
-    `<th class="sortable ${cls}" data-key="${key}" onclick="sortScreener('${key}')">${label}<span class="arrow">${screenerSort.key===key ? (screenerSort.dir===1?'▲':'▼') : ''}</span></th>`
+  const head = SCREENER_COLUMNS.map(([key, label, cls, title]) =>
+    `<th class="sortable ${cls}" data-key="${key}" title="${title}" onclick="sortScreener('${key}')">${label}<span class="arrow">${screenerSort.key===key ? (screenerSort.dir===1?'▲':'▼') : ''}</span></th>`
   ).join('');
   return `<table class="stat" id="screenerTable">
     <tr>${head}</tr>
