@@ -509,7 +509,12 @@ function loadWorkbook(wb){
   const calendarRaw = sheetToRows(wb, 'CALENDAR').filter(r => r.Match_ID);
   const calendar = calendarRaw.map(r => ({ ...r, Data: toISO(r.Data) }));
   const matchLogRaw = sheetToRows(wb, 'MATCH_LOG').filter(r => r.Match_ID);
-  const matchLog = matchLogRaw.map(r => ({ ...r, Data: toISO(r.Data) }));
+  // MATCH_LOG non ha colonna Data propria: la deriviamo da CALENDAR via
+  // Match_ID (stesso adattamento fatto nel data.json), altrimenti
+  // buildIndexes() va in crash ordinando per una Data inesistente.
+  const dataByMatch = {};
+  for (const c of calendar) dataByMatch[c.Match_ID] = c.Data;
+  const matchLog = matchLogRaw.map(r => ({ ...r, Data: toISO(r.Data) ?? dataByMatch[r.Match_ID] ?? null }));
   const arbitri = sheetToRows(wb, 'ARBITRI').filter(r => r.Match_ID);
 
   DB = {
@@ -629,6 +634,12 @@ function statusPill(s){
   return `<span class="status-pill ${cls}">${s}</span>`;
 }
 
+// Ultima partita renderizzata: usato per resettare le spunte "titolare" in
+// Confronto partita SOLO quando cambia davvero la partita, non ad ogni
+// render() (es. toggle "rank provvisorio" sulla stessa partita) — altrimenti
+// le spunte fatte da Marco sparivano al primo cambio filtro (bug segnalato).
+let _lastRenderedMatchId = null;
+
 function render(){
   const matchId = document.getElementById('selMatch').value;
   const playerId = document.getElementById('selPlayer').value;
@@ -637,7 +648,9 @@ function render(){
   const main = document.getElementById('main');
   if (!match || !player) { main.innerHTML = '<div class="empty">Seleziona un giocatore.</div>'; return; }
 
-  initMoState(match); // titolari spuntati: deve esistere prima del pannello Statistiche squadra
+  const isNewMatch = _lastRenderedMatchId !== match.Match_ID;
+  _lastRenderedMatchId = match.Match_ID;
+  initMoState(match, isNewMatch); // titolari spuntati: deve esistere prima del pannello Statistiche squadra
   _roleLeagueAvgCache = {}; // reset cache ruolo-vs-lega per questo render
 
   const playerVenue = player.Team_ID_Rif === match.Home_ID ? 'HOME' : 'AWAY';
@@ -745,6 +758,21 @@ function render(){
     return { label, baseVal, roleVal, leagueAvg, rawRatio, fattore, proiezione, nRuolo };
   });
 
+  // Rank assoluto (contro tutta la lega, qualunque ruolo) del giocatore
+  // selezionato per ciascuna metrica stagionale — stesso calcolo già usato
+  // in Confronto partita (computeAbsoluteRank), qui riusato per non
+  // duplicare la logica. Richiesto per punto 7: rank nel pannello Player.
+  const PLAYER_RANK_COLS = { Tiri: 'Tiri_90', SOT: 'SOT_90', FC: 'FC_90', FD: 'FD_90', Cart: 'Cartellini_90' };
+  const playerAbsRanks = {};
+  for (const [key, col90] of Object.entries(PLAYER_RANK_COLS)) {
+    playerAbsRanks[key] = computeAbsoluteRank(playerId, 'TOTALE', col90);
+  }
+  function rankSuffix(key){
+    const r = playerAbsRanks[key];
+    if (!r || r.rank == null || r.eligible < 6) return '';
+    return ` <span class="subtle">(${r.rank}°/${r.eligible})</span>`;
+  }
+
   main.innerHTML = `
     <div style="margin-bottom:18px;">
       <h2 class="match-title">${match.Home} – ${match.Away}</h2>
@@ -760,25 +788,31 @@ function render(){
     <div class="grid" style="margin-top:28px;">
 
       <div class="panel">
-        <h2><span class="info-title" title="Quanto fa in media il giocatore selezionato: tiri, tiri in porta, falli, cartellini — sulla stagione intera, nel venue di questa partita (casa o trasferta) e nelle ultime gare (L10/L5/L3). Esempio: 'Tiri stagione 2.1, HOME 3.4' significa che tira di più quando gioca in casa.">Player</span> <span class="tag">${scopeSquadra ? 'con ' + player.Squadra_Rif : 'tutte le squadre'}: ${pTot.Partite} presenze${titolareFiltro ? ' · solo ' + (titolareFiltro === 'TITOLARE' ? 'titolare' : 'subentrato') : ''}</span>${haCambiatoSquadra ? `<span class="tag" style="color:var(--muted);" title="Questo giocatore ha giocato anche con un'altra squadra in stagione. Con 'Tutta la stagione' vedresti ${pTotOgniSquadra.Partite} presenze totali invece di ${pTot.Partite}.">⚠ ha cambiato squadra in stagione</span>` : ''}</h2>
+        <h2><span class="info-title" title="Quanto fa in media il giocatore selezionato: tiri, tiri in porta, falli, cartellini — sulla stagione intera, nel venue di questa partita (casa o trasferta) e nelle ultime gare (L10/L5/L3, calcolate SOLO tra le presenze in quello stesso venue). Esempio: 'Tiri stagione 2.1, HOME 3.4' significa che tira di più quando gioca in casa. Il rank tra parentesi confronta con TUTTI i giocatori della lega, qualunque ruolo.">Player</span> <span class="tag">${scopeSquadra ? 'con ' + player.Squadra_Rif : 'tutte le squadre'}: ${pTot.Partite} presenze${titolareFiltro ? ' · solo ' + (titolareFiltro === 'TITOLARE' ? 'titolare' : 'subentrato') : ''}</span>${haCambiatoSquadra ? `<span class="tag" style="color:var(--muted);" title="Questo giocatore ha giocato anche con un'altra squadra in stagione. Con 'Tutta la stagione' vedresti ${pTotOgniSquadra.Partite} presenze totali invece di ${pTot.Partite}.">⚠ ha cambiato squadra in stagione</span>` : ''}</h2>
         <div class="body">
           <table class="stat">
-            <tr><th>Metrica</th><th class="num">Stagione /90</th><th class="num">${playerVenue} /90</th><th class="num">L10 /90</th><th class="num">L5 /90</th><th class="num">L3 /90</th></tr>
-            <tr><td class="metricname">Tiri</td><td class="num">${fmt(pTot.Tiri_90)}</td><td class="num">${fmt(pVenue.Tiri_90)}</td><td class="num">${fmt(pTot.L10_Tiri_90)}</td><td class="num">${fmt(pTot.L5_Tiri_90)}</td><td class="num">${fmt(pTot.L3_Tiri_90)}</td></tr>
-            <tr><td class="metricname">Tiri in porta</td><td class="num">${fmt(pTot.SOT_90)}</td><td class="num">${fmt(pVenue.SOT_90)}</td><td class="num">${fmt(pTot.L10_SOT_90)}</td><td class="num">${fmt(pTot.L5_SOT_90)}</td><td class="num">${fmt(pTot.L3_SOT_90)}</td></tr>
-            <tr><td class="metricname">Falli commessi</td><td class="num">${fmt(pTot.FC_90)}</td><td class="num">${fmt(pVenue.FC_90)}</td><td class="num">${fmt(pTot.L10_FC_90)}</td><td class="num">${fmt(pTot.L5_FC_90)}</td><td class="num">${fmt(pTot.L3_FC_90)}</td></tr>
-            <tr><td class="metricname">Falli subiti</td><td class="num">${fmt(pTot.FD_90)}</td><td class="num">${fmt(pVenue.FD_90)}</td><td class="num">${fmt(pTot.L10_FD_90)}</td><td class="num">${fmt(pTot.L5_FD_90)}</td><td class="num">${fmt(pTot.L3_FD_90)}</td></tr>
-            <tr><td class="metricname">Cartellini</td><td class="num">${fmt(pTot.Cartellini_90)}</td><td class="num">${fmt(pVenue.Cartellini_90)}</td><td class="num">${fmt(pTot.L10_Cart_90)}</td><td class="num">${fmt(pTot.L5_Cart_90)}</td><td class="num">${fmt(pTot.L3_Cart_90)}</td></tr>
+            <tr><th>Metrica</th><th class="num">Stagione /90</th><th class="num">Stagione /partita</th><th class="num">${playerVenue} /90</th><th class="num">${playerVenue} L10 /90</th><th class="num">${playerVenue} L5 /90</th><th class="num">${playerVenue} L3 /90</th></tr>
+            <tr><td class="metricname">Tiri</td><td class="num">${fmt(pTot.Tiri_90)}${rankSuffix('Tiri')}</td><td class="num">${fmt(pTot.Partite ? sum2(DB.matchLog, playerId, teamFiltro, 'Tiri') / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.Tiri_90)}</td><td class="num">${fmt(pVenue.L10_Tiri_90)}</td><td class="num">${fmt(pVenue.L5_Tiri_90)}</td><td class="num">${fmt(pVenue.L3_Tiri_90)}</td></tr>
+            <tr><td class="metricname">Tiri in porta</td><td class="num">${fmt(pTot.SOT_90)}${rankSuffix('SOT')}</td><td class="num">${fmt(pTot.Partite ? sum2(DB.matchLog, playerId, teamFiltro, 'Tiri_in_porta') / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.SOT_90)}</td><td class="num">${fmt(pVenue.L10_SOT_90)}</td><td class="num">${fmt(pVenue.L5_SOT_90)}</td><td class="num">${fmt(pVenue.L3_SOT_90)}</td></tr>
+            <tr><td class="metricname">Falli commessi</td><td class="num">${fmt(pTot.FC_90)}${rankSuffix('FC')}</td><td class="num">${fmt(pTot.Partite ? sum2(DB.matchLog, playerId, teamFiltro, 'Falli_commessi') / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.FC_90)}</td><td class="num">${fmt(pVenue.L10_FC_90)}</td><td class="num">${fmt(pVenue.L5_FC_90)}</td><td class="num">${fmt(pVenue.L3_FC_90)}</td></tr>
+            <tr><td class="metricname">Falli subiti</td><td class="num">${fmt(pTot.FD_90)}${rankSuffix('FD')}</td><td class="num">${fmt(pTot.Partite ? sum2(DB.matchLog, playerId, teamFiltro, 'Falli_subiti') / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.FD_90)}</td><td class="num">${fmt(pVenue.L10_FD_90)}</td><td class="num">${fmt(pVenue.L5_FD_90)}</td><td class="num">${fmt(pVenue.L3_FD_90)}</td></tr>
+            <tr><td class="metricname">Cartellini</td><td class="num">${fmt(pTot.Cartellini_90)}${rankSuffix('Cart')}</td><td class="num">${fmt(pTot.Partite ? pTot.Cartellini / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.Cartellini_90)}</td><td class="num">${fmt(pVenue.L10_Cart_90)}</td><td class="num">${fmt(pVenue.L5_Cart_90)}</td><td class="num">${fmt(pVenue.L3_Cart_90)}</td></tr>
           </table>
           <div class="subtle" style="margin-top:10px;">Hit rate stagione — Tiri 1+/2+/3+: ${pct(pTot.Hit_Tiri_1)} / ${pct(pTot.Hit_Tiri_2)} / ${pct(pTot.Hit_Tiri_3)} · SOT 1+: ${pct(pTot.Hit_SOT_1)} · Cartellino: ${pct(pTot.Hit_Cart_1)}</div>
           <div class="subtle" style="margin-top:14px;margin-bottom:6px;">Consistenza (stagione) <span style="color:var(--muted);">— quanto oscilla la prestazione da una partita all'altra, a parità di media</span></div>
-          <table class="stat" style="max-width:260px;">
+          <table class="stat" style="max-width:320px;">
             <tr><td class="metricname">Tiri</td><td>${cvBadge(pTot.Tiri_CV)}</td></tr>
             <tr><td class="metricname">Tiri in porta</td><td>${cvBadge(pTot.SOT_CV)}</td></tr>
             <tr><td class="metricname">Falli commessi</td><td>${cvBadge(pTot.FC_CV)}</td></tr>
           </table>
-          <div class="subtle" style="margin-top:6px;">Stabile = sotto 0,5 · Variabile = 0,5–1 · Incostante = sopra 1 (deviazione standard ÷ media sulle partite giocate — più basso, più regolare)</div>
-          <div class="subtle" style="margin-top:10px;">N presenze ${playerVenue}: ${pVenue.Partite} · L10 N: ${pTot.L10_N} · L5 N: ${pTot.L5_N} · L3 N: ${pTot.L3_N}</div>
+          <div class="subtle" style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span class="filter-label">Legenda:</span>
+            <span class="status-pill status-OK">stabile</span> sotto 0,5
+            <span class="status-pill status-CAMPIONE">variabile</span> 0,5–1
+            <span class="status-pill status-NO">incostante</span> sopra 1
+            <span style="color:var(--muted);">(deviazione standard ÷ media sulle partite giocate — più basso, più regolare)</span>
+          </div>
+          <div class="subtle" style="margin-top:10px;">N presenze ${playerVenue}: ${pVenue.Partite} · L10 N: ${pVenue.L10_N} · L5 N: ${pVenue.L5_N} · L3 N: ${pVenue.L3_N}</div>
         </div>
       </div>
 
@@ -824,6 +858,16 @@ function render(){
     ${renderRoleVulnerabilityPanel(match)}
     ${renderMatchOverview(match)}
   `;
+}
+
+// Somma grezza di una colonna di MATCH_LOG per un giocatore (con eventuale
+// filtro squadra) — usata solo per calcolare la media "a partita" (non /90)
+// nel pannello Player, punto 9 delle richieste: con pochi minuti giocati la
+// proiezione /90 può ingannare, la media a partita resta un ancoraggio reale.
+function sum2(matchLog, playerId, teamFiltro, col){
+  let rows = matchLog.filter(r => r.Player_ID === playerId);
+  if (teamFiltro) rows = rows.filter(r => r.Team_ID === teamFiltro);
+  return rows.reduce((a, r) => a + (Number(r[col]) || 0), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -897,6 +941,21 @@ const MAX_TIE_FOR_FACT = 2;
 // al fondo (valore più basso)? Usato per scrivere la frase nella direzione
 // giusta invece di lasciare solo un numero di rank da interpretare.
 function isTopEnd(rank, eligible){ return rank <= (eligible - rank + 1); }
+
+// Ruoli EFFETTIVAMENTE presenti in rosa attiva per una squadra — punto 1
+// delle richieste: un fatto su "quanto una squadra concede ai terzini" ha
+// senso solo se l'AVVERSARIO REALE di quella partita ha davvero dei terzini
+// attivi in rosa, altrimenti nessun terzino scenderà mai in campo contro di
+// lei in questa gara specifica. Il roster della squadra "proprietaria" del
+// fatto (chi concede) non c'entra: conta solo chi lei affronta oggi.
+let _teamRolesCache = {};
+function teamHasRole(teamId, role){
+  const k = teamId + '|' + role;
+  if (k in _teamRolesCache) return _teamRolesCache[k];
+  const has = DB.rosters.some(p => p.Team_ID_Rif === teamId && p.Attivo_SerieA === 'SI' && p.Posizione_Analitica === role);
+  _teamRolesCache[k] = has;
+  return has;
+}
 
 // Articolo determinativo per ciascuna delle 20 squadre — serve per generare
 // frasi grammaticalmente corrette ("contro il Bologna", "quando l'Inter
@@ -1010,13 +1069,24 @@ function factsRoleTextV2(teamName, label, top, role, venueLabel){
   if (label === 'falli') {
     return `Contro ${teamArt}, ${subject} commettono ${top ? 'più' : 'meno'} falli che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
   }
+  if (label === 'falli subiti') {
+    return `Contro ${teamArt}, ${subject} subiscono ${top ? 'più' : 'meno'} falli che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
+  }
+  if (label === 'cartellini') {
+    return `Contro ${teamArt}, ${subject} ricevono ${top ? 'più' : 'meno'} cartellini che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
+  }
   if (label === 'tiri in porta') {
     return `Contro ${teamArt}, ${subject} effettuano ${top ? 'più' : 'meno'} tiri in porta che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
   }
   return `Contro ${teamArt}, ${subject} effettuano ${top ? 'più' : 'meno'} tiri che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
 }
 
-function computeTeamFacts(teamId, venue, venueLabel){
+// oppTeamId: l'avversario REALE di questa partita per la squadra `teamId` —
+// serve per il filtro ruoli (punto 1): un fatto sul ruolo X di `teamId` va
+// mostrato solo se `oppTeamId` ha davvero giocatori attivi in quel ruolo,
+// perché sono loro (i giocatori dell'avversario) a generare quel fatto in
+// campo. Senza oppTeamId (retrocompatibilità) il filtro è disattivato.
+function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
   const minSample = venue === 'TOTALE' ? 3 : 2;
   const facts = [];
@@ -1070,10 +1140,16 @@ function computeTeamFacts(teamId, venue, venueLabel){
   }
 
   for (const role of ALL_ROLES) {
+    // Punto 1: salta il ruolo se l'avversario reale di questa partita non
+    // ha giocatori attivi in quel ruolo — nessuno scenderà in campo a
+    // generare quella statistica in questa gara specifica.
+    if (oppTeamId && !teamHasRole(oppTeamId, role)) continue;
     const roleMetrics = [
       ['tiri', 'Tiri_Concessi_90'],
       ['tiri in porta', 'SOT_Concessi_90'],
       ['falli', 'Falli_Contro_Ruolo_90'],
+      ['falli subiti', 'FalliSubiti_Ruolo_90'],
+      ['cartellini', 'Cartellini_Ruolo_90'],
     ];
     for (const [label, col] of roleMetrics) {
       const list = teamsAll.map(t => {
@@ -1127,6 +1203,9 @@ function teamNameOf(teamId){
 // Fatti giocatore, tipo (a): il proprio ruolo è particolarmente forte/debole
 // contro la squadra avversaria REALE di questa partita (nominata per nome,
 // non genericamente "l'avversario"), nel venue reale di quella squadra.
+// Questo fatto riguarda la SQUADRA avversaria (quanto concede al ruolo), non
+// la prestazione personale del giocatore — quindi resta bidirezionale
+// (top/bottom), coerente col trattamento degli altri fatti "Squadra".
 function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueLabel){
   const minSample = oppVenue === 'TOTALE' ? 3 : 2;
   const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
@@ -1166,11 +1245,12 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
   return facts;
 }
 
-// Fatti giocatore, tipo (c): il giocatore è tra i primi 3 o ultimi 3 di TUTTA
-// la lega su una metrica — a differenza di computePlayerStandoutFacts, qui il
-// confronto è con OGNI giocatore attivo (qualunque ruolo), non solo i suoi
-// pari ruolo. È lo stesso identico ranking che vedresti in Classifiche, solo
-// filtrato al venue reale della partita (mai TOTALE) e ristretto a top3/bottom3.
+// Fatti giocatore, tipo (c): il giocatore è tra i primi 3 di TUTTA la lega su
+// una metrica — a differenza di computePlayerStandoutFacts, qui il confronto
+// è con OGNI giocatore attivo (qualunque ruolo), non solo i suoi pari ruolo.
+// Punto 2 delle richieste: SOLO "primo" (top), mai "ultimo" — un giocatore
+// ultimo per tiri o per falli subiti non è un'informazione utile a livello
+// individuale (lo è solo a livello squadra, gestito da computeTeamFacts).
 let _leagueMetricCache = {};
 function getLeagueMetricList(venue, col90key){
   const k = venue + '|' + col90key;
@@ -1213,13 +1293,13 @@ function computePlayerAbsoluteFacts(teamId, venue, venueLabel){
       if (tiedCount(list, 0, me.value) > MAX_TIE_FOR_FACT) continue;
       const higher = list.filter(x => x.value > me.value).length;
       const rank = 1 + higher;
-      const extremity = Math.min(rank, eligible + 1 - rank);
-      if (extremity > 3) continue; // solo top3/bottom3 assoluti, come in Classifiche
       const top = isTopEnd(rank, eligible);
+      if (!top) continue; // punto 2: mai "ultimo" a livello individuale
+      if (rank > 3) continue; // solo top3 assoluti, come in Classifiche
       facts.push({
         tag: 'Giocatore · Serie A',
         icon: metricIcon(label),
-        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) ${top ? 'è tra i primi 3 di tutta la lega' : 'è tra gli ultimi 3 di tutta la lega'} per ${label}, senza distinzione di ruolo — ${rank}° su ${eligible} giocatori idonei`,
+        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) è tra i primi 3 di tutta la lega per ${label}, senza distinzione di ruolo — ${rank}° su ${eligible} giocatori idonei`,
         rank, eligible,
       });
     }
@@ -1227,8 +1307,9 @@ function computePlayerAbsoluteFacts(teamId, venue, venueLabel){
   return facts;
 }
 
-// Fatti giocatore, tipo (b): il giocatore stesso spicca (in alto o in basso)
-// nel proprio ruolo a livello di lega, per una statistica, nel proprio venue.
+// Fatti giocatore, tipo (b): il giocatore stesso spicca nel proprio ruolo a
+// livello di lega, per una statistica, nel proprio venue. Punto 2: SOLO
+// "primo" (top3 del ruolo), mai "ultimo" — stessa regola di cui sopra.
 function computePlayerStandoutFacts(teamId, venue, venueLabel){
   const minSample = venue === 'TOTALE' ? 3 : 2;
   const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
@@ -1238,13 +1319,13 @@ function computePlayerStandoutFacts(teamId, venue, venueLabel){
       const res = rankPlayerInRole(player.Player_ID, player.Posizione_Analitica, venue, col, minSample);
       if (!res) continue;
       if (res.tied > MAX_TIE_FOR_FACT) continue; // troppi pareggiati sullo stesso valore, non è distintivo
-      const extremity = Math.min(res.rank, res.eligible + 1 - res.rank);
-      if (extremity > 3) continue; // solo top3 o bottom3 del ruolo, altrimenti non è "saliente"
       const top = isTopEnd(res.rank, res.eligible);
+      if (!top) continue; // punto 2: mai "ultimo" a livello individuale
+      if (res.rank > 3) continue; // solo top3 del ruolo, altrimenti non è "saliente"
       facts.push({
         tag: 'Giocatore · ruolo',
         icon: metricIcon(label),
-        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) ${top ? 'è tra i più prolifici della lega' : 'è tra i meno prolifici della lega'} per ${label}, nel confronto con gli altri giocatori dello stesso ruolo — ${res.rank}° su ${res.eligible} ${player.Posizione_Analitica.toLowerCase()} idonei`,
+        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) è tra i più prolifici della lega per ${label}, nel confronto con gli altri giocatori dello stesso ruolo — ${res.rank}° su ${res.eligible} ${player.Posizione_Analitica.toLowerCase()} idonei`,
         rank: res.rank, eligible: res.eligible,
       });
     }
@@ -1631,7 +1712,17 @@ function computeSolidita(r){
 // e il confronto diretto — mai la Proiezione stessa, che è una media, non
 // una frequenza. "Decisività" = quanto la frequenza si allontana dal 50%
 // (un 50/50 non è un segnale, per quanti dati ci siano dietro).
-function computeSignalStrength(teamId, teamKey, venue){
+//
+// BUG FIX (punto 4A): un lato con hit-rate/duello 100% ma proiezione più
+// BASSA di quella dell'avversario nella stessa riga non può essere il
+// "valore più certo" della coppia — sarebbe una certezza sul lato che
+// concretamente proietta di meno. Il chiamante (renderCentralProjectionTable)
+// ora passa anche `proiezione` e quella dell'avversario `proiezioneOpp`: se
+// la direzione del miglior segnale (Over/Under) è incoerente col confronto
+// reale tra le due proiezioni, il segnale su quella riga/lato viene scartato
+// dal computo del "più forte del blocco" invece di essere lasciato vincere
+// a torto.
+function computeSignalStrength(teamId, teamKey, venue, proiezione, proiezioneOpp){
   const shrink = (n) => n / (n + SHRINK_K);
   const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
   const duels = computeTeamDuelTotals(DB.matchLog, teamId, venue, DB.calendar);
@@ -1640,8 +1731,8 @@ function computeSignalStrength(teamId, teamKey, venue){
   const hUnder = teamHitRate(totals, teamKey, lineVal, 'under');
   const hitBest = (hOver.n && hUnder.n)
     ? (hOver.rate >= hUnder.rate
-        ? { label: `Over ${fmt(lineVal,1)}`, rate: hOver.rate, n: hOver.n }
-        : { label: `Under ${fmt(lineVal,1)}`, rate: hUnder.rate, n: hUnder.n })
+        ? { label: `Over ${fmt(lineVal,1)}`, rate: hOver.rate, n: hOver.n, dir: 'over' }
+        : { label: `Under ${fmt(lineVal,1)}`, rate: hUnder.rate, n: hUnder.n, dir: 'under' })
     : null;
   const d = teamDuelRecord(duels, teamKey);
   const duelInfo = d.n ? { rate: d.rate, n: d.n } : null;
@@ -1649,7 +1740,18 @@ function computeSignalStrength(teamId, teamKey, venue){
   const decHit = hitBest ? Math.abs(hitBest.rate - 0.5) * 2 * shrink(hitBest.n) : null;
   const decDuel = duelInfo ? Math.abs(duelInfo.rate - 0.5) * 2 * shrink(duelInfo.n) : null;
   const parts = [decHit, decDuel].filter(x => x != null);
-  const confidence = parts.length ? parts.reduce((a,b) => a+b, 0) / parts.length : 0;
+  let confidence = parts.length ? parts.reduce((a,b) => a+b, 0) / parts.length : 0;
+
+  // Coerenza proiezione vs direzione del segnale: se il segnale principale
+  // è "Over" ma la proiezione di questo lato è più bassa di quella
+  // dell'avversario sulla stessa riga (o viceversa per "Under"), la cella
+  // non può essere proposta come "valore più certo" — azzera la confidenza
+  // così non vince mai il confronto globale, ma resta comunque visibile
+  // nella tabella con i suoi numeri reali (nessun dato nascosto).
+  if (hitBest && proiezione != null && proiezioneOpp != null) {
+    const coerente = hitBest.dir === 'over' ? proiezione >= proiezioneOpp : proiezione <= proiezioneOpp;
+    if (!coerente) confidence = 0;
+  }
 
   return { confidence, hitBest, duelInfo };
 }
@@ -1662,13 +1764,18 @@ function renderCentralProjectionTable(match){
   const computed = CENTRAL_METRICS.map(([icon, label, teamKey, playerKey]) => {
     const home = computeSideProjectionRow('home', match.Home_ID, 'HOME', match.Away_ID, 'AWAY', teamKey, playerKey, leagueAvg[teamKey], match);
     const away = computeSideProjectionRow('away', match.Away_ID, 'AWAY', match.Home_ID, 'HOME', teamKey, playerKey, leagueAvg[teamKey], match);
-    const sigHome = computeSignalStrength(match.Home_ID, teamKey, 'HOME');
-    const sigAway = computeSignalStrength(match.Away_ID, teamKey, 'AWAY');
+    // Punto 4A: passiamo la proiezione di ciascun lato e quella dell'avversario
+    // sulla stessa riga, così computeSignalStrength può verificare la coerenza
+    // prima di lasciar vincere un segnale contraddetto dal valore proiettato.
+    const sigHome = computeSignalStrength(match.Home_ID, teamKey, 'HOME', home.proiezione, away.proiezione);
+    const sigAway = computeSignalStrength(match.Away_ID, teamKey, 'AWAY', away.proiezione, home.proiezione);
     return { icon, label, teamKey, home, away, sigHome, sigAway };
   });
 
   // Cerco il segnale più forte su tutte le 10 caselle (5 metriche x 2 lati) —
-  // uno solo, non uno per riga.
+  // uno solo, non uno per riga. Un segnale con confidence 0 (scartato per
+  // incoerenza col valore proiettato, vedi computeSignalStrength) non può
+  // mai vincere qui: la soglia "best.confidence > 0" più sotto lo esclude.
   let best = { confidence: -1 };
   for (const row of computed) {
     if (row.sigHome.confidence > best.confidence) best = { confidence: row.sigHome.confidence, label: row.label, side: 'home', teamName: match.Home, sig: row.sigHome };
@@ -1700,12 +1807,21 @@ function renderCentralProjectionTable(match){
       <div style="margin-top:2px;">Frequenza storica osservata, non una previsione — pesata dal campione dietro.</div>
     </div>` : '';
 
+  // Punto 4B fix: tabella + box "segnale più forte" restano avvolti in UN
+  // unico contenitore con id fisso (centralProjWrap). In precedenza
+  // toggleMoCheck sostituiva l'outerHTML della sola <table id="centralProjTable">
+  // con questa stringa che contiene DUE elementi (tabella + box) — il box
+  // finiva come nodo fratello orfano, senza id, e ogni click su un titolare
+  // ne aggiungeva uno nuovo senza rimuovere i precedenti (da qui gli
+  // 8-9 blocchi duplicati). Ora si sostituisce sempre il wrapper intero.
   return `
-    <table class="stat iqx-table" id="centralProjTable" style="margin-bottom:8px;">
+    <div id="centralProjWrap">
+    <table class="stat iqx-table" style="margin-bottom:8px;">
       <tr class="iqx-header"><td class="iqx-val" style="color:var(--text);font-weight:700;">${match.Home}</td><td class="iqx-metric" style="font-weight:700;">Proiezione</td><td class="iqx-val" style="color:var(--text);font-weight:700;">${match.Away}</td></tr>
       ${rows}
     </table>
-    ${bestBox}`;
+    ${bestBox}
+    </div>`;
 }
 
 function renderTeamStatsPanel(match){
@@ -1718,9 +1834,17 @@ function renderTeamStatsPanel(match){
     const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
     const duels = computeTeamDuelTotals(DB.matchLog, teamId, venue, DB.calendar);
 
+    // Punto 5: nel pannello "Confronto diretto" aggiungiamo la MEDIA REALE
+    // per partita di questa squadra in questo venue (accanto al record
+    // vinto/perso del duello) — così questo primo blocco porta
+    // un'informazione che il blocco sotto (hit rate su linea manuale) non
+    // duplica: qui è il valore assoluto proprio + chi vince lo scontro,
+    // sotto resta solo la soglia libera che sceglie Marco.
     const duelRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
       const d = teamDuelRecord(duels, key);
-      return `<tr><td class="metricname">${label2}</td><td class="num">${d.n ? `${d.wins}/${d.n} <span class="subtle">(</span><span class="${pctColorClass(d.rate)}">${Math.round(d.rate*100)}%</span><span class="subtle">)</span>` : '—'}</td></tr>`;
+      const vals = totals.map(t => t[key]).filter(v => v != null);
+      const media = vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
+      return `<tr><td class="metricname">${label2}</td><td class="num">${fmt(media)}</td><td class="num">${d.n ? `${d.wins}/${d.n} <span class="subtle">(</span><span class="${pctColorClass(d.rate)}">${Math.round(d.rate*100)}%</span><span class="subtle">)</span>` : '—'}</td></tr>`;
     }).join('');
 
     const hitRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
@@ -1743,9 +1867,9 @@ function renderTeamStatsPanel(match){
     return `
       <div>
         <div class="metricname" style="margin-bottom:8px;">${label} <span class="subtle">(${totals.length} partite · riposo: ${rest != null ? rest + ' giorni' : '—'})</span></div>
-        <div class="subtle" style="margin-bottom:4px;">Confronto diretto — quante volte ha fatto più dell'avversario, nella stessa gara</div>
+        <div class="subtle" style="margin-bottom:4px;">Confronto diretto — media propria a partita in questo venue, e quante volte ha fatto più dell'avversario nella stessa gara</div>
         <table class="stat" style="margin-bottom:16px;">
-          <tr><th>Metrica</th><th class="num">Vinto</th></tr>
+          <tr><th>Metrica</th><th class="num">Media/partita</th><th class="num">Vinto</th></tr>
           ${duelRows}
         </table>
         <div class="subtle" style="margin-bottom:4px;">Hit rate sulla linea che scegli tu — modifica il numero e premi invio</div>
@@ -1758,7 +1882,7 @@ function renderTeamStatsPanel(match){
 
   return `
     <div class="panel section-gap">
-      <h2><span class="info-title" title="Proiezione: somma dei titolari spuntati (dati solo-da-titolare, aggiustati per il ruolo dell'avversario, shrinkage indipendente) se ne hai scelti, altrimenti media di squadra × forza attacco × debolezza difesa avversario. Falli e Cartellini moltiplicano anche un fattore arbitro shrinkato sulle sue partite dirette. Corner resta sempre a livello squadra. 'Confronto diretto' guarda chi ha fatto di più DENTRO la stessa partita. 'Hit rate sulla linea' ti lascia scegliere qualunque soglia. Il riposo (giorni dall'ultima partita) è mostrato come informazione, non è integrato nel calcolo — verificato che non ha una correlazione affidabile nei nostri dati.">Statistiche squadra</span> <span class="tag" style="flex:1;">per venue reale della partita</span>
+      <h2><span class="info-title" title="Proiezione: somma dei titolari spuntati (dati solo-da-titolare, aggiustati per il ruolo dell'avversario, shrinkage indipendente) se ne hai scelti, altrimenti media di squadra × forza attacco × debolezza difesa avversario. Falli e Cartellini moltiplicano anche un fattore arbitro shrinkato sulle sue partite dirette. Corner resta sempre a livello squadra. 'Confronto diretto' mostra la media propria a partita e chi ha fatto di più DENTRO la stessa partita. 'Hit rate sulla linea' ti lascia scegliere qualunque soglia. Il riposo (giorni dall'ultima partita) è mostrato come informazione, non è integrato nel calcolo — verificato che non ha una correlazione affidabile nei nostri dati.">Statistiche squadra</span> <span class="tag" style="flex:1;">per venue reale della partita</span>
         <button class="panel-collapse-btn" onclick="togglePanelCollapse('teamStats')" id="panelBtn-teamStats">${panelCollapseState.teamStats ? 'espandi ▸' : 'minimizza ▾'}</button>
       </h2>
       <div id="panelBody-teamStats" style="${panelCollapseState.teamStats ? 'display:none;' : ''}">
@@ -1779,7 +1903,7 @@ function renderNotableFactsPanel(match){
 
   function sideFacts(teamId, venue, oppTeamId, oppVenue, venueLabel){
     const facts = [
-      ...computeTeamFacts(teamId, venue, venueLabel),
+      ...computeTeamFacts(teamId, venue, venueLabel, oppTeamId),
       ...computeDuelFacts(teamId, venue, venueLabel),
       ...computeStreakFacts(teamId, venue, venueLabel),
       ...computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueLabel),
@@ -1812,7 +1936,7 @@ function renderNotableFactsPanel(match){
           <div><div style="margin-bottom:6px;font-weight:600;"><span style="color:var(--accent);">${match.Away}</span> <span class="subtle">— Trasferta</span></div>${list(match.Away, away)}</div>
         </div>
         <div class="body" style="padding-top:0;">
-          <div class="subtle">Rank provvisori (X°/Y eleggibili): con solo 30 partite giocate su 380, non tutte le squadre/giocatori hanno ancora campione sufficiente — mostrato solo dove almeno 6 sono confrontabili. Cambierà nel corso della stagione.</div>
+          <div class="subtle">Rank provvisori (X°/Y eleggibili): con solo 30 partite giocate su 380, non tutte le squadre/giocatori hanno ancora campione sufficiente — mostrato solo dove almeno 6 sono confrontabili. Cambierà nel corso della stagione. I fatti sui ruoli sono mostrati solo se l'avversario reale di questa partita ha davvero giocatori attivi in quel ruolo. A livello di singolo giocatore vengono mostrati solo i primati (mai gli "ultimi posti") — un rank basso ha senso solo letto a livello di squadra.</div>
           <div class="subtle" style="margin-top:7px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
             <strong style="color:var(--text-2);font-weight:600;">Rank:</strong>
             ${factsRankBadgeV2(1,6)} 1° · ${factsRankBadgeV2(2,6)} 2° · ${factsRankBadgeV2(3,6)} 3° · ${factsRankBadgeV2(4,6)} terzultimo · ${factsRankBadgeV2(5,6)} penultimo · ${factsRankBadgeV2(6,6)} ultimo
@@ -1832,6 +1956,8 @@ function renderNotableFactsPanel(match){
 // per ogni metrica di concessione a quel ruolo. Non contiene statistiche di
 // singoli giocatori — è puramente "quanto è debole l'avversario a questo
 // ruolo", separato di proposito dal pannello con i giocatori (vedi sotto).
+// Punto 11: font ridotto e colonne ordinabili asc/desc (stesso meccanismo
+// già usato in Confronto partita).
 // ---------------------------------------------------------------------------
 const ROLE_VULN_METRICS = [
   ['Tiri_Concessi_90', 'Tiri conc.', 'Tiri concessi al ruolo dall\'avversario, per partita — quanti tiri fanno in media i giocatori di questo ruolo contro di lui.'],
@@ -1861,9 +1987,30 @@ function computeRoleVulnerabilityTable(oppTeamId, oppVenue){
   });
 }
 
-function renderRoleVulnTable(oppTeamId, oppVenue, oppLabel){
+// Stato di ordinamento del pannello Rank ruolo, per lato (home/away) —
+// indipendenti tra loro, resettato solo quando cambia partita (gestito in
+// initMoState insieme al resto dello stato "Confronto partita").
+const roleVulnState = {
+  home: { sort: { key: null, dir: 1 } },
+  away: { sort: { key: null, dir: 1 } },
+};
+
+function renderRoleVulnTable(oppTeamId, oppVenue, oppLabel, side){
   const rows = computeRoleVulnerabilityTable(oppTeamId, oppVenue);
-  const head = ROLE_VULN_METRICS.map(([key, label, title]) => `<th class="num" title="${title}">${label}</th>`).join('');
+  const st = roleVulnState[side];
+  if (st.sort.key) {
+    rows.sort((a, b) => {
+      const va = a[st.sort.key].value, vb = b[st.sort.key].value;
+      const na = va == null, nb = vb == null;
+      if (na && nb) return 0;
+      if (na) return 1; // N/D sempre in fondo, qualunque direzione
+      if (nb) return -1;
+      return (va - vb) * st.sort.dir;
+    });
+  }
+  const head = ROLE_VULN_METRICS.map(([key, label, title]) =>
+    `<th class="num sortable" title="${title}" data-key="${key}" onclick="sortRoleVuln('${side}','${oppTeamId}','${oppVenue}','${key}')">${label}<span class="arrow">${st.sort.key===key ? (st.sort.dir===1?'▲':'▼') : ''}</span></th>`
+  ).join('');
   const body = rows.map(r => {
     const cells = ROLE_VULN_METRICS.map(([key]) => {
       const c = r[key];
@@ -1873,24 +2020,32 @@ function renderRoleVulnTable(oppTeamId, oppVenue, oppLabel){
     return `<tr><td class="metricname">${r.ruolo}</td>${cells}</tr>`;
   }).join('');
   return `
-    <table class="stat" style="margin-top:8px;">
+    <table class="stat" style="margin-top:8px;font-size:11px;" id="roleVulnTable-${side}">
       <thead><tr><th>Ruolo</th>${head}</tr></thead>
       <tbody>${body}</tbody>
     </table>`;
 }
 
+function sortRoleVuln(side, oppTeamId, oppVenue, key){
+  const st = roleVulnState[side];
+  if (st.sort.key === key) st.sort.dir *= -1;
+  else st.sort = { key, dir: -1 }; // primo click: decrescente, così i valori più alti (di solito i più "interessanti") emergono subito
+  const table = document.getElementById('roleVulnTable-' + side);
+  if (table) table.outerHTML = renderRoleVulnTable(oppTeamId, oppVenue, null, side);
+}
+
 function renderRoleVulnerabilityPanel(match){
   return `
     <div class="panel section-gap">
-      <h2>Rank ruolo <span class="tag" style="flex:1;">quanto ogni squadra concede a ciascun ruolo, nel proprio venue di questa partita</span></h2>
+      <h2>Rank ruolo <span class="tag" style="flex:1;">quanto ogni squadra concede a ciascun ruolo, nel proprio venue di questa partita — clic sulle colonne per ordinare</span></h2>
       <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;overflow-x:auto;">
         <div>
           <div style="font-weight:600;margin-bottom:4px;">Casa — <span style="color:var(--accent);">${match.Home}</span></div>
-          ${renderRoleVulnTable(match.Home_ID, 'HOME', match.Home)}
+          ${renderRoleVulnTable(match.Home_ID, 'HOME', match.Home, 'home')}
         </div>
         <div>
           <div style="font-weight:600;margin-bottom:4px;">Trasferta — <span style="color:var(--accent);">${match.Away}</span></div>
-          ${renderRoleVulnTable(match.Away_ID, 'AWAY', match.Away)}
+          ${renderRoleVulnTable(match.Away_ID, 'AWAY', match.Away, 'away')}
         </div>
       </div>
     </div>`;
@@ -1923,7 +2078,13 @@ const MO_STAT_KEYS = ['tiri', 'sot', 'fc', 'fd', 'cart'];
 const MO_STAT_LABELS = { tiri: 'Tiri/90', sot: 'SOT/90', fc: 'FC/90', fd: 'FD/90', cart: 'Cart/90' };
 const MO_STAT_TO_PV = { tiri: 'Tiri_90', sot: 'SOT_90', fc: 'FC_90', fd: 'FD_90', cart: 'Cartellini_90' };
 
-function initMoState(match){
+// initMoState ora accetta isNewMatch (punto 10): le spunte "titolare" vengono
+// azzerate SOLO quando cambia davvero la partita selezionata. In precedenza
+// venivano azzerate ad ogni chiamata di render() — quindi anche solo
+// spuntando "rank provvisorio" o cambiando il filtro Titolare sulla stessa
+// partita, le spunte sparivano. Ora persistono finché resti sulla stessa
+// partita.
+function initMoState(match, isNewMatch){
   function buildSide(teamId, venue){
     const players = DB.rosters
       .filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId)
@@ -1941,10 +2102,14 @@ function initMoState(match){
 
   moState.home.rows = buildSide(match.Home_ID, 'HOME');
   moState.away.rows = buildSide(match.Away_ID, 'AWAY');
-  moState.home.sort = { key: 'tiri', dir: -1 };
-  moState.away.sort = { key: 'tiri', dir: -1 };
-  moState.home.checked = new Set();
-  moState.away.checked = new Set();
+  if (isNewMatch) {
+    moState.home.sort = { key: 'tiri', dir: -1 };
+    moState.away.sort = { key: 'tiri', dir: -1 };
+    moState.home.checked = new Set();
+    moState.away.checked = new Set();
+    roleVulnState.home.sort = { key: null, dir: 1 };
+    roleVulnState.away.sort = { key: null, dir: 1 };
+  }
 }
 
 function renderMatchOverview(match){
@@ -1962,7 +2127,7 @@ function renderSidePanel(side, teamName, label){
         <div class="body" style="overflow-x:auto;${st.collapsed ? 'display:none;' : ''}" id="moBody-${side}">
           <table class="stat">
             <thead><tr id="moHead-${side}">
-              <th title="Spunta i titolari previsti per sommare le loro statistiche qui sotto — non salvato, si azzera cambiando partita">Tit.?</th>
+              <th title="Spunta i titolari previsti per sommare le loro statistiche qui sotto — persiste finché resti su questa partita">Tit.?</th>
               ${MO_COLUMNS.map(([key,label2,cls]) => `<th class="sortable ${cls}" data-key="${key}" onclick="sortMoSide('${side}','${key}')">${label2}<span class="arrow">${st.sort.key===key ? (st.sort.dir===1?'▲':'▼') : ''}</span></th>`).join('')}
             </tr></thead>
             <tbody id="moTbody-${side}">${bodyHtml}</tbody>
@@ -2021,8 +2186,10 @@ function toggleMoCheck(side, playerId){
   if (st.checked.has(playerId)) st.checked.delete(playerId);
   else st.checked.add(playerId);
   document.getElementById('moSummary-' + side).innerHTML = renderMoSummaryHtml(side);
-  const centralEl = document.getElementById('centralProjTable');
-  if (centralEl && _teamStatsMatch) centralEl.outerHTML = renderCentralProjectionTable(_teamStatsMatch);
+  // Punto 4B: sostituiamo sempre il WRAPPER (tabella+box segnale insieme),
+  // mai la sola tabella — vedi commento in renderCentralProjectionTable.
+  const centralWrap = document.getElementById('centralProjWrap');
+  if (centralWrap && _teamStatsMatch) centralWrap.outerHTML = renderCentralProjectionTable(_teamStatsMatch);
 }
 
 function toggleMoSide(side){
