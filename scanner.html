@@ -500,6 +500,14 @@
       <div class="filter-group" id="scnFilterPanel" style="margin-bottom:6px;background:var(--panel-2);padding:10px;border-radius:8px;">
         <span class="filter-label">Filtra risultati:</span>
         <input type="text" id="scnFText" placeholder="cerca giocatore/partita" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:170px;" />
+        <div class="msdrop" id="scnFVenueDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFVenueDrop')">Squadra: complessivo ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="radio" name="scnFVenue" class="scnFVenueRad" value="" checked /> Complessivo (tutte e due)</label>
+            <label><input type="radio" name="scnFVenue" class="scnFVenueRad" value="HOME" /> Casa (solo squadra di casa)</label>
+            <label><input type="radio" name="scnFVenue" class="scnFVenueRad" value="AWAY" /> Trasferta (solo squadra ospite)</label>
+          </div>
+        </div>
         <select id="scnFCV" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
           <option value="">Consistenza: tutte</option>
           <option value="stabile">stabile</option>
@@ -1047,11 +1055,13 @@ function scnFilters(){
     edgeBuckets: bucketsFromChecked('.scnFEdgeChk'),
     evBuckets: bucketsFromChecked('.scnFEvChk'),
     quotaBuckets: bucketsFromChecked('.scnFQuotaChk'),
+    venue: getScnVenue(),
   };
 }
 function applyScnFilters(rows){
   const f = scnFilters();
   return rows.filter(r => {
+    if (f.venue && r.venue !== f.venue) return false;
     if (f.text) {
       const hay = `${r.player.Nome_completo} ${r.match.Home} ${r.match.Away}`.toLowerCase();
       if (!hay.includes(f.text)) return false;
@@ -1065,6 +1075,21 @@ function applyScnFilters(rows){
     return true;
   });
 }
+// Filtro Squadra (Casa/Trasferta/Complessivo): tiene solo i giocatori della
+// squadra di casa o ospite della partita scansionata. Complessivo = nessun
+// filtro (default).
+function getScnVenue(){
+  const c = document.querySelector('.scnFVenueRad:checked');
+  return c ? c.value : '';
+}
+function updateScnVenueLabel(){
+  const v = getScnVenue();
+  const btn = document.querySelector('#scnFVenueDrop .msdrop-btn');
+  const name = v === 'HOME' ? 'casa' : v === 'AWAY' ? 'trasferta' : 'complessivo';
+  btn.textContent = `Squadra: ${name} ▾`;
+  btn.classList.toggle('active-filter', v !== '');
+}
+document.querySelectorAll('.scnFVenueRad').forEach(r => r.addEventListener('change', () => { updateScnVenueLabel(); renderScan(); }));
 document.getElementById('scnFText').addEventListener('input', renderScan);
 document.getElementById('scnFCV').addEventListener('change', renderScan);
 document.querySelectorAll('.scnFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk'); renderScan(); }));
@@ -1074,6 +1099,8 @@ document.querySelectorAll('.scnFQuotaChk').forEach(chk => chk.addEventListener('
 document.getElementById('scnFClear').addEventListener('click', () => {
   document.getElementById('scnFText').value = '';
   document.getElementById('scnFCV').value = '';
+  document.querySelector('.scnFVenueRad[value=""]').checked = true;
+  updateScnVenueLabel();
   document.querySelectorAll('.scnFHitChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => { chk.checked = false; });
   updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
   updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
