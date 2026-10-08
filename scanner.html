@@ -403,11 +403,24 @@
   }
   .miniform select option{background-color:var(--panel);color:var(--text);}
 
+
+  /* Tabelle Scanner/Preferiti: a tutta larghezza, celle compatte, niente scroll orizzontale */
+  #scnTable th, #scrTable th{padding:9px 6px;font-size:10px;vertical-align:bottom;}
+  #scnTable td, #scrTable td{padding:8px 6px;font-size:12.5px;vertical-align:middle;}
+  #scnTable td:first-child, #scrTable td:first-child, #scnTable th:first-child, #scrTable th:first-child{padding-left:10px;}
+  #scnTable input[type=text], #scrTable input[type=text]{width:54px !important;}
+  #scnTable td.nw, #scrTable td.nw{white-space:nowrap;}
+  .status-pill{white-space:nowrap;}
+  /* Hit venue: chip sopra, ±pp sempre sotto (mai di lato, anche con chip corto tipo 0%) */
+  .hitcell{display:flex;flex-direction:column;align-items:flex-end;gap:2px;line-height:1.2;}
+  .hitcell .chip{white-space:nowrap;}
+  .hitcell .subtle{white-space:nowrap;}
+
   footer{
     padding:24px 32px 48px;
     color:var(--muted);
     font-size:11px;
-    max-width:1180px;
+    max-width:none;
     margin:0 auto;
   }
 
@@ -436,7 +449,7 @@
 </nav>
 
 
-<main style="max-width:1180px;margin:0 auto;padding:24px 28px 0;">
+<main style="max-width:none;width:100%;margin:0 auto;padding:20px 20px 0;">
 
 <section id="scannerSection">
   <div class="panel">
@@ -536,7 +549,7 @@
       </div>
 
       <div style="overflow-x:auto;">
-      <table class="stat" id="scnTable" style="margin-top:14px;min-width:1250px;">
+      <table class="stat" id="scnTable" style="margin-top:14px;width:100%;">
         <thead>
           <tr>
             <th class="sortable" data-key="giocatore" title="Nome del giocatore e squadra">Giocatore<span class="arrow"></span></th>
@@ -628,7 +641,7 @@
         <button id="scrClear" class="secondary">Svuota tutti i preferiti</button>
       </div>
       <div style="overflow-x:auto;">
-      <table class="stat" id="scrTable" style="margin-top:14px;min-width:1100px;">
+      <table class="stat" id="scrTable" style="margin-top:14px;width:100%;">
         <thead>
           <tr>
             <th class="sortable" data-key="giocatore">Giocatore<span class="arrow"></span></th>
@@ -1131,10 +1144,10 @@ function renderScan(){
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
     <td>${MARKET_LABELS[r.mercato]}</td>
     <td class="num">${fmt(r.linea,1)}</td>
-    <td class="num">${fmt(r.mediaVenue)} <span class="subtle">(N=${r.nVenue})</span></td>
+    <td class="num nw">${fmt(r.mediaVenue)} <span class="subtle">(N=${r.nVenue})</span></td>
     <td class="num">${fmt(r.mediaL3)}</td>
     <td>${cvBadge(r.cv)}</td>
-    <td class="num">${hitChip(r.hitVenue)} ${ciTxt}</td>
+    <td class="num"><div class="hitcell">${hitChip(r.hitVenue)}${ciTxt}</div></td>
     <td class="num">${pctColored(r.hitStag)}</td>
     <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${quota ?? ''}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" /></td>
     <td class="num">${prob != null ? pct(prob) : '—'}</td>
@@ -1278,7 +1291,7 @@ document.getElementById('scrClear').addEventListener('click', () => {
 });
 
 function scrSetEsito(id, esito){
-  const r = screenerRows.find(r => r.id === id);
+  const r = screenerRows.find(r => String(r.id) === String(id));
   if (r) r.esito = (r.esito === esito) ? null : esito; // click di nuovo = annulla
   saveScreenerRows();
   renderScreener();
@@ -1288,7 +1301,7 @@ function scrSetEsito(id, esito){
   }
 }
 function scrSetQuota(id, val){
-  const r = screenerRows.find(r => r.id === id);
+  const r = screenerRows.find(r => String(r.id) === String(id));
   if (!r) return;
   const q = Number(String(val).replace(',', '.'));
   r.quota = (val === '' || Number.isNaN(q) || q <= 1) ? null : q;
@@ -1300,7 +1313,7 @@ function scrSetQuota(id, val){
   }
 }
 function removeScrRow(id){
-  screenerRows = screenerRows.filter(r => r.id !== id);
+  screenerRows = screenerRows.filter(r => String(r.id) !== String(id));
   saveScreenerRows();
   renderScreener();
   if (sb) {
@@ -1440,10 +1453,10 @@ function renderScreener(){
       ? (favorevole ? 'Valore' : 'Nessun valore')
       : (favorevole ? 'Favorevole (media)*' : 'Sfavorevole (media)*');
     const storicoCell = r.esito == null
-      ? `<button class="rowdel" style="color:var(--accent);" onclick="scrSetEsito(${JSON.stringify(r.id)},'vinta')">✓ Vinta</button>
-         <button class="rowdel" onclick="scrSetEsito(${JSON.stringify(r.id)},'persa')">✕ Persa</button>`
+      ? `<button class="rowdel" style="color:var(--accent);" data-act="vinta" data-id="${escAttr(r.id)}">✓ Vinta</button>
+         <button class="rowdel" data-act="persa" data-id="${escAttr(r.id)}">✕ Persa</button>`
       : `<span class="${r.esito === 'vinta' ? 'verdict-fav' : 'verdict-nofav'}">${r.esito === 'vinta' ? 'Vinta' : 'Persa'}</span>
-         <button class="rowdel" title="annulla" onclick="scrSetEsito(${JSON.stringify(r.id)},${JSON.stringify(r.esito)})">↺</button>`;
+         <button class="rowdel" title="annulla" data-act="${escAttr(r.esito)}" data-id="${escAttr(r.id)}">↺</button>`;
     return `<tr>
       <td class="metricname">${r.giocatore}<div class="subtle">G${r.giornata} · ${r.partita}</div></td>
       <td>${MARKET_LABELS[r.mercato]}</td>
@@ -1453,16 +1466,38 @@ function renderScreener(){
       <td>${cvBadge(r.cv)}</td>
       <td class="num">${pctColored(r.hitStag)}</td>
       <td class="num">${hitChip(r.hitVenue)}</td>
-      <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${r.quota ?? ''}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scrSetQuota(${JSON.stringify(r.id)}, this.value)" /></td>
+      <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${r.quota ?? ''}" style="width:54px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" data-act="quota" data-id="${escAttr(r.id)}" /></td>
       <td class="num">${prob != null ? pct(prob) : '—'}</td>
       <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
       <td class="num ${ev != null && ev > 0 ? 'verdict-fav' : (ev != null ? 'verdict-nofav' : '')}">${ev != null ? (ev>0?'+':'') + ev.toFixed(2)+'€' : '—'}</td>
       <td class="${favorevole ? 'verdict-fav' : 'verdict-nofav'}">${valutazioneLabel}</td>
       <td>${storicoCell}</td>
-      <td><button class="rowdel" onclick="removeScrRow(${JSON.stringify(r.id)})">✕</button></td>
+      <td><button class="rowdel" title="Rimuovi dai preferiti" data-act="remove" data-id="${escAttr(r.id)}">✕</button></td>
     </tr>`;
   }).join('');
 }
+// Handler dei Preferiti via delegazione: gli id possono essere numeri (creati
+// in locale) o stringhe (tornati da Supabase). Passarli inline nell'attributo
+// onclick con JSON.stringify rompeva l'HTML per gli id stringa (doppi apici
+// dentro onclick="...") e il tasto ✕ non faceva nulla.
+function escAttr(v){
+  return String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+(function(){
+  const body = document.getElementById('scrBody');
+  body.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const id = btn.dataset.id, act = btn.dataset.act;
+    if (act === 'remove') removeScrRow(id);
+    else scrSetEsito(id, act);
+  });
+  body.addEventListener('change', (e) => {
+    const inp = e.target.closest('input[data-act="quota"]');
+    if (inp) scrSetQuota(inp.dataset.id, inp.value);
+  });
+})();
+
 renderScreener();
 </script>
 </body>
