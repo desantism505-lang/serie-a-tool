@@ -435,6 +435,7 @@
   </div>
   <div class="fileload">
     <span id="dataStatus">dati non caricati</span>
+    <span id="syncStatus" class="subtle" title="Stato sincronizzazione quote e preferiti con il cloud"></span>
     <label for="fileInput">Carica file aggiornato (.xlsx)</label>
     <input type="file" id="fileInput" accept=".xlsx,.xls" />
   </div>
@@ -949,8 +950,10 @@ document.getElementById('scnRun').addEventListener('click', runScanGiornata);
 function scnSetQuota(i, val){
   const r = scanResults[i];
   const q = Number(val.replace(',', '.'));
-  scanQuotes[scanRowKey(r)] = (val === '' || Number.isNaN(q) || q <= 1) ? null : q;
+  const key = scanRowKey(r);
+  scanQuotes[key] = (val === '' || Number.isNaN(q) || q <= 1) ? null : q;
   saveScanQuotes();
+  quoteCloudSave(key, scanQuotes[key]);
   renderScan();
 }
 
@@ -1214,7 +1217,7 @@ function toggleFavorite(i){
     screenerRows.push(nuovo);
     if (sb) {
       sb.from('preferiti').insert(scrRowToCloud(nuovo))
-        .then(({ error }) => { if (error) console.warn('Supabase: salvataggio preferito non riuscito, resta solo su questo dispositivo.', error); });
+        .then(({ error }) => { if (error) { syncState.pref = false; refreshSyncBadge(); console.warn('Supabase: salvataggio preferito non riuscito, resta solo su questo dispositivo.', error); } });
     }
   }
   saveScreenerRows();
@@ -1295,16 +1298,82 @@ async function syncScreenerFromCloud(){
   try {
     const { data, error } = await sb.from('preferiti').select('*').order('created_at', { ascending: true });
     if (error) throw error;
-    screenerRows = data.map(scrRowFromCloud);
-    saveScreenerRows();
-    renderScreener();
+    if (data.length === 0 && screenerRows.length > 0) {
+      // Cloud vuoto ma preferiti locali presenti: li carico su, NON li cancello.
+      const { error: e2 } = await sb.from('preferiti').insert(screenerRows.map(scrRowToCloud));
+      if (e2) throw e2;
+    } else {
+      screenerRows = data.map(scrRowFromCloud);
+      saveScreenerRows();
+      renderScreener();
+    }
+    syncState.pref = true;
   } catch (e) {
+    syncState.pref = false;
     console.warn('Supabase: sincronizzazione preferiti non riuscita, resto sui dati locali.', e);
   }
+  refreshSyncBadge();
+}
+
+// ---------------------------------------------------------------------------
+// Sincronizzazione cloud delle quote dello Scanner (tabella scanner_quote) e
+// indicatore di stato. Le quote locali non ancora nel cloud vengono caricate
+// al primo avvio; quelle già nel cloud vengono scaricate sul dispositivo.
+// ---------------------------------------------------------------------------
+const syncState = { quote: null, pref: null }; // null = in corso, true = ok, false = errore
+function refreshSyncBadge(){
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const vals = [syncState.quote, syncState.pref];
+  if (vals.includes(false)) {
+    el.textContent = '⚠ cloud non raggiunto: dati solo su questo dispositivo' +
+      (syncState.quote === false ? ' (quote)' : '') + (syncState.pref === false ? ' (preferiti)' : '');
+    el.style.color = 'var(--warn)';
+  } else if (vals.every(v => v === true)) {
+    el.textContent = '☁ sincronizzato';
+    el.style.color = 'var(--accent)';
+  } else {
+    el.textContent = '☁ sincronizzazione…';
+    el.style.color = 'var(--muted)';
+  }
+}
+function quoteCloudSave(key, quota){
+  if (!sb) { syncState.quote = false; refreshSyncBadge(); return; }
+  const q = (quota == null)
+    ? sb.from('scanner_quote').delete().eq('chiave', key)
+    : sb.from('scanner_quote').upsert({ chiave: key, quota: quota, updated_at: new Date().toISOString() });
+  q.then(({ error }) => {
+    syncState.quote = !error;
+    if (error) console.warn('Supabase: salvataggio quota non riuscito, resta solo su questo dispositivo.', error);
+    refreshSyncBadge();
+  });
+}
+async function syncQuotesFromCloud(){
+  if (!sb) { syncState.quote = false; refreshSyncBadge(); return; }
+  try {
+    const { data, error } = await sb.from('scanner_quote').select('chiave,quota');
+    if (error) throw error;
+    const cloud = {};
+    data.forEach(r => { cloud[r.chiave] = Number(r.quota); });
+    const localOnly = Object.entries(scanQuotes).filter(([k, v]) => v != null && !(k in cloud));
+    if (localOnly.length) {
+      const { error: e2 } = await sb.from('scanner_quote').upsert(localOnly.map(([k, v]) => ({ chiave: k, quota: v })));
+      if (e2) throw e2;
+    }
+    Object.assign(scanQuotes, cloud);
+    saveScanQuotes();
+    syncState.quote = true;
+    renderScan();
+  } catch (e) {
+    syncState.quote = false;
+    console.warn('Supabase: sincronizzazione quote non riuscita, resto sui dati locali.', e);
+  }
+  refreshSyncBadge();
 }
 
 let screenerRows = loadScreenerRows();
-if (sb) syncScreenerFromCloud();
+refreshSyncBadge();
+if (sb) { syncScreenerFromCloud(); syncQuotesFromCloud(); } else { syncState.quote = false; syncState.pref = false; refreshSyncBadge(); }
 
 document.getElementById('scrClear').addEventListener('click', () => {
   if (!confirm('Svuotare tutti i preferiti, compreso lo storico esiti già segnati?')) return;
