@@ -2419,9 +2419,9 @@ function lineFacts(match) {
     for (const [, tk, label] of TM) {
       // duelli
       const rec = teamDuelRecord(duels, tk);
-      if (rec.n >= 4 && (rec.wins === 0 || rec.wins === rec.n || Math.max(rec.wins, rec.n - rec.wins) / rec.n >= 0.8 && rec.n >= 5)) {
+      if (rec.n >= 2 && (rec.wins === 0 || rec.wins === rec.n || Math.max(rec.wins, rec.n - rec.wins) / rec.n >= 0.8 && rec.n >= 5)) {
         const won = rec.wins >= rec.n - rec.wins, k = won ? rec.wins : rec.n - rec.wins;
-        out.push({ type: 'duel', tk, team: T.name, strength: (k / rec.n) * Math.min(1, rec.n / 5) + 0.3, n: rec.n, txt: `<b>${esc(T.name)}</b>${vW(T)} ha ${won ? 'vinto' : 'perso'} il duello su ${esc(label.toLowerCase())} in <b>${k}/${rec.n}</b> partite${k === rec.n ? ' (sempre)' : ''}` });
+        out.push({ type: 'duel', tk, team: T.name, strength: (k / rec.n) * Math.min(1, rec.n / 5) + 0.3, n: rec.n, txt: `<b>${esc(T.name)}</b>${vW(T)} ha ${won ? 'vinto' : 'perso'} <b>${k}/${rec.n}</b> duelli su ${esc(label.toLowerCase())}${k === rec.n ? ' (sempre)' : ''}` });
       }
       // classifiche
       for (const [kind, who, sub] of [['own', T, 'produce'], ['opp', T, 'concede']]) {
@@ -2447,7 +2447,7 @@ function lineFacts(match) {
       }
     }
   }
-  out.sort((a, b) => b.strength - a.strength);
+  out.sort((a, b) => (b.type === 'duel') - (a.type === 'duel') || b.strength - a.strength);
   const seen = new Set(), res = [];
   for (const f of out) { const k = f.txt; if (seen.has(k)) continue; seen.add(k); res.push(f); }
   return res;
@@ -2455,8 +2455,8 @@ function lineFacts(match) {
 function lineFactsBlock(match, limit, title) {
   const all = lineFacts(match);
   const col = (name, role, fs) => {
-    const li = fs.slice(0, limit).map((f) => `<li style="margin-bottom:5px;"><span class="pill" style="margin-right:6px;">${f.type === 'duel' ? 'DUELLO' : f.type === 'rank' ? 'CLASSIFICA' : 'LINEA'}</span>${f.txt} <span class="tag-inline">· campione ${f.n}</span></li>`).join('');
-    return `<div><div style="margin-bottom:6px;font-weight:600;"><span style="color:var(--accent);">${esc(name)}</span> <span class="subtle">— ${role}</span></div>${li ? `<ul class="facts-list lf" style="margin:0;padding-left:0;list-style:none;">${li}</ul>` : '<div class="subtle">Nessun fatto netto con il campione attuale.</div>'}</div>`;
+    const li = fs.slice(0, limit).map((f) => `<li style="margin-bottom:5px;"><span class="tag-inline">[${f.type === 'duel' ? 'duello' : f.type === 'rank' ? 'classifica' : 'linea'}]</span> ${f.txt}${f.type === 'rank' ? '' : ' <span class="tag-inline">· ' + f.n + ' partite</span>'}</li>`).join('');
+    return `<div><div style="margin-bottom:6px;font-weight:600;"><span style="color:var(--accent);">${esc(name)}</span> <span class="subtle">— ${role}</span></div>${li ? `<ul class="facts-list" style="margin:0;padding-left:0;list-style:none;">${li}</ul>` : '<div class="subtle">Nessun fatto netto con il campione attuale.</div>'}</div>`;
   };
   const hf = all.filter((f) => f.team === match.Home), af = all.filter((f) => f.team === match.Away);
   return `<div class="panel" style="margin-bottom:22px;"><h2>${title} <span class="tag" style="flex:1;">duelli, classifiche e linee ricorrenti · ${S.scope === 'venue' ? 'solo casa / trasferta' : 'tutte le partite'}</span>${scopeToggle()}</h2>
