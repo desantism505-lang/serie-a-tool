@@ -1580,6 +1580,12 @@ function computeRoleVulnerabilityTable(oppTeamId, oppVenue){
 let MODEL = null, CARDPF = null;
 const S = { sez: 'sintesi', mk: 'Tiri', team: 'home', pl: null, sort: { key: 'mu', dir: -1 }, bench: true };
 try { if (localStorage.getItem('mx_bench') === '0') S.bench = false; } catch (e) {}
+S.scope = 'all'; // 'venue' = casa della squadra di casa e trasferta di quella ospite; 'all' = tutte le partite
+try { if (localStorage.getItem('mx_scope') === 'venue') S.scope = 'venue'; } catch (e) {}
+function setScope(v) { S.scope = v; try { localStorage.setItem('mx_scope', v); } catch (e) {} renderAll(); }
+function scopeToggle() {
+  return `<span class="seg" style="margin-left:auto;font-family:Inter,sans-serif;font-weight:500;" title="Solo venue: per la squadra di casa contano le partite giocate in casa, per quella ospite le partite giocate in trasferta (campione più piccolo, più specifico). Tutte le partite: campione più grande, ma mescola casa e trasferta."><button class="${S.scope === 'venue' ? 'on' : ''}" onclick="setScope('venue')">Casa / trasferta</button><button class="${S.scope === 'all' ? 'on' : ''}" onclick="setScope('all')">Tutte le partite</button></span>`;
+}
 function setBench(v) { S.bench = !!v; try { localStorage.setItem('mx_bench', v ? '1' : '0'); } catch (e) {} renderAll(); }
 function benchToggle() {
   return `<label title="Con panchina: titolari + stima della panchina (come nelle linee di mercato sui totali di squadra, che contano tutti i giocatori). Senza: solo la somma dei titolari scelti. Valido per i totali mostrati; probabilità e shortlist usano sempre il totale con panchina." style="margin-left:auto;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><input type="checkbox" ${S.bench ? 'checked' : ''} onchange="setBench(this.checked)" style="width:13px;height:13px;accent-color:var(--accent);margin:0;"> con panchina</label>`;
@@ -1620,7 +1626,7 @@ const venueTxt = (v) => (v === 'HOME' ? 'in casa' : 'in trasferta');
 // Cache per render
 // ---------------------------------------------------------------------------
 let _arb = {}, _tsCache = {}, _lgTeam = {}, _roleRank = {}, _vuln = {};
-function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; _rx = {}; _nPerf = {}; }
+function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; _rx = {}; _nPerf = {}; _rv = null; }
 function arbFactor(match, side, m) {
   const key = m === 'Cart' ? 'Cart' : 'FC';
   const k = side + key;
@@ -1964,20 +1970,33 @@ function cmpBlock(match, P) {
 // Verde = piu' eventi della media di lega; rosso = meno eventi. Nessun giudizio "buono/cattivo".
 // ---------------------------------------------------------------------------
 const RX = { z: 1.75, expMin: 3 };
-let _rx = {}, _nPerf = {};
-function roleExposure(oppId, ruolo, mk) {
-  const k = [oppId, ruolo, mk].join('|');
+let _rx = {}, _nPerf = {}, _rv = null;
+// aggregati per ruolo e venue del giocatore (H = in casa, A = in trasferta), e per avversario
+function rvAgg() {
+  if (_rv) return _rv;
+  const role = {}, opp = {};
+  const add = (o, k, r) => { const a = o[k] || (o[k] = { min: 0, n: 0 }); a.min += Number(r.Minuti) || 0; a.n++; for (const m of MODEL_METRICS) a[m] = (a[m] || 0) + metricValue(r, m); };
+  for (const r of DB.matchLog) { add(role, r.Posizione_Analitica + '|' + r.Venue, r); add(opp, r.Opp_ID + '|' + r.Posizione_Analitica + '|' + r.Venue, r); }
+  return (_rv = { role, opp });
+}
+function roleExposure(oppId, ruolo, mk, oppVenue) {
+  const V = S.scope === 'venue' && oppVenue;
+  const k = [oppId, ruolo, mk, V ? oppVenue : 'all'].join('|');
   if (k in _rx) return _rx[k];
-  const a = MODEL.opp[oppId + '|' + ruolo], r = MODEL.role[ruolo];
+  let a, r;
+  if (V) { // il giocatore gioca nel venue opposto a quello dell'avversario
+    const pv = oppVenue === 'HOME' ? 'A' : 'H', R = rvAgg();
+    a = R.opp[oppId + '|' + ruolo + '|' + pv]; r = R.role[ruolo + '|' + pv];
+  } else { a = MODEL.opp[oppId + '|' + ruolo]; r = MODEL.role[ruolo]; }
   let out = null;
   if (a && a.min && r) {
     const lgMin = r.min - a.min, lgX = r[mk] - a[mk];
     const lg90 = lgMin > 0 ? (lgX / lgMin) * 90 : null;
     if (lg90 > 0) {
       const exp = (lg90 * a.min) / 90, obs = a[mk];
-      const nk = oppId + '|' + ruolo;
-      if (!(nk in _nPerf)) _nPerf[nk] = DB.matchLog.filter((x) => x.Opp_ID === oppId && x.Posizione_Analitica === ruolo).length;
-      out = { v90: (obs / a.min) * 90, lg90, ratio: (obs / a.min) * 90 / lg90, obs, exp, z: (obs - exp) / Math.sqrt(exp), min: a.min, n: _nPerf[nk] };
+      let n = a.n;
+      if (n == null) { const nk = oppId + '|' + ruolo; if (!(nk in _nPerf)) _nPerf[nk] = DB.matchLog.filter((x) => x.Opp_ID === oppId && x.Posizione_Analitica === ruolo).length; n = _nPerf[nk]; }
+      out = { v90: (obs / a.min) * 90, lg90, ratio: (obs / a.min) * 90 / lg90, obs, exp, z: (obs - exp) / Math.sqrt(exp), min: a.min, n };
       out.sig = exp >= RX.expMin && Math.abs(out.z) >= RX.z;
       out.cls = out.sig ? (out.z > 0 ? 'top1' : 'low') : null;
     }
@@ -1985,7 +2004,7 @@ function roleExposure(oppId, ruolo, mk) {
   return (_rx[k] = out);
 }
 function rxTitle(x, ruolo, mkLabel, oppName) {
-  return `Contro ${oppName}, ${ruolo}: ${mkLabel.toLowerCase()} ${fmt(x.v90, 2)} ogni 90' → contro ${fmt(x.lg90, 2)} di media lega per questo ruolo (${fmt(x.ratio, 2)}×). Osservati ${x.obs} contro ${fmt(x.exp, 1)} attesi a media lega, in ${Math.round(x.min)}' (${x.n} prestazioni).`;
+  return `${S.scope === 'venue' ? '(solo partite nello stesso venue) ' : ''}Contro ${oppName}, ${ruolo}: ${mkLabel.toLowerCase()} ${fmt(x.v90, 2)} ogni 90' → contro ${fmt(x.lg90, 2)} di media lega per questo ruolo (${fmt(x.ratio, 2)}×). Osservati ${x.obs} contro ${fmt(x.exp, 1)} attesi a media lega, in ${Math.round(x.min)}' (${x.n} prestazioni).`;
 }
 function matrixCells(match, attackSide) {
   const info = sideInfo(match, attackSide);
@@ -1993,7 +2012,7 @@ function matrixCells(match, attackSide) {
   const rows = [];
   for (const ruolo of ROLE_ORDER) {
     if (!lineupRoles.has(ruolo)) continue;
-    const cells = MK.map(([mk]) => { const x = roleExposure(info.oppId, ruolo, mk); return x && x.sig ? { ...x } : null; });
+    const cells = MK.map(([mk]) => { const x = roleExposure(info.oppId, ruolo, mk, info.oppVenue); return x && x.sig ? { ...x } : null; });
     if (cells.some(Boolean)) rows.push({ ruolo, cells });
   }
   return { info, rows, hidden: lineupRoles.size - rows.length };
@@ -2011,10 +2030,10 @@ function matrixBlock(match) {
       <table class="mx"><tr><th></th>${head}</tr>${body}</table>${sentences ? `<ul class="subtle" style="margin:8px 0 0;padding-left:18px;line-height:1.5;">${sentences}</ul>` : ''}${M.hidden > 0 ? `<div class="subtle">${M.hidden} ruoli senza differenze chiare.</div>` : ''}</div>`;
   };
   return `
-  <div class="card"><h3>Ruoli contro l'avversario <span class="tag">per ogni ruolo: cosa ha fatto contro questo avversario rispetto a cosa fa di solito contro tutte le altre squadre</span></h3>
+  <div class="card"><h3>Ruoli contro l'avversario <span class="tag">per ogni ruolo: cosa ha fatto contro questo avversario rispetto a cosa fa di solito contro tutte le altre squadre</span>${scopeToggle()}</h3>
     <div class="cb"><div class="twocol">${one('home')}${one('away')}</div>
       <div class="legend"><span><i style="background:var(--accent)"></i>▲ più: contro questo avversario quel ruolo fa PIÙ eventi del solito</span><span><i style="background:#3a1a14;border:1px solid #6b2b20"></i>▼ meno: ne fa MENO del solito</span><span>· nessuna differenza chiara</span></div>
-      <div class="subtle" style="margin-top:6px;"><b>Esempio:</b> riga «Punta centrale», colonna SOT, «▼ meno · 0,3 vs 1,1» = le punte hanno fatto 0,3 tiri in porta ogni 90' contro questo avversario, mentre in media in lega ne fanno 1,1. Il numero a sinistra è contro questo avversario, quello a destra è il "solito". Le celle vuote non vogliono dire "nella media": vuol dire che i dati non bastano per dirlo (serve una differenza oltre il caso). Con poche giornate le celle sono poche. Il colore dice solo più/meno, non se conviene giocare.</div>
+      <div class="subtle" style="margin-top:6px;"><b>Esempio:</b> riga «Punta centrale», colonna SOT, «▼ meno · 0,3 vs 1,1» = le punte hanno fatto 0,3 tiri in porta ogni 90' contro questo avversario, mentre in media in lega ne fanno 1,1. Il numero a sinistra è contro questo avversario, quello a destra è il "solito". Le celle vuote non vogliono dire "nella media": vuol dire che i dati non bastano per dirlo (serve una differenza oltre il caso). Con «Casa / trasferta» il confronto è fatto solo con partite nello stesso venue di questa (la squadra di casa conta con le partite in casa, l'ospite con quelle in trasferta; anche il "solito" di lega è dello stesso venue), quindi il campione è più piccolo e le celle sono meno. Il colore dice solo più/meno, non se conviene giocare.</div>
     </div></div>`;
 }
 
@@ -2034,19 +2053,29 @@ function leagueAvgVenue(venue, tk) {
 const sigThr = (n) => Math.max(0.05, 0.30 / Math.sqrt(Math.max(n, 1)));
 function duelMetrics(match, P) {
   return TM.map(([mk, tk, label]) => {
-    // tutte le partite stagionali (campione piu' grande dello split casa/trasferta), poi riportate al venue
-    // con il rapporto di lega casa/totale, che poggia su tutte le partite del campionato
-    const lgT = leagueAvgVenue('TOTALE', tk);
-    const lgH = leagueAvgVenue('HOME', tk), lgA = leagueAvgVenue('AWAY', tk);
+    const lgT = leagueAvgVenue('TOTALE', tk), lgH = leagueAvgVenue('HOME', tk), lgA = leagueAvgVenue('AWAY', tk);
     if (!lgT || !lgH || !lgA) return { eh: { projection: null }, ea: { projection: null } };
-    const eh = multiplicativeProjection(DB.matchLog, match.Home_ID, 'TOTALE', match.Away_ID, 'TOTALE', tk, lgT, DB.calendar);
-    const ea = multiplicativeProjection(DB.matchLog, match.Away_ID, 'TOTALE', match.Home_ID, 'TOTALE', tk, lgT, DB.calendar);
-    for (const [e, k] of [[eh, lgH / lgT], [ea, lgA / lgT]]) if (e.projection != null) e.projection *= k;
-    const nH = Math.min(eh.nA || 0, eh.nB || 0), nA = Math.min(ea.nA || 0, ea.nB || 0);
+    // Casa / trasferta: la squadra di casa con le sue partite in casa, l'ospite con quelle in trasferta; gli avversari al
+    // venue opposto. Tutte le partite: campione piu' grande, riportato al venue col rapporto casa/trasferta di lega.
+    // In entrambi i casi ogni fattore e' tirato verso la media con n/(n+3): con poche partite pesa meno e cresce da solo.
+    const ven = {
+      eh: multiplicativeProjection(DB.matchLog, match.Home_ID, 'HOME', match.Away_ID, 'AWAY', tk, lgH, DB.calendar),
+      ea: multiplicativeProjection(DB.matchLog, match.Away_ID, 'AWAY', match.Home_ID, 'HOME', tk, lgA, DB.calendar),
+    };
+    const all = {
+      eh: multiplicativeProjection(DB.matchLog, match.Home_ID, 'TOTALE', match.Away_ID, 'TOTALE', tk, lgT, DB.calendar),
+      ea: multiplicativeProjection(DB.matchLog, match.Away_ID, 'TOTALE', match.Home_ID, 'TOTALE', tk, lgT, DB.calendar),
+    };
+    for (const [e, k] of [[all.eh, lgH / lgT], [all.ea, lgA / lgT]]) if (e.projection != null) e.projection *= k;
+    const nOf = (o) => ({ nH: Math.min(o.eh.nA || 0, o.eh.nB || 0), nA: Math.min(o.ea.nA || 0, o.ea.nB || 0) });
+    const prim = S.scope === 'venue' ? ven : all, alt = S.scope === 'venue' ? all : ven;
+    const { nH, nA } = nOf(prim);
     const hm = P.home[mk].total, am = P.away[mk].total;
-    return { mk, tk, label, lgH, lgA, eh, ea, nH, nA, nMin: Math.min(nH, nA), hm, am };
+    return { mk, tk, label, lgH, lgA, eh: prim.eh, ea: prim.ea, alt, nH, nA, nMin: Math.min(nH, nA), hm, am };
   }).filter((x) => x.eh.projection != null && x.ea.projection != null);
 }
+const altTxt = (e) => `${S.scope === 'venue' ? 'tutte le partite' : 'solo venue'}: atteso ${fmt(e.projection, 1)} · produce ${fmt(e.ownAvgA, 1)} (${e.nA}) · concede ${fmt(e.concedeAvgB, 1)} (${e.nB})`;
+const vTxt = (side) => (S.scope === 'venue' ? (side === 'home' ? ' in casa' : ' in trasferta') : '');
 function pickLine(mu, alpha, dir) {
   // Over: la linea x,5 piu' alta con P(Over) >= 55%; Under: la piu' bassa con P(Under) >= 55%
   let best = null;
@@ -2064,8 +2093,8 @@ function shortStatsBlock(match, P) {
   for (const x of D) {
     const alpha = MODEL_PARAMS.TEAM_ALPHA[x.tk] || 0;
     const defs = [
-      { who: match.Home + ' (squadra)', st: x.eh.projection, md: x.hm, lg: x.lgH, n: x.nH, why: `${esc(match.Home)} produce ${fmt(x.eh.ownAvgA, 1)} a partita (${x.eh.nA} partite), ${esc(match.Away)} ne concede ${fmt(x.eh.concedeAvgB, 1)} (${x.eh.nB}) → atteso ${fmt(x.eh.projection, 1)} contro ${fmt(x.lgH, 1)} di lega` },
-      { who: match.Away + ' (squadra)', st: x.ea.projection, md: x.am, lg: x.lgA, n: x.nA, why: `${esc(match.Away)} produce ${fmt(x.ea.ownAvgA, 1)} a partita (${x.ea.nA} partite), ${esc(match.Home)} ne concede ${fmt(x.ea.concedeAvgB, 1)} (${x.ea.nB}) → atteso ${fmt(x.ea.projection, 1)} contro ${fmt(x.lgA, 1)} di lega` },
+      { who: match.Home + ' (squadra)', st: x.eh.projection, md: x.hm, lg: x.lgH, n: x.nH, why: `${esc(match.Home)} produce ${fmt(x.eh.ownAvgA, 1)} a partita${vTxt('home')} (${x.eh.nA} partite), ${esc(match.Away)} ne concede ${fmt(x.eh.concedeAvgB, 1)}${vTxt('away')} (${x.eh.nB}) → atteso ${fmt(x.eh.projection, 1)} contro ${fmt(x.lgH, 1)} di lega` },
+      { who: match.Away + ' (squadra)', st: x.ea.projection, md: x.am, lg: x.lgA, n: x.nA, why: `${esc(match.Away)} produce ${fmt(x.ea.ownAvgA, 1)} a partita${vTxt('away')} (${x.ea.nA} partite), ${esc(match.Home)} ne concede ${fmt(x.ea.concedeAvgB, 1)}${vTxt('home')} (${x.ea.nB}) → atteso ${fmt(x.ea.projection, 1)} contro ${fmt(x.lgA, 1)} di lega` },
       { who: 'Totale partita', st: x.eh.projection + x.ea.projection, md: x.hm != null && x.am != null ? x.hm + x.am : null, lg: x.lgH + x.lgA, n: x.nMin, total: true,
         why: `${esc(match.Home)} ${fmt(x.eh.projection, 1)} + ${esc(match.Away)} ${fmt(x.ea.projection, 1)} = ${fmt(x.eh.projection + x.ea.projection, 1)} atteso da statistiche, contro ${fmt(x.lgH + x.lgA, 1)} di lega` },
     ];
@@ -2113,12 +2142,12 @@ function shortStatsBlock(match, P) {
       <td class="num">${c.df.n} partite<span class="sm">soglia ${Math.round(sigThr(c.df.n) * 100)}%</span></td>
       <td><button class="btn" onclick="go('squadre')">Linee →</button></td></tr>`;
   }).join('')
-    : `<tr><td colspan="5" style="color:var(--muted);">Nessuna giocata supera le soglie: statistiche stagionali e modello non indicano uno scostamento netto dalla lega per queste due squadre. È un risultato valido.</td></tr>`;
+    : `<tr><td colspan="5" style="color:var(--muted);">Nessuna giocata supera le soglie${S.scope === 'venue' ? ' con il solo venue (campione di 2-3 partite per squadra: prova «Tutte le partite»)' : ''}: statistiche stagionali e modello non indicano uno scostamento netto dalla lega per queste due squadre. È un risultato valido.</td></tr>`;
   return `
-  <div class="card"><h3>Giocate da valutare: confronto tra le due squadre <span class="tag">chi produce contro chi concede, metrica per metrica · non è una linea di quota: confronta la quota minima con il prezzo</span></h3>
+  <div class="card"><h3>Giocate da valutare: confronto tra le due squadre <span class="tag">chi produce contro chi concede, metrica per metrica · non è una linea di quota: confronta la quota minima con il prezzo</span>${scopeToggle()}</h3>
     <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Giocata</th><th>Confronto</th><th class="num">Modello</th><th class="num">Campione</th><th></th></tr></thead><tbody>${body}</tbody></table>
     ${arbNote}
-    <div class="subtle" style="padding:10px 20px;">Regola: atteso da statistiche (produzione della squadra × concessione dell'avversario, tutte le partite stagionali, riportate al venue con il rapporto casa/trasferta di lega) e proiezione del modello devono andare nella stessa direzione oltre una soglia che scende da sola con le partite (0,30 ÷ √partite, minimo 5%). Linea proposta = la più alta (Over) con probabilità del modello ≥ 55%. Gli Under compaiono solo con soglia doppia e al massimo uno: i book li quotano poco e il modello li stima con più incertezza. Probabilità calcolate con binomiale negativa (alpha di squadra, per il totale partita è prudenziale).</div></div></div>`;
+    <div class="subtle" style="padding:10px 20px;">Regola: atteso da statistiche (produzione della squadra × concessione dell'avversario, nel venue scelto in alto a destra: con «Casa / trasferta» la squadra di casa conta con le partite in casa e l'ospite con quelle in trasferta; con «Tutte le partite» il campione è più grande e viene riportato al venue col rapporto casa/trasferta di lega) e proiezione del modello devono andare nella stessa direzione oltre una soglia che scende da sola con le partite (0,30 ÷ √partite, minimo 5%). Linea proposta = la più alta (Over) con probabilità del modello ≥ 55%. Gli Under compaiono solo con soglia doppia e al massimo uno: i book li quotano poco e il modello li stima con più incertezza. Probabilità calcolate con binomiale negativa (alpha di squadra, per il totale partita è prudenziale).</div></div></div>`;
 }
 
 function shortPlayersBlock(match) {
@@ -2168,7 +2197,7 @@ function secSquadre(match) {
 
 function winnersBlock(match, P) {
   const D = duelMetrics(match, P);
-  const dh = computeTeamDuelTotals(DB.matchLog, match.Home_ID, 'TOTALE', DB.calendar), da = computeTeamDuelTotals(DB.matchLog, match.Away_ID, 'TOTALE', DB.calendar);
+  const dh = computeTeamDuelTotals(DB.matchLog, match.Home_ID, S.scope === 'venue' ? 'HOME' : 'TOTALE', DB.calendar), da = computeTeamDuelTotals(DB.matchLog, match.Away_ID, S.scope === 'venue' ? 'AWAY' : 'TOTALE', DB.calendar);
   const rows = D.map((x) => {
     const mean = (x.eh.projection + x.ea.projection) / 2, diff = x.eh.projection - x.ea.projection;
     const rel = mean ? diff / mean : 0, thr = sigThr(x.nMin);
@@ -2180,16 +2209,16 @@ function winnersBlock(match, P) {
     const rec = (r, nm) => r.n ? `${nm} ${r.wins}/${r.n}` : `${nm} —`;
     const icon = x.mk === 'FC' ? ic('falli') : ic(x.tk === 'SOT' ? 'tiri in porta' : x.tk === 'Cart' ? 'cartellini' : x.tk === 'Corner' ? 'corner' : 'tiri');
     return `<tr><td class="pname">${icon} ${esc(x.label)}</td>
-      <td class="num"><b>${fmt(x.eh.projection, 1)}</b><span class="sm">produce ${fmt(x.eh.ownAvgA, 1)} · ${esc(match.Away)} concede ${fmt(x.eh.concedeAvgB, 1)}</span></td>
-      <td class="num"><b>${fmt(x.ea.projection, 1)}</b><span class="sm">produce ${fmt(x.ea.ownAvgA, 1)} · ${esc(match.Home)} concede ${fmt(x.ea.concedeAvgB, 1)}</span></td>
+      <td class="num"><b>${fmt(x.eh.projection, 1)}</b><span class="sm">produce ${fmt(x.eh.ownAvgA, 1)}${vTxt('home')} (${x.eh.nA}) · ${esc(match.Away)} concede ${fmt(x.eh.concedeAvgB, 1)}${vTxt('away')} (${x.eh.nB})</span><span class="sm" style="opacity:.75;">${altTxt(x.alt.eh)}</span></td>
+      <td class="num"><b>${fmt(x.ea.projection, 1)}</b><span class="sm">produce ${fmt(x.ea.ownAvgA, 1)}${vTxt('away')} (${x.ea.nA}) · ${esc(match.Home)} concede ${fmt(x.ea.concedeAvgB, 1)}${vTxt('home')} (${x.ea.nB})</span><span class="sm" style="opacity:.75;">${altTxt(x.alt.ea)}</span></td>
       <td>${verdict}</td>
-      <td class="num">${rec(rH, esc(match.Home))}<span class="sm">${rec(rA, esc(match.Away))} (tutte le partite)</span></td>
+      <td class="num">${rec(rH, esc(match.Home))}<span class="sm">${rec(rA, esc(match.Away))}</span></td>
       <td>${agree}</td></tr>`;
   }).join('');
   return `
-  <div class="card"><h3>Chi vince ogni metrica <span class="tag">confronto stagionale tra le due squadre · produzione contro concessione su tutte le partite stagionali</span></h3>
+  <div class="card"><h3>Chi vince ogni metrica <span class="tag">confronto stagionale tra le due squadre · produzione contro concessione</span>${scopeToggle()}</h3>
     <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Metrica</th><th class="num">${esc(match.Home)} atteso</th><th class="num">${esc(match.Away)} atteso</th><th>Chi la vince</th><th class="num">Duelli storici</th><th>Modello</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="subtle" style="padding:10px 20px;">Atteso = media di lega × produzione della squadra × concessione dell'avversario (ciascuno tirato verso la media con n ÷ (n + 3); poi riportato al venue). "Chi la vince" = chi ha l'atteso più alto oltre la soglia 0,30 ÷ √partite (min 5%), altrimenti equilibrio. Duelli storici = partite stagionali in cui la squadra ha superato l'avversario nella metrica. "Modello" confronta con la proiezione sulle formazioni (con panchina). Per i falli e i cartellini "vincere" vuol dire commetterne di più, non fare meglio.</div></div></div>`;
+    <div class="subtle" style="padding:10px 20px;">Atteso = media di lega × produzione della squadra × concessione dell'avversario (ciascuno tirato verso la media con n ÷ (n + 3); poi riportato al venue). "Chi la vince" = chi ha l'atteso più alto oltre la soglia 0,30 ÷ √partite (min 5%), altrimenti equilibrio. Duelli storici = partite (nel venue scelto) in cui la squadra ha superato l'avversario nella metrica. "Modello" confronta con la proiezione sulle formazioni (con panchina). Per i falli e i cartellini "vincere" vuol dire commetterne di più, non fare meglio.</div></div></div>`;
 }
 function projBlock(match, P) {
   const computed = TM.map(([mk, tk, label]) => {
@@ -2425,11 +2454,11 @@ function drawerHtml(match, pid) {
   // avversario per il ruolo
   const proj = Object.fromEntries(MK.map(([m]) => [m, pData(match, side, p, m, starter)]));
   const opRows = MK.map(([m, l]) => {
-    const rx = roleExposure(info.oppId, p.Posizione_Analitica, m);
+    const rx = roleExposure(info.oppId, p.Posizione_Analitica, m, info.oppVenue);
     const d = proj[m];
     return `<tr><td>${l}</td><td>${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× → ' + fmt(d.fattoreSquadra, 2) + '×'}</td><td>${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× → ' + fmt(d.fattoreRuolo, 2) + '×'}</td><td><b>${fmt(d.fattoreAvversario, 2)}×</b></td><td>${rx ? rx.obs + ' / ' + fmt(rx.exp, 1) + '<span class="sm">' + fmt(rx.v90, 2) + ' vs ' + fmt(rx.lg90, 2) + " /90'</span>" : '—'}</td></tr>`;
   }).join('');
-  const rx0 = roleExposure(info.oppId, p.Posizione_Analitica, 'Tiri');
+  const rx0 = roleExposure(info.oppId, p.Posizione_Analitica, 'Tiri', info.oppVenue);
   // come nasce la proiezione
   const rsRows = MK.map(([m, l]) => { const d = proj[m]; return `<tr><td>${l}</td><td>${fmt(d.baseline90)}</td><td>${fmt(d.fattoreAvversario, 2)}×${d.fattoreArbitro !== 1 ? ' · ' + fmt(d.fattoreArbitro, 2) + '×' : ''}</td><td>${Math.round(d.minutiAttesi)}'</td><td><b style="color:var(--accent);">${fmt(d.muFin)}</b></td></tr>`; }).join('');
   const prRows = MK.map(([m, l]) => {
