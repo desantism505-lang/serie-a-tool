@@ -1620,7 +1620,7 @@ const venueTxt = (v) => (v === 'HOME' ? 'in casa' : 'in trasferta');
 // Cache per render
 // ---------------------------------------------------------------------------
 let _arb = {}, _tsCache = {}, _lgTeam = {}, _roleRank = {}, _vuln = {};
-function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; }
+function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; _rx = {}; _nPerf = {}; }
 function arbFactor(match, side, m) {
   const key = m === 'Cart' ? 'Cart' : 'FC';
   const k = side + key;
@@ -1954,26 +1954,47 @@ function cmpBlock(match, P) {
   </div>`;
 }
 
+// ---------------------------------------------------------------------------
+// MATRICE "COSA SUCCEDE A UN RUOLO CONTRO QUESTO AVVERSARIO"
+// Per ogni ruolo e mercato: eventi per 90' dei giocatori di quel ruolo nelle partite giocate CONTRO
+// l'avversario, confrontati con la media di lega dello stesso ruolo (avversario escluso).
+// Si evidenzia solo se lo scostamento supera il rumore Poisson: |osservati - attesi| / radice(attesi) >= z,
+// con almeno `expMin` eventi attesi. Cosi' un ruolo con 0 falli in 3 partite non e' mai un segnale,
+// e la soglia si abbassa da sola quando i minuti osservati aumentano.
+// Verde = piu' eventi della media di lega; rosso = meno eventi. Nessun giudizio "buono/cattivo".
+// ---------------------------------------------------------------------------
+const RX = { z: 1.75, expMin: 3 };
+let _rx = {}, _nPerf = {};
+function roleExposure(oppId, ruolo, mk) {
+  const k = [oppId, ruolo, mk].join('|');
+  if (k in _rx) return _rx[k];
+  const a = MODEL.opp[oppId + '|' + ruolo], r = MODEL.role[ruolo];
+  let out = null;
+  if (a && a.min && r) {
+    const lgMin = r.min - a.min, lgX = r[mk] - a[mk];
+    const lg90 = lgMin > 0 ? (lgX / lgMin) * 90 : null;
+    if (lg90 > 0) {
+      const exp = (lg90 * a.min) / 90, obs = a[mk];
+      const nk = oppId + '|' + ruolo;
+      if (!(nk in _nPerf)) _nPerf[nk] = DB.matchLog.filter((x) => x.Opp_ID === oppId && x.Posizione_Analitica === ruolo).length;
+      out = { v90: (obs / a.min) * 90, lg90, ratio: (obs / a.min) * 90 / lg90, obs, exp, z: (obs - exp) / Math.sqrt(exp), min: a.min, n: _nPerf[nk] };
+      out.sig = exp >= RX.expMin && Math.abs(out.z) >= RX.z;
+      out.cls = out.sig ? (out.z > 0 ? 'top1' : 'low') : null;
+    }
+  }
+  return (_rx[k] = out);
+}
+function rxTitle(x, ruolo, mkLabel, oppName) {
+  return `Contro ${oppName}, ${ruolo}: ${mkLabel.toLowerCase()} ${fmt(x.v90, 2)} ogni 90' → contro ${fmt(x.lg90, 2)} di media lega per questo ruolo (${fmt(x.ratio, 2)}×). Osservati ${x.obs} contro ${fmt(x.exp, 1)} attesi a media lega, in ${Math.round(x.min)}' (${x.n} prestazioni).`;
+}
 function matrixCells(match, attackSide) {
-  // cosa concede l'avversario (oppSide) ai ruoli della squadra che attacca
   const info = sideInfo(match, attackSide);
-  const vuln = vulnC(info.oppId, info.oppVenue);
-  const tsOpp = teamStatsC(info.oppId, info.oppVenue);
   const lineupRoles = new Set(lineupPlayers(match, attackSide).map((p) => p.Posizione_Analitica));
   const rows = [];
-  for (const row of vuln) {
-    if (!lineupRoles.has(row.ruolo)) continue;
-    const cells = MK.map(([mk]) => {
-      const c = row[MK_ROLECOL[mk]];
-      if (!c || c.rank === 'N/D' || c.rank == null || c.eligible < SL.roleSigMinElig) return null;
-      const rc = computeRoleConcessions(DB.matchLog, info.oppId, info.oppVenue, row.ruolo, tsOpp.Partite);
-      if (rc.N_Prestazioni_Ruolo < SL.roleSigMinN) return null;
-      let cls = null;
-      if (c.rank === 1) cls = 'top1'; else if (c.rank === 2) cls = 'top2'; else if (c.rank >= c.eligible - 1) cls = 'low';
-      if (!cls) return null;
-      return { cls, rank: c.rank, eligible: c.eligible, n: rc.N_Prestazioni_Ruolo, value: c.value };
-    });
-    if (cells.some(Boolean)) rows.push({ ruolo: row.ruolo, cells });
+  for (const ruolo of ROLE_ORDER) {
+    if (!lineupRoles.has(ruolo)) continue;
+    const cells = MK.map(([mk]) => { const x = roleExposure(info.oppId, ruolo, mk); return x && x.sig ? { ...x } : null; });
+    if (cells.some(Boolean)) rows.push({ ruolo, cells });
   }
   return { info, rows, hidden: lineupRoles.size - rows.length };
 }
@@ -1982,17 +2003,17 @@ function matrixBlock(match) {
     const M = matrixCells(match, attackSide);
     const head = MK.map(([, l]) => `<th>${l.replace('Falli commessi', 'Falli comm.').replace('Falli subiti', 'Falli sub.').replace('Tiri in porta', 'SOT')}</th>`).join('');
     const body = M.rows.length ? M.rows.map((r) => `<tr><td>${esc(r.ruolo)}</td>${r.cells.map((c, i) => c
-      ? `<td class="${c.cls}" title="${esc(MK[i][1])}: concede ${fmt(c.value)} per partita a questo ruolo · ${c.n} prestazioni" onclick="go('matchup',{mk:'${MK[i][0]}',team:'${attackSide}'})">${c.cls === 'low' ? '▼' : '★'}${c.rank}°/${c.eligible}<small>N=${c.n}</small></td>`
+      ? `<td class="${c.cls}" title="${esc(rxTitle(c, r.ruolo, MK[i][1], M.info.oppName))}" onclick="go('matchup',{mk:'${MK[i][0]}',team:'${attackSide}'})">${c.cls === 'low' ? '▼' : '▲'} ${fmt(c.ratio, 2)}×<small>${fmt(c.v90, 1)} vs ${fmt(c.lg90, 1)}</small></td>`
       : '<td>·</td>').join('')}</tr>`).join('')
-      : `<tr><td colspan="6" style="text-align:left;color:var(--muted);font-weight:400;">Nessuna cella significativa (serve posizione estrema con almeno ${SL.roleSigMinN} prestazioni e ${SL.roleSigMinElig} squadre confrontabili).</td></tr>`;
-    return `<div><div style="font-weight:600;margin-bottom:6px;"><span style="color:var(--accent);">${esc(M.info.name)}</span> <span class="subtle">attacca · ${esc(M.info.oppName)} concede ${venueTxt(M.info.oppVenue)}</span></div>
-      <table class="mx"><tr><th></th>${head}</tr>${body}</table>${M.hidden > 0 ? `<div class="subtle">${M.hidden} ruoli della formazione senza segnali nascosti.</div>` : ''}</div>`;
+      : `<tr><td colspan="6" style="text-align:left;color:var(--muted);font-weight:400;">Nessuno scostamento oltre il rumore statistico per i ruoli in campo.</td></tr>`;
+    return `<div><div style="font-weight:600;margin-bottom:6px;"><span style="color:var(--accent);">${esc(M.info.name)}</span> <span class="subtle">· i suoi ruoli contro ${esc(M.info.oppName)}</span></div>
+      <table class="mx"><tr><th></th>${head}</tr>${body}</table>${M.hidden > 0 ? `<div class="subtle">${M.hidden} ruoli senza scostamenti significativi.</div>` : ''}</div>`;
   };
   return `
-  <div class="card"><h3>Vulnerabilità per ruolo <span class="tag">solo celle significative · clic su una cella apre Matchup e giocatori su quel mercato</span></h3>
+  <div class="card"><h3>Ruoli contro l'avversario <span class="tag">eventi per 90' dei giocatori di ogni ruolo nelle partite contro quell'avversario, rispetto alla media di lega dello stesso ruolo · clic su una cella apre Matchup e giocatori</span></h3>
     <div class="cb"><div class="twocol">${one('home')}${one('away')}</div>
-      <div class="legend"><span><i style="background:var(--accent)"></i>★1° concede più di tutti</span><span><i style="background:#1d3550;border:1px solid var(--opp-dim)"></i>★2°</span><span><i style="background:#3a1a14;border:1px solid #6b2b20"></i>▼ tra le 2 che concedono meno</span><span>· non significativo (campione &lt; ${SL.roleSigMinN}, posizione intermedia o squadre confrontabili &lt; ${SL.roleSigMinElig})</span></div>
-      <div class="subtle" style="margin-top:6px;">Con poche giornate una posizione estrema può essere in buona parte casuale: leggila insieme a N.</div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>▲ più eventi della media di lega</span><span><i style="background:#3a1a14;border:1px solid #6b2b20"></i>▼ meno eventi della media di lega</span><span>· scostamento nel rumore statistico (non mostrato)</span></div>
+      <div class="subtle" style="margin-top:6px;"><b>Come leggere una cella:</b> «▲ 1,45×» sopra, «4,5 vs 3,1» sotto = 4,5 eventi ogni 90' contro 3,1 di media lega per quel ruolo. Passa il cursore per i totali osservati e attesi. Sono sempre i giocatori della squadra indicata (non dell'avversario): per i falli commessi vuol dire quanti ne hanno commessi loro contro quell'avversario. Appare solo se la differenza supera ${RX.z} volte il rumore di Poisson e ci sono almeno ${RX.expMin} eventi attesi: con poche partite poche celle, ed è voluto. Colore = direzione, non un giudizio di convenienza.</div>
     </div></div>`;
 }
 
@@ -2270,8 +2291,8 @@ function secMatchup(match) {
   // riga concessioni: solo ruoli con posizione estrema, tra quelli in formazione
   const M = matrixCells(match, S.team);
   const mi = MK.findIndex((x) => x[0] === m);
-  const roleBits = M.rows.map((r) => ({ r, c: r.cells[mi] })).filter((x) => x.c).map((x) => `<span class="${x.c.cls === 'low' ? 'tagbad' : x.c.cls === 'top1' ? 'tagok' : 'tagwarn'}">${esc(x.r.ruolo)} ${x.c.cls === 'low' ? '▼' : '★'}${x.c.rank}°/${x.c.eligible} · N=${x.c.n}</span>`).join(' ');
-  const roleLine = `<div class="chipline"><b style="color:var(--opp);">${esc(info.oppName)}</b> <span class="subtle">(${venueTxt(info.oppVenue)})</span> — ${esc(MK_LABEL[m].toLowerCase())} concessi per ruolo: ${roleBits || '<span class="subtle">nessun ruolo con posizione estrema e campione sufficiente</span>'}</div>`;
+  const roleBits = M.rows.map((r) => ({ r, c: r.cells[mi] })).filter((x) => x.c).map((x) => `<span class="${x.c.cls === 'low' ? 'tagbad' : 'tagok'}" title="${esc(rxTitle(x.c, x.r.ruolo, MK_LABEL[m], info.oppName))}">${esc(x.r.ruolo)} ${x.c.cls === 'low' ? '▼' : '▲'} ${fmt(x.c.ratio, 2)}× (${fmt(x.c.v90, 1)} vs ${fmt(x.c.lg90, 1)})</span>`).join(' ');
+  const roleLine = `<div class="chipline"><b style="color:var(--opp);">${esc(info.oppName)}</b> — ${esc(MK_LABEL[m].toLowerCase())} per 90' dei ruoli di ${esc(info.name)} contro di lui, rispetto alla lega: ${roleBits || '<span class="subtle">nessuno scostamento oltre il rumore statistico</span>'}</div>`;
 
   const players = DB.rosters.filter((p) => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === info.teamId);
   const ids = new Set(LU.teams[info.teamId].ids);
@@ -2367,20 +2388,6 @@ function secFormazioni(match) {
 // ---------------------------------------------------------------------------
 // SCHEDA GIOCATORE (pannello laterale)
 // ---------------------------------------------------------------------------
-function roleRankFor(role, oppId, oppVenue, mk) {
-  const k = [role, oppId, oppVenue, mk].join('|');
-  if (k in _roleRank) return _roleRank[k];
-  const col = MK_ROLECOL[mk];
-  const minSample = oppVenue === 'TOTALE' ? 3 : 2;
-  const list = teamsAllIds().map((t) => {
-    const ts = teamStatsC(t, oppVenue);
-    const rc = computeRoleConcessions(DB.matchLog, t, oppVenue, role, ts.Partite);
-    return { key: t, value: rc[col], partite: ts.Partite };
-  });
-  const r = rankProvisional(list, minSample)[oppId];
-  const me = list.find((x) => x.key === oppId);
-  return (_roleRank[k] = { rank: r.rank, eligible: r.eligible, value: me ? me.value : null });
-}
 function renderDrawer() {
   const host = document.getElementById('drawerHost');
   const match = getMatch();
@@ -2417,11 +2424,11 @@ function drawerHtml(match, pid) {
   // avversario per il ruolo
   const proj = Object.fromEntries(MK.map(([m]) => [m, pData(match, side, p, m, starter)]));
   const opRows = MK.map(([m, l]) => {
-    const rk = roleRankFor(p.Posizione_Analitica, info.oppId, info.oppVenue, m);
+    const rx = roleExposure(info.oppId, p.Posizione_Analitica, m);
     const d = proj[m];
-    return `<tr><td>${l}</td><td>${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× → ' + fmt(d.fattoreSquadra, 2) + '×'}</td><td>${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× → ' + fmt(d.fattoreRuolo, 2) + '×'}</td><td><b>${fmt(d.fattoreAvversario, 2)}×</b></td><td>${rk.rank === 'N/D' ? 'N/D' : rk.rank + '°/' + rk.eligible + '*'}</td></tr>`;
+    return `<tr><td>${l}</td><td>${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× → ' + fmt(d.fattoreSquadra, 2) + '×'}</td><td>${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× → ' + fmt(d.fattoreRuolo, 2) + '×'}</td><td><b>${fmt(d.fattoreAvversario, 2)}×</b></td><td>${rx ? rx.obs + ' / ' + fmt(rx.exp, 1) + '<span class="sm">' + fmt(rx.v90, 2) + ' vs ' + fmt(rx.lg90, 2) + " /90'</span>" : '—'}</td></tr>`;
   }).join('');
-  const rc = computeRoleConcessions(DB.matchLog, info.oppId, info.oppVenue, p.Posizione_Analitica, teamStatsC(info.oppId, info.oppVenue).Partite);
+  const rx0 = roleExposure(info.oppId, p.Posizione_Analitica, 'Tiri');
   // come nasce la proiezione
   const rsRows = MK.map(([m, l]) => { const d = proj[m]; return `<tr><td>${l}</td><td>${fmt(d.baseline90)}</td><td>${fmt(d.fattoreAvversario, 2)}×${d.fattoreArbitro !== 1 ? ' · ' + fmt(d.fattoreArbitro, 2) + '×' : ''}</td><td>${Math.round(d.minutiAttesi)}'</td><td><b style="color:var(--accent);">${fmt(d.muFin)}</b></td></tr>`; }).join('');
   const prRows = MK.map(([m, l]) => {
@@ -2439,8 +2446,8 @@ function drawerHtml(match, pid) {
       <div class="note">Solo presenze con almeno ${MODEL_PARAMS.MIN_HITRATE}' (${nHR}). Al passaggio del mouse l'intervallo di fiducia al 95%.</div>
       <div class="note"><b>Regolarità:</b> ${reg}</div></div>
     <div class="ds op"><h4>${esc(info.oppName)} contro il ruolo</h4>
-      <table><tr><th></th><th>Squadra<br><span style="font-weight:400">grezzo → usato</span></th><th>Ruolo<br><span style="font-weight:400">grezzo → usato</span></th><th>Totale</th><th>Posizione*</th></tr>${opRows}</table>
-      <div class="note">${rc.N_Prestazioni_Ruolo} prestazioni di "${esc(p.Posizione_Analitica)}" subite ${venueTxt(info.oppVenue)} · ${Math.round(t.minutiAvversarioRuolo)}' osservati del ruolo in totale. Squadra: quanto ${esc(info.oppName)} concede in totale (${t.partiteAvversario} partite) rispetto alla lega, peso ${Math.round((t.pesoSquadra || 0) * 100)}% su Tiri. Ruolo: scostamento ulteriore di questo ruolo, peso molto basso (${Math.round((t.pesoRuolo || 0) * 100)}% su Tiri). "Grezzo → usato": il peso sale da solo con le giornate. Cartellini: nessun fattore squadra (lo gestisce l'arbitro). *Posizione tra le squadre confrontabili nel venue della partita (provvisoria).</div></div>
+      <table><tr><th></th><th>Squadra<br><span style="font-weight:400">grezzo → usato</span></th><th>Ruolo<br><span style="font-weight:400">grezzo → usato</span></th><th>Totale</th><th>Ruolo: osservati / attesi</th></tr>${opRows}</table>
+      <div class="note">${rx0 ? rx0.n : 0} prestazioni di "${esc(p.Posizione_Analitica)}" contro ${esc(info.oppName)} (tutte le partite) · ${Math.round(t.minutiAvversarioRuolo)}' osservati del ruolo in totale. Squadra: quanto ${esc(info.oppName)} concede in totale (${t.partiteAvversario} partite) rispetto alla lega, peso ${Math.round((t.pesoSquadra || 0) * 100)}% su Tiri. Ruolo: scostamento ulteriore di questo ruolo, peso molto basso (${Math.round((t.pesoRuolo || 0) * 100)}% su Tiri). "Grezzo → usato": il peso sale da solo con le giornate. Cartellini: nessun fattore squadra (lo gestisce l'arbitro).</div></div>
     <div class="ds rs"><h4>Come nasce la proiezione</h4>
       <table><tr><th></th><th>Baseline /90</th><th>× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th><th>Min attesi</th><th>Atteso a partita</th></tr>${rsRows}</table>
       <div class="note">Baseline: il giocatore pesa ${Math.round(t.pesoGiocatore * 100)}% (${Math.round(t.minutiStagione)}' giocati), il resto è la media del ruolo ${t.prior90 != null ? '(' + fmt(t.prior90) + ' tiri/90)' : ''}. Affidabilità: ${relHtml(t.affidabilita)}.</div>
