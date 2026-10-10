@@ -1598,7 +1598,7 @@ const MK_ICON = { Tiri: 'tiri', SOT: 'tiri in porta', FC: 'falli', FD: 'falli', 
 const TM = [['Tiri', 'Tiri', 'Tiri totali'], ['SOT', 'SOT', 'Tiri in porta'], ['FC', 'Falli', 'Falli'], ['Cart', 'Cart', 'Cartellini'], ['Corner', 'Corner', 'Corner']];
 const ROLE_ORDER = ['Portiere', 'Centrale difensivo', 'Terzino', 'Esterno/Quinto', 'Centrocampista centrale', 'Trequartista', 'Esterno offensivo', 'Punta centrale'];
 // soglie shortlist (provvisorie, da validare su piu' giornate)
-const SL = { statDelta: 0.12, statMinN: 3, arbDelta: 0.10, arbMinN: 3, playerRatio: 1.25, playerRatioLow: 0.75, minPrior: 0.8, roleSigMinN: 3, roleSigMinElig: 6 };
+const SL = { statDelta: 0.12, statMinN: 3, arbDelta: 0.10, arbMinN: 3, playerRatio: 1.25, playerRatioLow: 0.6, minPrior: 0.8, underMinPrior: 1.5, maxUnder: 1, duelMinN: 3, roleSigMinN: 3, roleSigMinElig: 6 };
 
 const pc = (p) => (p == null ? '—' : Math.round(p * 100) + '%');
 const qm = (p) => (p != null && p > 0.0001 ? (1 / p).toFixed(2) : '—');
@@ -1620,7 +1620,7 @@ const venueTxt = (v) => (v === 'HOME' ? 'in casa' : 'in trasferta');
 // Cache per render
 // ---------------------------------------------------------------------------
 let _arb = {}, _tsCache = {}, _lgTeam = {}, _roleRank = {}, _vuln = {};
-function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; }
+function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; }
 function arbFactor(match, side, m) {
   const key = m === 'Cart' ? 'Cart' : 'FC';
   const k = side + key;
@@ -1996,52 +1996,107 @@ function matrixBlock(match) {
     </div></div>`;
 }
 
+// ---------------------------------------------------------------------------
+// CONFRONTO TRA LE DUE SQUADRE, metrica per metrica.
+// Atteso "da statistiche" = media di lega x quanto la squadra produce x quanto l'avversario concede
+// (stesso venue della partita, ciascun fattore tirato verso 1 con n/(n+3)); poi confrontato con la
+// proiezione del modello sulla formazione. Soglia di significativita' = 0,30/radice(n): scende da sola
+// con le partite giocate (a 5 partite ~13%, a 10 ~9,5%, a 19 ~7%; mai sotto 5%).
+// ---------------------------------------------------------------------------
+let _lgV = {};
+function leagueAvgVenue(venue, tk) {
+  const k = venue + '|' + tk;
+  if (!(k in _lgV)) _lgV[k] = leagueAverageMetric(DB.matchLog, teamsAllIds(), venue, tk, DB.calendar);
+  return _lgV[k];
+}
+const sigThr = (n) => Math.max(0.05, 0.30 / Math.sqrt(Math.max(n, 1)));
+function duelMetrics(match, P) {
+  return TM.map(([mk, tk, label]) => {
+    // tutte le partite stagionali (campione piu' grande dello split casa/trasferta), poi riportate al venue
+    // con il rapporto di lega casa/totale, che poggia su tutte le partite del campionato
+    const lgT = leagueAvgVenue('TOTALE', tk);
+    const lgH = leagueAvgVenue('HOME', tk), lgA = leagueAvgVenue('AWAY', tk);
+    if (!lgT || !lgH || !lgA) return { eh: { projection: null }, ea: { projection: null } };
+    const eh = multiplicativeProjection(DB.matchLog, match.Home_ID, 'TOTALE', match.Away_ID, 'TOTALE', tk, lgT, DB.calendar);
+    const ea = multiplicativeProjection(DB.matchLog, match.Away_ID, 'TOTALE', match.Home_ID, 'TOTALE', tk, lgT, DB.calendar);
+    for (const [e, k] of [[eh, lgH / lgT], [ea, lgA / lgT]]) if (e.projection != null) e.projection *= k;
+    const nH = Math.min(eh.nA || 0, eh.nB || 0), nA = Math.min(ea.nA || 0, ea.nB || 0);
+    const hm = P.home[mk].total, am = P.away[mk].total;
+    return { mk, tk, label, lgH, lgA, eh, ea, nH, nA, nMin: Math.min(nH, nA), hm, am };
+  }).filter((x) => x.eh.projection != null && x.ea.projection != null);
+}
+function pickLine(mu, alpha, dir) {
+  // Over: la linea x,5 piu' alta con P(Over) >= 55%; Under: la piu' bassa con P(Under) >= 55%
+  let best = null;
+  for (let k = 0; k <= 60; k++) {
+    const line = k + 0.5, pO = probAtLeastAlpha(mu, k + 1, alpha), pU = 1 - pO;
+    if (dir === 'over' && pO >= 0.55) best = { line, p: pO };
+    if (dir === 'under' && pU >= 0.55) { return { line, p: pU }; }
+  }
+  return best;
+}
 function shortStatsBlock(match, P) {
-  const rows = [];
-  const dirBadge = (up) => (up ? '<span class="tagok">▲ sopra media</span>' : '<span class="tagbad">▼ sotto media</span>');
-  for (const [mk, tk, label] of TM) {
-    const lg = leagueAvgTeam(tk);
-    if (!lg) continue;
-    for (const side of ['home', 'away']) {
-      const x = P[side][mk]; const info = sideInfo(match, side);
-      if (x.total == null || x.nVenue < SL.statMinN) continue;
-      const delta = x.total / lg - 1;
-      if (Math.abs(delta) < SL.statDelta) continue;
-      rows.push({ score: Math.abs(delta) * Math.min(1, x.nVenue / 5), mk: label, who: info.name, up: delta > 0,
-        why: `${esc(info.name)} proietta ${fmt(x.total, 1)} contro una media di lega di ${fmt(lg, 1)} (${delta > 0 ? '+' : ''}${Math.round(delta * 100)}%) — ${esc(venueTxt(info.venue))}`,
-        n: `${x.nVenue} partite nel venue`, tab: 'squadre' });
-    }
-    // totale partita
-    const h = P.home[mk], a = P.away[mk];
-    if (h.total != null && a.total != null && Math.min(h.nVenue, a.nVenue) >= SL.statMinN) {
-      const tot = h.total + a.total, d = tot / (2 * lg) - 1;
-      if (Math.abs(d) >= SL.statDelta) rows.push({ score: Math.abs(d) * Math.min(1, Math.min(h.nVenue, a.nVenue) / 5), mk: label + ' (totale partita)', who: 'Partita', up: d > 0,
-        why: `Totale proiettato ${fmt(tot, 1)} contro ${fmt(2 * lg, 1)} della media di lega per due squadre (${d > 0 ? '+' : ''}${Math.round(d * 100)}%)`,
-        n: `${Math.min(h.nVenue, a.nVenue)} partite per squadra`, tab: 'squadre' });
+  const D = duelMetrics(match, P);
+  const cands = [];
+  const arbBy = {};
+  for (const x of D) {
+    const alpha = MODEL_PARAMS.TEAM_ALPHA[x.tk] || 0;
+    const defs = [
+      { who: match.Home + ' (squadra)', st: x.eh.projection, md: x.hm, lg: x.lgH, n: x.nH, why: `${esc(match.Home)} produce ${fmt(x.eh.ownAvgA, 1)} a partita (${x.eh.nA} partite), ${esc(match.Away)} ne concede ${fmt(x.eh.concedeAvgB, 1)} (${x.eh.nB}) → atteso ${fmt(x.eh.projection, 1)} contro ${fmt(x.lgH, 1)} di lega` },
+      { who: match.Away + ' (squadra)', st: x.ea.projection, md: x.am, lg: x.lgA, n: x.nA, why: `${esc(match.Away)} produce ${fmt(x.ea.ownAvgA, 1)} a partita (${x.ea.nA} partite), ${esc(match.Home)} ne concede ${fmt(x.ea.concedeAvgB, 1)} (${x.ea.nB}) → atteso ${fmt(x.ea.projection, 1)} contro ${fmt(x.lgA, 1)} di lega` },
+      { who: 'Totale partita', st: x.eh.projection + x.ea.projection, md: x.hm != null && x.am != null ? x.hm + x.am : null, lg: x.lgH + x.lgA, n: x.nMin, total: true,
+        why: `${esc(match.Home)} ${fmt(x.eh.projection, 1)} + ${esc(match.Away)} ${fmt(x.ea.projection, 1)} = ${fmt(x.eh.projection + x.ea.projection, 1)} atteso da statistiche, contro ${fmt(x.lgH + x.lgA, 1)} di lega` },
+    ];
+    for (const df of defs) {
+      if (df.md == null || !df.lg || df.n < SL.duelMinN) continue;
+      const ds = df.st / df.lg - 1, dm = df.md / df.lg - 1, thr = sigThr(df.n);
+      // Over: statistiche e modello concordi e sopra soglia. Under: soglia doppia su entrambi (raro)
+      const over = ds >= thr && dm >= thr / 2;
+      const under = ds <= -2 * thr && dm <= -thr;
+      if (!over && !under) continue;
+      const pl = pickLine(df.md, alpha, over ? 'over' : 'under');
+      if (!pl) continue;
+      cands.push({ x, df, over, ds, dm, pl, score: Math.abs(ds) * Math.min(1, df.n / 5) });
     }
   }
-  // arbitro
+  cands.sort((a, b) => (b.over - a.over) || (b.score - a.score)); // Over per primi, Under (rari) in coda
+  const top = []; const perM = {}; let nU = 0;
+  for (const c of cands) {
+    if (top.length >= 6) break;
+    if ((perM[c.x.mk] || 0) >= 2) continue;
+    if (!c.over) { if (nU >= SL.maxUnder) continue; nU++; }
+    perM[c.x.mk] = (perM[c.x.mk] || 0) + 1; top.push(c);
+  }
+  // arbitro: contesto per falli/cartellini
+  let arbNote = '';
   const eff = arbitriEffettivi();
   const riga = eff.find((a) => a.Match_ID === match.Match_ID && isArbitroNomeValido(a.Arbitro));
   if (riga) {
-    const s = computeArbitroStats(DB.matchLog, eff, riga.Arbitro);
-    if (s.N_Partite >= SL.arbMinN) {
-      for (const [lab, val, lgk, mult] of [['Falli (arbitro)', s.Falli_Totali_Medi, 'Falli', 2], ['Cartellini (arbitro)', s.Cartellini_Totali_Medi, 'Cart', 2]]) {
+    const s2 = computeArbitroStats(DB.matchLog, eff, riga.Arbitro);
+    if (s2.N_Partite >= SL.arbMinN) {
+      const bits = [];
+      for (const [lab, val, lgk] of [['falli', s2.Falli_Totali_Medi, 'Falli'], ['cartellini', s2.Cartellini_Totali_Medi, 'Cart']]) {
         const lg = leagueAvgTeam(lgk); if (!lg || val == null) continue;
-        const d = val / (lg * mult) - 1;
-        if (Math.abs(d) >= SL.arbDelta) rows.push({ score: Math.abs(d) * Math.min(1, s.N_Partite / 5), mk: lab, who: s.Arbitro, up: d > 0,
-          why: `${esc(s.Arbitro)} fischia in media ${fmt(val, 1)} a partita contro ${fmt(lg * mult, 1)} della media di lega (${d > 0 ? '+' : ''}${Math.round(d * 100)}%)`,
-          n: `${s.N_Partite} partite dirette`, tab: 'squadre' });
+        const d = val / (2 * lg) - 1;
+        if (Math.abs(d) >= Math.max(SL.arbDelta, sigThr(s2.N_Partite) / 1.5)) bits.push(`${lab} ${fmt(val, 1)} a partita contro ${fmt(2 * lg, 1)} di lega (${d > 0 ? '+' : ''}${Math.round(d * 100)}%)`);
       }
+      if (bits.length) arbNote = `<div class="infobox" style="margin:10px 20px;"><b>Arbitro ${esc(s2.Arbitro)}</b> (${s2.N_Partite} partite): ${bits.join(' · ')}. Già incluso nei falli e nei cartellini del modello; qui è contesto, non una giocata a parte.</div>`;
     }
   }
-  rows.sort((a, b) => b.score - a.score);
-  const top = rows.slice(0, 6);
-  const body = top.length ? top.map((r) => `<tr><td><span class="pname">${esc(r.mk)}</span><span class="psub">${esc(r.who)}</span></td><td>${dirBadge(r.up)}</td><td>${r.why}</td><td class="num">${esc(r.n)}</td><td><button class="btn" onclick="go('squadre')">Linee →</button></td></tr>`).join('')
-    : `<tr><td colspan="5" style="color:var(--muted);">Nessuno scostamento oltre ${Math.round(SL.statDelta * 100)}% con campione sufficiente.</td></tr>`;
+  const body = top.length ? top.map((c) => {
+    const pu = c.over ? c.pl.p : c.pl.p;
+    return `<tr><td><span class="pname">${ic(c.x.mk === 'FC' ? 'falli' : c.x.tk === 'SOT' ? 'tiri in porta' : c.x.tk === 'Cart' ? 'cartellini' : c.x.tk === 'Corner' ? 'corner' : 'tiri')} ${esc(c.x.label)} · ${c.over ? 'Over' : 'Under'} ${String(c.pl.line).replace('.', ',')}</span><span class="psub">${esc(c.df.who)}${c.over ? '' : ' · giocata rara'}</span></td>
+      <td>${c.df.why}<span class="sm">modello sulla formazione: ${fmt(c.df.md, 1)} (${c.dm > 0 ? '+' : ''}${Math.round(c.dm * 100)}% sulla lega)</span></td>
+      <td class="num"><b>${pc(pu)}</b><span class="sm">quota minima ${qm(pu)}</span></td>
+      <td class="num">${c.df.n} partite<span class="sm">soglia ${Math.round(sigThr(c.df.n) * 100)}%</span></td>
+      <td><button class="btn" onclick="go('squadre')">Linee →</button></td></tr>`;
+  }).join('')
+    : `<tr><td colspan="5" style="color:var(--muted);">Nessuna giocata supera le soglie: statistiche stagionali e modello non indicano uno scostamento netto dalla lega per queste due squadre. È un risultato valido.</td></tr>`;
   return `
-  <div class="card"><h3>Shortlist statistiche di squadra e arbitro <span class="tag">regola: scostamento dalla media di lega ≥ ${Math.round(SL.statDelta * 100)}% con almeno ${SL.statMinN} partite · non è una linea: confrontala con la quota</span></h3>
-    <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Mercato</th><th>Segnale</th><th>Perché</th><th class="num">Campione</th><th></th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+  <div class="card"><h3>Giocate da valutare: confronto tra le due squadre <span class="tag">chi produce contro chi concede, metrica per metrica · non è una linea di quota: confronta la quota minima con il prezzo</span></h3>
+    <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Giocata</th><th>Confronto</th><th class="num">Modello</th><th class="num">Campione</th><th></th></tr></thead><tbody>${body}</tbody></table>
+    ${arbNote}
+    <div class="subtle" style="padding:10px 20px;">Regola: atteso da statistiche (produzione della squadra × concessione dell'avversario, tutte le partite stagionali, riportate al venue con il rapporto casa/trasferta di lega) e proiezione del modello devono andare nella stessa direzione oltre una soglia che scende da sola con le partite (0,30 ÷ √partite, minimo 5%). Linea proposta = la più alta (Over) con probabilità del modello ≥ 55%. Gli Under compaiono solo con soglia doppia e al massimo uno: i book li quotano poco e il modello li stima con più incertezza. Probabilità calcolate con binomiale negativa (alpha di squadra, per il totale partita è prudenziale).</div></div></div>`;
 }
 
 function shortPlayersBlock(match) {
@@ -2054,7 +2109,9 @@ function shortPlayersBlock(match) {
         const d = pData(match, side, p, m, true);
         if (d.rate90Fin == null || d.prior90 == null || d.prior90 < SL.minPrior || d.affidabilita === 'bassa') continue;
         const r = d.rate90Fin / d.prior90;
-        const over = r >= SL.playerRatio, under = r <= SL.playerRatioLow;
+        const over = r >= SL.playerRatio;
+        // Under solo se molto netto, affidabilita' alta, mercato con linea reale (non SOT) e media di ruolo non trascurabile
+        const under = r <= SL.playerRatioLow && d.affidabilita === 'alta' && m !== 'SOT' && d.prior90 >= SL.underMinPrior;
         if (!over && !under) continue;
         const wt = d.affidabilita === 'alta' ? 1 : d.affidabilita === 'media' ? 0.8 : 0.5;
         cands.push({ p, info, m, d, r, over, score: Math.abs(Math.log(r)) * wt });
@@ -2062,17 +2119,18 @@ function shortPlayersBlock(match) {
     }
   }
   cands.sort((a, b) => b.score - a.score);
-  const top = cands.slice(0, 6);
+  const top = []; let nU = 0;
+  for (const c of cands) { if (top.length >= 6) break; if (!c.over) { if (nU >= SL.maxUnder) continue; nU++; } top.push(c); }
   const body = top.length ? top.map((c) => `<tr class="prow" onclick="openPlayer('${c.p.Player_ID}')">
       <td><span class="pname">${esc(c.p.Nome_completo)}</span><span class="psub">${esc(c.p.Posizione_Analitica)} · ${esc(c.info.name)}</span></td>
       <td>${ic(MK_ICON[c.m])} ${MK_LABEL[c.m]}</td>
       <td>${c.over ? '<span class="tagok">▲ Over</span>' : '<span class="tagbad">▼ Under</span>'}</td>
-      <td>${fmt(c.d.rate90Fin)}/90 contro ${fmt(c.d.prior90)} medio del ruolo (${fmt(c.r, 2)}×) · ${esc(c.info.oppName)} ${fmt(c.d.fattoreAvversario, 2)}× al ruolo · atteso ${fmt(c.d.muFin)} a partita</td>
+      <td>${fmt(c.d.rate90Fin)}/90 contro ${fmt(c.d.prior90)} medio del ruolo (${fmt(c.r, 2)}×) · ${esc(c.info.oppName)} ${fmt(c.d.fattoreAvversario, 2)}× (squadra ${fmt(c.d.fattoreSquadra, 2)}× · ruolo ${fmt(c.d.fattoreRuolo, 2)}×) · atteso ${fmt(c.d.muFin)} a partita</td>
       <td>${relHtml(c.d.affidabilita)}<span class="sm">${Math.round(c.d.minutiStagione)}' giocati</span></td>
       <td><button class="btn" onclick="event.stopPropagation();openPlayer('${c.p.Player_ID}')">Scheda →</button></td></tr>`).join('')
-    : `<tr><td colspan="6" style="color:var(--muted);">Nessun titolare si discosta abbastanza dal ruolo (rapporto ≥ ${SL.playerRatio} o ≤ ${SL.playerRatioLow}).</td></tr>`;
+    : `<tr><td colspan="6" style="color:var(--muted);">Nessun titolare si discosta abbastanza dal ruolo (Over: rapporto ≥ ${SL.playerRatio}).</td></tr>`;
   return `
-  <div class="card"><h3>Shortlist giocatori <span class="tag">titolari delle formazioni correnti · regola: stima per 90 ≥ ${SL.playerRatio}× o ≤ ${SL.playerRatioLow}× la media del ruolo, ruolo con media ≥ ${SL.minPrior}/90, affidabilità almeno media</span></h3>
+  <div class="card"><h3>Shortlist giocatori <span class="tag">titolari delle formazioni correnti · Over: stima per 90 ≥ ${SL.playerRatio}× la media del ruolo (affidabilità almeno media). Under: solo se ≤ ${SL.playerRatioLow}×, affidabilità alta, ruolo con ≥ ${SL.underMinPrior}/90, mai sui tiri in porta, massimo ${SL.maxUnder}</span></h3>
     <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Giocatore</th><th>Mercato</th><th>Direzione</th><th>Perché</th><th>Affidabilità</th><th></th></tr></thead><tbody>${body}</tbody></table>
     <div class="subtle" style="padding:10px 20px;">Over/Under qui significa "sopra/sotto il livello tipico del ruolo", non rispetto a una linea di quota. Con poche giornate le stime sono tirate verso il ruolo: pochi giocatori superano la soglia, ed è voluto.</div></div></div>`;
 }
@@ -2083,7 +2141,33 @@ function shortPlayersBlock(match) {
 function secSquadre(match) {
   const P = allTeamProj(match);
   const Pb = S.bench ? P : allTeamProj(match, true); // probabilita' e linee usano sempre il totale con panchina
-  return projBlock(match, P) + linesBlock(match, Pb);
+  return projBlock(match, P) + linesBlock(match, Pb) + winnersBlock(match, Pb);
+}
+
+function winnersBlock(match, P) {
+  const D = duelMetrics(match, P);
+  const dh = computeTeamDuelTotals(DB.matchLog, match.Home_ID, 'TOTALE', DB.calendar), da = computeTeamDuelTotals(DB.matchLog, match.Away_ID, 'TOTALE', DB.calendar);
+  const rows = D.map((x) => {
+    const mean = (x.eh.projection + x.ea.projection) / 2, diff = x.eh.projection - x.ea.projection;
+    const rel = mean ? diff / mean : 0, thr = sigThr(x.nMin);
+    const wS = x.nMin < SL.duelMinN ? 'n' : rel >= thr ? 'h' : rel <= -thr ? 'a' : 'e';
+    const wM = x.hm == null || x.am == null ? null : (x.hm - x.am) / ((x.hm + x.am) / 2 || 1) >= thr ? 'h' : (x.hm - x.am) / ((x.hm + x.am) / 2 || 1) <= -thr ? 'a' : 'e';
+    const rH = teamDuelRecord(dh, x.tk), rA = teamDuelRecord(da, x.tk);
+    const verdict = wS === 'n' ? '<span class="subtle">campione insufficiente</span>' : wS === 'e' ? '<b>Equilibrio</b>' : `<b class="${wS === 'h' ? 'hi' : ''}" style="color:var(--accent);">${esc(wS === 'h' ? match.Home : match.Away)}</b> <span class="subtle">+${Math.round(Math.abs(rel) * 100)}%</span>`;
+    const agree = wS === 'n' || wM == null ? '—' : wM === wS ? '<span class="tagok">concorda</span>' : '<span class="tagwarn">modello diverso</span>';
+    const rec = (r, nm) => r.n ? `${nm} ${r.wins}/${r.n}` : `${nm} —`;
+    const icon = x.mk === 'FC' ? ic('falli') : ic(x.tk === 'SOT' ? 'tiri in porta' : x.tk === 'Cart' ? 'cartellini' : x.tk === 'Corner' ? 'corner' : 'tiri');
+    return `<tr><td class="pname">${icon} ${esc(x.label)}</td>
+      <td class="num"><b>${fmt(x.eh.projection, 1)}</b><span class="sm">produce ${fmt(x.eh.ownAvgA, 1)} · ${esc(match.Away)} concede ${fmt(x.eh.concedeAvgB, 1)}</span></td>
+      <td class="num"><b>${fmt(x.ea.projection, 1)}</b><span class="sm">produce ${fmt(x.ea.ownAvgA, 1)} · ${esc(match.Home)} concede ${fmt(x.ea.concedeAvgB, 1)}</span></td>
+      <td>${verdict}</td>
+      <td class="num">${rec(rH, esc(match.Home))}<span class="sm">${rec(rA, esc(match.Away))} (tutte le partite)</span></td>
+      <td>${agree}</td></tr>`;
+  }).join('');
+  return `
+  <div class="card"><h3>Chi vince ogni metrica <span class="tag">confronto stagionale tra le due squadre · produzione contro concessione su tutte le partite stagionali</span></h3>
+    <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Metrica</th><th class="num">${esc(match.Home)} atteso</th><th class="num">${esc(match.Away)} atteso</th><th>Chi la vince</th><th class="num">Duelli storici</th><th>Modello</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="subtle" style="padding:10px 20px;">Atteso = media di lega × produzione della squadra × concessione dell'avversario (ciascuno tirato verso la media con n ÷ (n + 3); poi riportato al venue). "Chi la vince" = chi ha l'atteso più alto oltre la soglia 0,30 ÷ √partite (min 5%), altrimenti equilibrio. Duelli storici = partite stagionali in cui la squadra ha superato l'avversario nella metrica. "Modello" confronta con la proiezione sulle formazioni (con panchina). Per i falli e i cartellini "vincere" vuol dire commetterne di più, non fare meglio.</div></div></div>`;
 }
 function projBlock(match, P) {
   const computed = TM.map(([mk, tk, label]) => {
@@ -2206,14 +2290,14 @@ function secMatchup(match) {
     return `<tr class="prow" onclick="openPlayer('${r.p.Player_ID}')">
       <td><span class="pname">${esc(r.p.Nome_completo)}</span><span class="psub">${esc(r.p.Posizione_Analitica)}${r.starter ? '' : ' · panchina'}</span></td>
       <td class="num"><span class="big">${fmt(d.baseline90)}</span><span class="sm">/90 · ${fmt(d.baseline90 == null ? null : d.baseline90 * d.minutiAttesi / 90)} a partita</span></td>
-      <td class="num c-opp"><span class="fac ${fcls}" title="Rapporto grezzo ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '×'}, smorzato in base ai minuti osservati del ruolo contro questo avversario">${farr} ${fmt(d.fattoreAvversario, 2)}×</span>${d.fattoreArbitro !== 1 ? `<span class="sm">arbitro ${fmt(d.fattoreArbitro, 2)}×</span>` : `<span class="sm">grezzo ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '×'}</span>`}</td>
+      <td class="num c-opp"><span class="fac ${fcls}" title="Fattore totale = squadra × ruolo. Squadra: ${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× grezzo'} su ${d.partiteAvversario} partite (peso ${Math.round((d.pesoSquadra || 0) * 100)}%). Ruolo: ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× grezzo'} (peso ${Math.round((d.pesoRuolo || 0) * 100)}%)">${farr} ${fmt(d.fattoreAvversario, 2)}×</span><span class="sm">squadra ${fmt(d.fattoreSquadra, 2)}× · ruolo ${fmt(d.fattoreRuolo, 2)}×${d.fattoreArbitro !== 1 ? ' · arb. ' + fmt(d.fattoreArbitro, 2) + '×' : ''}</span></td>
       <td class="num"><span class="res">${fmt(d.muFin)}</span><span class="sm">a partita · ${fmt(d.rate90Fin)}/90 · ${Math.round(d.minutiAttesi)}'</span></td>
       <td class="num">${relHtml(d.affidabilita)}<span class="sm">${Math.round(d.minutiStagione)}' · ${d.presenze} pres.</span></td>
       <td><button class="btn" onclick="event.stopPropagation();openPlayer('${r.p.Player_ID}')">Scheda</button></td></tr>`;
   };
   const head = `<thead>
     <tr class="grp"><th></th><th class="g-pl">Il giocatore</th><th class="g-opp">L'avversario <span style="font-weight:500;text-transform:none;">per ruolo</span></th><th class="g-res" colspan="2">Risultato</th><th></th></tr>
-    <tr>${th('name', 'Giocatore')}${th('base', 'Baseline', 'num', 'Stima per 90 minuti, tirata verso la media del ruolo in proporzione ai minuti giocati')}${th('factor', esc(info.oppName) + ' concede', 'num', 'Quanto l\'avversario concede al ruolo rispetto alla media di lega, smorzato sul campione')}${th('mu', 'Proiezione', 'num', 'Valore atteso in questa partita = baseline × avversario × minuti attesi')}${th('rel', 'Affidabilità', 'num', 'Dipende dai minuti giocati dal giocatore in stagione')}<th></th></tr></thead>`;
+    <tr>${th('name', 'Giocatore')}${th('base', 'Baseline', 'num', 'Stima per 90 minuti, tirata verso la media del ruolo in proporzione ai minuti giocati')}${th('factor', esc(info.oppName) + ' concede', 'num', 'Fattore avversario = squadra (cosa concede in totale) × ruolo (scostamento ulteriore del ruolo); entrambi smorzati sul campione')}${th('mu', 'Proiezione', 'num', 'Valore atteso in questa partita = baseline × avversario × minuti attesi')}${th('rel', 'Affidabilità', 'num', 'Dipende dai minuti giocati dal giocatore in stagione')}<th></th></tr></thead>`;
   const st = sortRows(data.filter((r) => r.starter)), bn = sortRows(data.filter((r) => !r.starter));
   const sumMu = st.reduce((a, r) => a + (r.d.muFin || 0), 0);
   const tp = teamProj(match, S.team, m === 'FD' ? 'Tiri' : m); // coerenza con Squadre (FD non ha totale squadra)
@@ -2227,7 +2311,7 @@ function secMatchup(match) {
       <div style="overflow-x:auto;"><table class="dt">${head}<tbody>${st.map(rowHtml).join('') || '<tr><td colspan="6" style="color:var(--muted);">Nessun titolare selezionato: scegli la formazione in Formazioni.</td></tr>'}</tbody></table></div>
       ${totRow}
       ${bn.length ? `<details class="bench"><summary>Panchina e altri giocatori della rosa (${bn.length}) — calcolati come subentranti</summary><div style="overflow-x:auto;"><table class="dt">${head}<tbody>${bn.map(rowHtml).join('')}</tbody></table></div></details>` : ''}
-      <div class="subtle" style="margin-top:12px;">Baseline: stima per 90 minuti tirata verso la media del ruolo (peso del ruolo = ${MODEL_PARAMS.K_MIN}' pseudo-minuti), con forza d'attacco della squadra. Nei test su giornate già giocate questo metodo sbaglia circa 4 volte meno del vecchio e non esclude nessun giocatore. Il fattore avversario ha segnale debole con poche giornate, per questo è molto smorzato.</div>
+      <div class="subtle" style="margin-top:12px;">Baseline: stima per 90 minuti tirata verso la media del ruolo (peso del ruolo = ${MODEL_PARAMS.K_MIN}' pseudo-minuti), con forza d'attacco della squadra. Nei test su giornate già giocate questo metodo sbaglia circa 4 volte meno del vecchio e non esclude nessun giocatore. Fattore avversario a due livelli: squadra (concessione totale, peso = partite ÷ (partite + ${MODEL_PARAMS.K_OPP_TEAM})) × ruolo (molto più smorzato, ${MODEL_PARAMS.K_OPP}' pseudo-minuti). Entrambi i pesi crescono da soli con le giornate.</div>
     </div></div>`;
 }
 
@@ -2335,7 +2419,7 @@ function drawerHtml(match, pid) {
   const opRows = MK.map(([m, l]) => {
     const rk = roleRankFor(p.Posizione_Analitica, info.oppId, info.oppVenue, m);
     const d = proj[m];
-    return `<tr><td>${l}</td><td>${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '×'}</td><td>${fmt(d.fattoreAvversario, 2)}×</td><td>${rk.rank === 'N/D' ? 'N/D' : rk.rank + '°/' + rk.eligible + '*'}</td></tr>`;
+    return `<tr><td>${l}</td><td>${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× → ' + fmt(d.fattoreSquadra, 2) + '×'}</td><td>${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× → ' + fmt(d.fattoreRuolo, 2) + '×'}</td><td><b>${fmt(d.fattoreAvversario, 2)}×</b></td><td>${rk.rank === 'N/D' ? 'N/D' : rk.rank + '°/' + rk.eligible + '*'}</td></tr>`;
   }).join('');
   const rc = computeRoleConcessions(DB.matchLog, info.oppId, info.oppVenue, p.Posizione_Analitica, teamStatsC(info.oppId, info.oppVenue).Partite);
   // come nasce la proiezione
@@ -2355,8 +2439,8 @@ function drawerHtml(match, pid) {
       <div class="note">Solo presenze con almeno ${MODEL_PARAMS.MIN_HITRATE}' (${nHR}). Al passaggio del mouse l'intervallo di fiducia al 95%.</div>
       <div class="note"><b>Regolarità:</b> ${reg}</div></div>
     <div class="ds op"><h4>${esc(info.oppName)} contro il ruolo</h4>
-      <table><tr><th></th><th>Rapporto grezzo</th><th>Usato (smorzato)</th><th>Posizione*</th></tr>${opRows}</table>
-      <div class="note">${rc.N_Prestazioni_Ruolo} prestazioni di "${esc(p.Posizione_Analitica)}" subite ${venueTxt(info.oppVenue)} · ${Math.round(t.minutiAvversarioRuolo)}' osservati del ruolo in totale. Il rapporto grezzo è per 90 minuti di giocatore del ruolo contro la media di lega; "usato" è quanto pesa davvero, con campione piccolo resta vicino a 1. *Posizione tra le squadre confrontabili nel venue della partita (provvisoria).</div></div>
+      <table><tr><th></th><th>Squadra<br><span style="font-weight:400">grezzo → usato</span></th><th>Ruolo<br><span style="font-weight:400">grezzo → usato</span></th><th>Totale</th><th>Posizione*</th></tr>${opRows}</table>
+      <div class="note">${rc.N_Prestazioni_Ruolo} prestazioni di "${esc(p.Posizione_Analitica)}" subite ${venueTxt(info.oppVenue)} · ${Math.round(t.minutiAvversarioRuolo)}' osservati del ruolo in totale. Squadra: quanto ${esc(info.oppName)} concede in totale (${t.partiteAvversario} partite) rispetto alla lega, peso ${Math.round((t.pesoSquadra || 0) * 100)}% su Tiri. Ruolo: scostamento ulteriore di questo ruolo, peso molto basso (${Math.round((t.pesoRuolo || 0) * 100)}% su Tiri). "Grezzo → usato": il peso sale da solo con le giornate. Cartellini: nessun fattore squadra (lo gestisce l'arbitro). *Posizione tra le squadre confrontabili nel venue della partita (provvisoria).</div></div>
     <div class="ds rs"><h4>Come nasce la proiezione</h4>
       <table><tr><th></th><th>Baseline /90</th><th>× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th><th>Min attesi</th><th>Atteso a partita</th></tr>${rsRows}</table>
       <div class="note">Baseline: il giocatore pesa ${Math.round(t.pesoGiocatore * 100)}% (${Math.round(t.minutiStagione)}' giocati), il resto è la media del ruolo ${t.prior90 != null ? '(' + fmt(t.prior90) + ' tiri/90)' : ''}. Affidabilità: ${relHtml(t.affidabilita)}.</div>

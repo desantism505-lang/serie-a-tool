@@ -746,7 +746,12 @@ function computeAllArbitroStats(matchLog, arbitri) {
 // ============================================================================
 const MODEL_PARAMS = {
   K_MIN: 600,   // pseudo-minuti del prior di ruolo (~6,7 partite intere). Ottimo ~450-720 nel backtest
-  K_OPP: 2160,  // pseudo-minuti per il fattore avversario (segnale debole: forte smorzamento)
+  // Fattore avversario a due livelli (entrambi i pesi crescono da soli col campione, nessuna taratura manuale):
+  //  - SQUADRA: concessione totale dell'avversario (tutti i ruoli) vs media di lega; peso = n/(n+K_OPP_TEAM), n = partite dell'avversario
+  //  - RUOLO: scostamento ulteriore dello stesso ruolo; peso = minuti/(minuti+K_OPP), molto smorzato
+  K_OPP_TEAM: 6,   // partite-equivalenti (backtest: ottimo 3-6, ~45% a 5 partite)
+  K_OPP: 6000,     // pseudo-minuti del livello ruolo (segnale debole, cresce con la stagione)
+  OPP_TEAM_METRICS: ['Tiri', 'SOT', 'FC', 'FD'],
   // sovradispersione extra-Poisson stimata sulle presenze (var = mu + alpha*mu^2)
   ALPHA: { Tiri: 0.18, SOT: 0.16, FC: 0.06, FD: 0.02, Cart: 0 },
   MIN_AFFIDABILITA_ALTA: 450,   // minuti del giocatore (5 partite intere)
@@ -767,7 +772,7 @@ function metricValue(r, m) {
 // Aggregati di lega: per ruolo, per (avversario, ruolo), minuti medi titolari/
 // subentrati e rapporto totale-squadra / solo-titolari (per stimare la panchina).
 function buildLeagueModel(matchLog) {
-  const role = {}, opp = {}, teamTot = {}, teamMatches = {};
+  const role = {}, opp = {}, teamTot = {}, teamMatches = {}, oppT = {}, oppMatches = {}, lgAll = { min: 0 };
   let stMin = 0, stN = 0, sbMin = 0, sbN = 0;
   const shareAll = {}, shareSt = {};
   for (const m of MODEL_METRICS) { shareAll[m] = 0; shareSt[m] = 0; }
@@ -779,6 +784,9 @@ function buildLeagueModel(matchLog) {
   for (const r of matchLog) {
     add(role, r.Posizione_Analitica, r);
     add(opp, r.Opp_ID + '|' + r.Posizione_Analitica, r);
+    add(oppT, r.Opp_ID, r);
+    add({ L: lgAll }, 'L', r);
+    (oppMatches[r.Opp_ID] || (oppMatches[r.Opp_ID] = new Set())).add(r.Match_ID);
     const tt = teamTot[r.Team_ID] || (teamTot[r.Team_ID] = {});
     for (const m of MODEL_METRICS) tt[m] = (tt[m] || 0) + metricValue(r, m);
     (teamMatches[r.Team_ID] || (teamMatches[r.Team_ID] = new Set())).add(r.Match_ID);
@@ -795,7 +803,8 @@ function buildLeagueModel(matchLog) {
     lgPerTeamMatch[m] = nTM ? t / nTM : null;
   }
   return {
-    role, opp, teamTot, teamN: Object.fromEntries(Object.entries(teamMatches).map(([k, v]) => [k, v.size])), lgPerTeamMatch,
+    role, opp, oppT, lgAll, oppN: Object.fromEntries(Object.entries(oppMatches).map(([k, v]) => [k, v.size])),
+    teamTot, teamN: Object.fromEntries(Object.entries(teamMatches).map(([k, v]) => [k, v.size])), lgPerTeamMatch,
     startMinMean: stN ? stMin / stN : 88,
     subMinMean: sbN ? sbMin / sbN : 25,
     benchFactor, // moltiplicatore "totale squadra / solo titolari" osservato in lega
@@ -828,16 +837,27 @@ function shrunkRate90(model, rows, ruolo, m, teamId) {
   return { rate90: (X + (prior * K) / 90) / ((mn + K) / 90), prior90: prior, minutes: mn, wPlayer: mn / (mn + K) };
 }
 
-// Fattore avversario: concessione per 90 del ruolo vs media di lega del ruolo,
-// smorzata con i minuti osservati di quel ruolo contro l'avversario. Nel backtest
-// il guadagno e' piccolo: per questo K_OPP e' alto.
+// Fattore avversario a due livelli. Squadra: quanto l'avversario concede in totale
+// (tutti i ruoli) rispetto alla lega. Ruolo: scostamento ulteriore dello stesso ruolo,
+// molto piu' smorzato. Pesi crescenti col campione (nessuna taratura periodica).
 function opponentFactor(model, oppId, ruolo, m) {
-  const a = model.opp[oppId + '|' + ruolo];
-  const prior = rate90Of(model.role[ruolo], m);
-  if (!a || !a.min || !prior) return { factor: 1, ratio: null, minutes: a ? a.min : 0, weight: 0 };
-  const ratio = rate90Of(a, m) / prior;
-  const w = a.min / (a.min + MODEL_PARAMS.K_OPP);
-  return { factor: 1 + (ratio - 1) * w, ratio, minutes: a.min, weight: w };
+  let fTeam = 1, rTeam = null, wTeam = 0;
+  const n = model.oppN[oppId], at = model.oppT[oppId], lg = rate90Of(model.lgAll, m);
+  if (MODEL_PARAMS.OPP_TEAM_METRICS.includes(m) && n && at && at.min && lg) {
+    rTeam = rate90Of(at, m) / lg;
+    wTeam = n / (n + MODEL_PARAMS.K_OPP_TEAM);
+    fTeam = 1 + (rTeam - 1) * wTeam;
+  }
+  let fRole = 1, rRole = null, wRole = 0, minutes = 0;
+  const a = model.opp[oppId + '|' + ruolo], prior = rate90Of(model.role[ruolo], m);
+  if (a && a.min && prior) {
+    rRole = rate90Of(a, m) / prior;
+    wRole = a.min / (a.min + MODEL_PARAMS.K_OPP);
+    fRole = 1 + (rRole - 1) * wRole;
+    minutes = a.min;
+  }
+  return { factor: fTeam * fRole, factorTeam: fTeam, factorRole: fRole, ratio: rRole, ratioTeam: rTeam,
+           minutes, weight: wRole, weightTeam: wTeam, matches: n || 0 };
 }
 
 // Minuti attesi: media delle proprie presenze nello stesso ruolo di impiego
@@ -873,7 +893,9 @@ function projectPlayer(model, matchLog, player, oppId, titolare, m) {
     baseline90: base.rate90,       // tasso/90 tirato verso il ruolo (senza avversario)
     prior90: base.prior90,         // media di lega del ruolo
     pesoGiocatore: base.wPlayer,   // 0 = tutto ruolo, 1 = tutto giocatore
-    fattoreAvversario: of.factor,
+    fattoreAvversario: of.factor,  // squadra x ruolo
+    fattoreSquadra: of.factorTeam, fattoreRuolo: of.factorRole,
+    pesoSquadra: of.weightTeam, pesoRuolo: of.weight, rapportoSquadra: of.ratioTeam, partiteAvversario: of.matches,
     rapportoGrezzoAvversario: of.ratio,
     minutiAvversarioRuolo: of.minutes,
     rate90,                        // baseline90 * fattore
