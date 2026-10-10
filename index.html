@@ -406,9 +406,139 @@
     margin:0 auto;
   }
 
+
+  /* ===================== v2: sezioni, formazioni, scheda ===================== */
+  :root{ --opp:#5BA8E8; --opp-dim:#2f5f8a; --ok:#D4FF6B; }
+  .controls{padding:12px 32px;}
+  .ctrl{flex:1 1 200px;}
+  .matchcard{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:16px 20px;margin-bottom:14px;}
+  .matchcard .mtitle{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .matchcard h2.match-title{margin:0;font-size:20px;}
+  .matchcard .msub{color:var(--muted);font-size:12px;}
+  .lurow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12px;}
+  .lurow .lbl{color:var(--muted);}
+  .lchip{background:none;border:1px solid var(--line);border-radius:999px;color:var(--text-2);font-size:12px;font-weight:600;padding:5px 12px;cursor:pointer;}
+  .lchip.ok{border-color:var(--accent-dim);color:var(--accent);}
+  .lchip.warn{border-color:var(--warn);color:var(--warn);}
+  .lchip:hover{background:var(--panel-2);}
+  .sections{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 18px;position:sticky;top:0;background:var(--bg);z-index:20;overflow-x:auto;}
+  .sections button{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 16px 8px;text-align:center;cursor:pointer;flex:1 1 0;min-width:150px;}
+  .sections button b{display:block;font-family:'Space Grotesk',sans-serif;font-size:14px;}
+  .sections button small{display:block;font-size:10.5px;margin-top:1px;}
+  .sections button.on{color:var(--accent);border-bottom-color:var(--accent);}
+  .sections button:hover{color:var(--text);}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-left:5px;vertical-align:middle;}
+  .card{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);overflow:hidden;margin-bottom:22px;}
+  .card > h3{margin:0;padding:13px 20px;background:var(--panel-header);border-bottom:1px solid var(--line);font-size:14px;color:var(--accent);display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .card > h3 .tag{font-family:'Inter',sans-serif;font-weight:500;font-size:11px;color:var(--muted);}
+  .card .cb{padding:16px 20px;}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  @media (max-width:900px){.twocol{grid-template-columns:1fr;}}
+  .warnbox{border:1px solid var(--warn);background:#2a2013;color:var(--warn);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px;}
+  .infobox{border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--muted);margin-bottom:12px;}
+
+  /* confronto squadre */
+  .cmp{display:grid;gap:0;}
+  .cmp-head{display:grid;grid-template-columns:1fr 1.1fr 1fr;align-items:center;padding:0 0 8px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;}
+  .cmp-head .h{color:var(--accent);} .cmp-head .a{color:var(--opp);text-align:right;} .cmp-head .m{text-align:center;color:var(--muted);font-size:11px;font-weight:500;}
+  .cmp-row{display:grid;grid-template-columns:1fr 1.1fr 1fr;align-items:center;padding:11px 0;border-top:1px solid var(--line);}
+  .cmp-row .v{display:flex;flex-direction:column;}
+  .cmp-row .v.r{align-items:flex-end;}
+  .cmp-row .v b{font-family:'Space Grotesk',sans-serif;font-size:22px;color:var(--text);}
+  .cmp-row .v small{font-size:10.5px;color:var(--muted);}
+  .cmp-row .v.l b.hi{color:var(--accent);} .cmp-row .v.r b.hi{color:var(--opp);}
+  .cmp-row .mid{padding:0 16px;text-align:center;}
+  .cmp-row .mname{font-weight:600;color:var(--text);font-size:13px;}
+  .cmp-row .bar{position:relative;height:8px;border-radius:4px;background:var(--opp-dim);margin:6px 0 4px;overflow:hidden;}
+  .cmp-row .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent-dim);}
+  .cmp-row .bar::after{content:"";position:absolute;left:50%;top:-1px;bottom:-1px;width:2px;background:var(--bg);}
+  .cmp-row .diff{font-size:11px;color:var(--muted);}
+  .cmp-row .diff b.h{color:var(--accent);} .cmp-row .diff b.a{color:var(--opp);}
+
+  /* matrice vulnerabilita */
+  table.mx{border-collapse:separate;border-spacing:4px;width:100%;font-size:12px;}
+  table.mx th{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:600;text-align:center;padding:2px;}
+  table.mx th:first-child,table.mx td:first-child{text-align:left;color:var(--text);font-weight:600;white-space:nowrap;}
+  table.mx td{text-align:center;padding:7px 4px;border-radius:7px;background:var(--panel-2);color:var(--muted);}
+  table.mx td.top1{background:var(--accent);color:var(--accent-ink);font-weight:700;cursor:pointer;}
+  table.mx td.top2{background:#1d3550;color:var(--opp);font-weight:700;border:1px solid var(--opp-dim);cursor:pointer;}
+  table.mx td.low{background:#3a1a14;color:var(--bad);font-weight:700;border:1px solid #6b2b20;cursor:pointer;}
+  table.mx td small{display:block;font-weight:500;font-size:9.5px;opacity:.85;}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:10px;align-items:center;}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;vertical-align:-1px;}
+
+  /* tabelle dati */
+  table.dt{width:100%;border-collapse:collapse;font-size:13px;}
+  table.dt th{background:var(--panel-header);color:var(--accent);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:9px 10px;font-weight:700;white-space:nowrap;}
+  table.dt th.num,table.dt td.num{text-align:right;}
+  table.dt th.sortable{cursor:pointer;user-select:none;} table.dt th.sortable:hover{color:var(--text);}
+  table.dt th .arrow{font-size:9px;margin-left:3px;opacity:.8;}
+  table.dt td{padding:10px;border-top:1px solid var(--line);color:var(--text-2);vertical-align:middle;}
+  table.dt tr.grp th{background:var(--panel-2);font-size:10px;padding:6px 10px;border-bottom:2px solid var(--line);}
+  table.dt tr.grp th.g-pl{color:var(--text-2);border-bottom-color:var(--text-2);}
+  table.dt tr.grp th.g-opp{color:var(--opp);border-bottom-color:var(--opp);}
+  table.dt tr.grp th.g-res{color:var(--accent);border-bottom-color:var(--accent);}
+  table.dt tbody tr.prow{cursor:pointer;} table.dt tbody tr.prow:hover td{background:var(--zebra);}
+  table.dt td.c-opp{background:rgba(91,168,232,.07);}
+  .pname{color:var(--text);font-weight:600;} .psub{display:block;font-size:11px;color:var(--muted);font-weight:400;}
+  .big{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;color:var(--text);} .sm{display:block;font-size:10.5px;color:var(--muted);}
+  .res{display:inline-block;background:var(--accent);color:var(--accent-ink);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;padding:2px 11px;border-radius:7px;}
+  .fac{display:inline-block;font-weight:700;border-radius:6px;padding:2px 8px;font-size:12px;background:var(--line);color:var(--text-2);}
+  .fac.up{background:#22381a;color:var(--accent);} .fac.dn{background:#3a1a14;color:var(--bad);}
+  .rel{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;} .rel i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .rel.alta i{background:var(--accent);} .rel.media i{background:var(--warn);} .rel.bassa i{background:var(--bad);}
+  .btn{background:none;border:1px solid var(--accent-dim);color:var(--accent);border-radius:7px;font-size:11px;font-weight:700;padding:4px 10px;cursor:pointer;white-space:nowrap;}
+  .btn:hover{background:var(--panel-2);} .btn.solid{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  .btn.gray{border-color:var(--line);color:var(--muted);}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+  .seg button{background:none;border:none;color:var(--text-2);padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;}
+  .seg button.on{background:var(--accent);color:var(--accent-ink);}
+  .seg button .n{display:inline-block;background:var(--opp);color:#fff;border-radius:9px;font-size:10px;padding:0 6px;margin-left:5px;}
+  .toolbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--muted);}
+  .chipline{font-size:12px;color:var(--text-2);margin:0 0 12px;line-height:1.9;}
+  .tagok{display:inline-block;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;background:var(--accent);color:var(--accent-ink);}
+  .tagbad{display:inline-block;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;background:#3a1a14;color:var(--bad);border:1px solid #6b2b20;}
+  .tagwarn{display:inline-block;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;background:#2a2013;color:var(--warn);border:1px solid var(--warn);}
+  details.bench{margin-top:12px;} details.bench summary{cursor:pointer;color:var(--muted);font-size:12px;padding:6px 0;}
+
+  /* formazioni */
+  .lulist{display:grid;gap:0;}
+  .lurow2{display:grid;grid-template-columns:26px 1fr auto auto;gap:10px;align-items:center;padding:7px 4px;border-top:1px solid var(--line);font-size:13px;}
+  .lurow2.sel{background:rgba(212,255,107,.05);}
+  .lurow2 input{width:16px;height:16px;accent-color:var(--accent);}
+  .lurow2 .hint{font-size:10.5px;color:var(--muted);}
+  .lugrp{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:10px 4px 4px;font-weight:700;}
+
+  /* scheda laterale */
+  #drawerHost{position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);z-index:60;pointer-events:none;}
+  #drawerHost .drawer{position:absolute;inset:0;background:var(--panel-2);border-left:1px solid var(--line);box-shadow:-14px 0 30px rgba(0,0,0,.45);overflow-y:auto;pointer-events:auto;}
+  .drawer .dh{padding:16px 20px;background:var(--panel-header);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;gap:10px;}
+  .drawer .dh h3{margin:0;font-size:17px;color:var(--text);} .drawer .dh .sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .drawer .x{background:none;border:1px solid var(--line);color:var(--text-2);border-radius:7px;width:30px;height:30px;font-size:16px;cursor:pointer;flex-shrink:0;}
+  .drawer .ds{padding:14px 20px;border-bottom:1px solid var(--line);}
+  .drawer .ds h4{margin:0 0 8px;font-family:'Space Grotesk',sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:.05em;}
+  .drawer .ds.pl h4{color:var(--text);} .drawer .ds.op h4{color:var(--opp);} .drawer .ds.rs h4{color:var(--accent);}
+  .drawer table{width:100%;border-collapse:collapse;font-size:12px;} .drawer th{color:var(--muted);font-size:10px;text-transform:uppercase;text-align:right;padding:4px 6px;font-weight:600;} .drawer th:first-child,.drawer td:first-child{text-align:left;}
+  .drawer td{padding:6px;border-top:1px solid var(--line);text-align:right;color:var(--text-2);} .drawer td:first-child{color:var(--text);font-weight:600;}
+  .drawer .note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;}
+  @media (min-width:1500px){ body.drawer-open main{margin-right:500px;max-width:none;} }
+  .wl{display:inline-block;vertical-align:-3px;}
+  .lustatus{font-size:11px;color:var(--muted);margin-left:6px;} .lustatus.ok{color:var(--accent);} .lustatus.err{color:var(--warn);}
+
+
+  /* telefono */
+  @media (max-width:700px){
+    header,nav.sitenav,.controls,footer{padding-left:16px;padding-right:16px;}
+    nav.sitenav{overflow-x:auto;white-space:nowrap;}
+    main{padding:16px 16px 40px;}
+    .sections button{min-width:128px;padding:8px 10px 6px;} .sections button small{display:none;}
+    .card .cb,.card > h3{padding-left:14px;padding-right:14px;}
+    .cmp-row .v b{font-size:18px;} .cmp-row .mid{padding:0 8px;}
+    .matchcard{padding:14px;}
+  }
+
 </style>
 </head>
-
 <body>
 
 <header>
@@ -441,42 +571,20 @@
     <label>Partita</label>
     <select id="selMatch"></select>
   </div>
-  <div class="ctrl">
-    <label>Giocatore</label>
-    <select id="selPlayer"></select>
-  </div>
-  <div class="ctrl">
-    <label>Titolare</label>
-    <select id="selTitolare">
-      <option value="">Tutti</option>
-      <option value="TITOLARE">Solo titolare</option>
-      <option value="SUBENTRATO">Solo subentrato</option>
-    </select>
-  </div>
-  <div class="ctrl">
-    <label>Storico giocatore</label>
-    <select id="selScopeSquadra">
-      <option value="ATTUALE">Solo squadra attuale</option>
-      <option value="TUTTE">Tutta la stagione (ogni squadra)</option>
-    </select>
-  </div>
-  <div class="ctrl" style="flex:0 0 auto;display:flex;align-items:center;gap:8px;">
-    <input type="checkbox" id="chkProvisional" style="width:16px;height:16px;" />
-    <label for="chkProvisional" style="margin:0;cursor:pointer;">rank provvisorio</label>
-  </div>
 </div>
 
 <main id="main">
-  <div class="empty">Carica il file Serie_A_2026_27_DATABASE_MASTER.xlsx per iniziare.</div>
+  <div class="empty">Caricamento dati…</div>
 </main>
 
 <footer>
-  Calcolo locale, nessun dato inviato altrove. Copre Player · Team matchup · Role matchup · Baseline (Stagione 40% / Venue 30% / L10 20% / L5 10%, con shrinkage sui campioni piccoli) · Confronto partita.
+  Calcolo locale nel browser; le formazioni si salvano su questo browser e, se collegato, su Supabase. Le stime usano un modello per minuto tirato verso la media del ruolo (parametri scelti con un test su giornate già giocate: vedi BACKTEST.md).
   Quote, screener e scanner di giornata sono nella pagina <a href="scanner.html">Scanner &amp; Screener</a>.
 </footer>
 
 <script src="engine.js"></script>
 <script>
+
 let DB = null; // { rosters, teams, calendar, matchLog(indexed) }
 
 function toISO(v){
@@ -567,61 +675,41 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   reader.readAsArrayBuffer(file);
 });
 
+
 // ---------------------------------------------------------------------------
-// Selettori a cascata: Giornata -> Partita -> Giocatore
+// Selettori: Giornata -> Partita (la scelta giocatore e' ora nella scheda laterale)
 // ---------------------------------------------------------------------------
-// Prossima giornata in base alla data odierna: la giornata della prima
-// partita con Data >= oggi. Se la stagione è finita (nessuna partita futura),
-// resta sull'ultima giornata in calendario. Puramente basata sulla data di
-// sistema, non sullo Stato — così seleziona la giornata giusta anche prima
-// che tu abbia segnato le partite come CONCLUSA.
 function prossimaGiornata(calendar) {
   const oggi = new Date().toISOString().slice(0, 10);
   const future = calendar.filter((c) => c.Data >= oggi);
   if (future.length) return Math.min(...future.map((c) => c.Giornata));
   return Math.max(...calendar.map((c) => c.Giornata));
 }
-
 function populateGiornate(){
+  MODEL = buildLeagueModel(DB.matchLog);
+  CARDPF = cardsPerFoulLeague(DB.matchLog);
   const giornate = [...new Set(DB.calendar.map(r => r.Giornata))].sort((a,b)=>a-b);
   const sel = document.getElementById('selGiornata');
   sel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
   sel.onchange = populateMatches;
-  const auto = prossimaGiornata(DB.calendar);
+  let want = null;
+  const h = readHash();
+  if (h.m) want = DB.calendar.find(m => m.Match_ID === h.m);
+  if (!want) { let last = null; try { last = localStorage.getItem('mx_last_match'); } catch(e){} if (last) want = DB.calendar.find(m => m.Match_ID === last); }
+  const auto = want ? want.Giornata : prossimaGiornata(DB.calendar);
   if (giornate.includes(auto)) sel.value = String(auto);
-  populateMatches();
+  populateMatches(want ? want.Match_ID : null);
 }
-function populateMatches(){
+function populateMatches(wantId){
   const g = Number(document.getElementById('selGiornata').value);
   const matches = DB.calendar.filter(r => r.Giornata === g);
   const sel = document.getElementById('selMatch');
-  sel.innerHTML = matches
-    .map(m => `<option value="${m.Match_ID}">${m.Home} – ${m.Away}</option>`)
-    .join('');
-  sel.onchange = populatePlayers;
-  populatePlayers();
-}
-function populatePlayers(){
-  const matchId = document.getElementById('selMatch').value;
-  const match = DB.calendar.find(m => m.Match_ID === matchId);
-  const sel = document.getElementById('selPlayer');
-  if (!match) { sel.innerHTML = ''; return; }
-  const players = DB.rosters
-    .filter(r => r.Attivo_SerieA === 'SI' && (r.Team_ID_Rif === match.Home_ID || r.Team_ID_Rif === match.Away_ID))
-    .sort((a,b) => a.Nome_completo.localeCompare(b.Nome_completo));
-  sel.innerHTML = players
-    .map(p => `<option value="${p.Player_ID}">${p.Nome_completo} (${p.Squadra_Rif})</option>`)
-    .join('');
+  sel.innerHTML = matches.map(m => `<option value="${m.Match_ID}">${m.Home} – ${m.Away}</option>`).join('');
+  if (typeof wantId === 'string' && matches.some(m => m.Match_ID === wantId)) sel.value = wantId;
   sel.onchange = render;
   render();
 }
-document.getElementById('chkProvisional').addEventListener('change', () => { if (DB) render(); });
-document.getElementById('selTitolare').addEventListener('change', () => { if (DB) render(); });
-document.getElementById('selScopeSquadra').addEventListener('change', () => { if (DB) render(); });
 
-// ---------------------------------------------------------------------------
-// Render pannelli
-// ---------------------------------------------------------------------------
 function fmt(v, d=2){
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
   if (typeof v !== 'number') return v;
@@ -629,236 +717,6 @@ function fmt(v, d=2){
 }
 function pct(v){ return v == null ? '—' : (v*100).toFixed(0) + '%'; }
 
-function statusPill(s){
-  const cls = s === 'OK' ? 'status-OK' : (s && s.includes('NO')) ? 'status-NO' : 'status-CAMPIONE';
-  return `<span class="status-pill ${cls}">${s}</span>`;
-}
-
-// Ultima partita renderizzata: usato per resettare le spunte "titolare" in
-// Confronto partita SOLO quando cambia davvero la partita, non ad ogni
-// render() (es. toggle "rank provvisorio" sulla stessa partita) — altrimenti
-// le spunte fatte da Marco sparivano al primo cambio filtro (bug segnalato).
-let _lastRenderedMatchId = null;
-
-function render(){
-  const matchId = document.getElementById('selMatch').value;
-  const playerId = document.getElementById('selPlayer').value;
-  const match = DB.calendar.find(m => m.Match_ID === matchId);
-  const player = DB.rosters.find(p => p.Player_ID === playerId);
-  const main = document.getElementById('main');
-  if (!match || !player) { main.innerHTML = '<div class="empty">Seleziona un giocatore.</div>'; return; }
-
-  const isNewMatch = _lastRenderedMatchId !== match.Match_ID;
-  _lastRenderedMatchId = match.Match_ID;
-  initMoState(match, isNewMatch); // titolari spuntati: deve esistere prima del pannello Statistiche squadra
-  _roleLeagueAvgCache = {}; // reset cache ruolo-vs-lega per questo render
-
-  const playerVenue = player.Team_ID_Rif === match.Home_ID ? 'HOME' : 'AWAY';
-  const oppTeam = playerVenue === 'HOME' ? match.Away_ID : match.Home_ID;
-  const oppVenue = playerVenue === 'HOME' ? 'AWAY' : 'HOME';
-
-  const titolareFiltro = document.getElementById('selTitolare').value || null;
-  const scopeSquadra = document.getElementById('selScopeSquadra').value !== 'TUTTE'; // default: squadra attuale
-  const teamFiltro = scopeSquadra ? player.Team_ID_Rif : null;
-  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE', titolareFiltro, teamFiltro);
-  const pHome = computePlayerStats(DB.matchLog, playerId, 'HOME', titolareFiltro, teamFiltro);
-  const pAway = computePlayerStats(DB.matchLog, playerId, 'AWAY', titolareFiltro, teamFiltro);
-  const pVenue = playerVenue === 'HOME' ? pHome : pAway;
-  // Per confronto: quante presenze avrebbe "tutta la stagione" (qualunque
-  // squadra) — se diverso da pTot.Partite, il giocatore ha cambiato squadra
-  // e vale la pena mostrarlo esplicitamente.
-  const pTotOgniSquadra = computePlayerStats(DB.matchLog, playerId, 'TOTALE', titolareFiltro, null);
-  const haCambiatoSquadra = pTotOgniSquadra.Partite !== pTot.Partite;
-
-  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
-  function teamRankTable(metricCol, minSample){
-    return teamsAll.map(t => {
-      const s = computeTeamStats(DB.matchLog, t, oppVenue);
-      return { key: t, value: s[metricCol], partite: s.Partite };
-    });
-  }
-
-  const oppStatsVenue = computeTeamStats(DB.matchLog, oppTeam, oppVenue);
-  const oppStatsTotal = computeTeamStats(DB.matchLog, oppTeam, 'TOTALE');
-  const minSample = oppVenue === 'TOTALE' ? 3 : 2;
-
-  const teamMetrics = [
-    ['Tiri concessi /90', 'Tiri_Subiti_90'],
-    ['SOT concessi /90', 'SOT_Subiti_90'],
-    ['Falli commessi /90 (contro loro)', 'Falli_Subiti_90'],
-    ['Falli subiti /90 (ne guadagnano)', 'FalliSubiti_Fatti_90'],
-  ];
-  const showProvisional = document.getElementById('chkProvisional').checked;
-  const teamRows = teamMetrics.map(([label, col]) => {
-    const list = teamRankTable(col, minSample);
-    const strict = rankDesc(list, minSample)[oppTeam];
-    const prov = rankProvisional(list, minSample)[oppTeam];
-    return { label, value: oppStatsVenue[col], rank: strict, prov };
-  });
-
-  // Role matchup
-  const role = player.Posizione_Analitica;
-  const roleConc = computeRoleConcessions(DB.matchLog, oppTeam, oppVenue, role, oppStatsVenue.Partite);
-  function roleRankTable(metricCol){
-    return teamsAll.map(t => {
-      const ts = computeTeamStats(DB.matchLog, t, oppVenue);
-      const rc = computeRoleConcessions(DB.matchLog, t, oppVenue, role, ts.Partite);
-      return { key: t, value: rc[metricCol], partite: ts.Partite };
-    });
-  }
-  const roleMetrics = [
-    ['Tiri concessi al ruolo /90', 'Tiri_Concessi_90'],
-    ['SOT concessi al ruolo /90', 'SOT_Concessi_90'],
-    ['Falli commessi dal ruolo /90', 'Falli_Contro_Ruolo_90'],
-    ['Falli subiti dal ruolo /90', 'FalliSubiti_Ruolo_90'],
-    ['Cartellini al ruolo /90', 'Cartellini_Ruolo_90'],
-  ];
-  const roleRows = roleMetrics.map(([label, col]) => {
-    const list = roleRankTable(col);
-    const strict = rankDesc(list, minSample)[oppTeam];
-    const prov = rankProvisional(list, minSample)[oppTeam];
-    return { label, value: roleConc[col], rank: strict, prov };
-  });
-
-  const baseline = computeBaseline(pTot, pHome, pAway);
-  const baseMetrics = [
-    ['Tiri', 'Tiri'],
-    ['Tiri in porta', 'SOT'],
-    ['Falli commessi', 'FC'],
-    ['Falli subiti', 'FD'],
-    ['Cartellini', 'Cart'],
-  ];
-  const baseCol = playerVenue === 'HOME' ? '_BASE_HOME' : '_BASE_AWAY';
-  const baseStatus = playerVenue === 'HOME' ? baseline.Stato_HOME : baseline.Stato_AWAY;
-
-  // Proiezione aggiustata: Baseline × fattore-ruolo, con il fattore tirato
-  // verso 1.0 (nessuna correzione) se il campione di prestazioni di quel
-  // ruolo contro questo avversario è piccolo — stessa identica logica di
-  // shrinkage già usata per Baseline e per le proiezioni squadra, mai
-  // fusa dentro il numero Baseline stesso: qui resta un secondo numero
-  // separato, per non nascondere quanto ci si può fidare della correzione.
-  const BASELINE_ROLE_MAP = {
-    Tiri: 'Tiri_Concessi_90', SOT: 'SOT_Concessi_90', FC: 'Falli_Contro_Ruolo_90',
-    FD: 'FalliSubiti_Ruolo_90', Cart: 'Cartellini_Ruolo_90',
-  };
-  const nRuolo = roleConc.N_Prestazioni_Ruolo;
-  const adjRows = baseMetrics.map(([label, key]) => {
-    const baseVal = baseline[key + baseCol];
-    const roleCol = BASELINE_ROLE_MAP[key];
-    const roleVal = roleConc[roleCol];
-    const list = roleRankTable(roleCol);
-    const validi = list.filter(x => x.value != null && x.partite >= minSample);
-    const leagueAvg = validi.length ? validi.reduce((a,x) => a + x.value, 0) / validi.length : null;
-    let fattore = 1, rawRatio = null;
-    if (roleVal != null && leagueAvg) {
-      rawRatio = roleVal / leagueAvg;
-      fattore = 1 + (rawRatio - 1) * (nRuolo / (nRuolo + SHRINK_K));
-    }
-    const proiezione = baseVal != null ? baseVal * fattore : null;
-    return { label, baseVal, roleVal, leagueAvg, rawRatio, fattore, proiezione, nRuolo };
-  });
-
-  // Rank assoluto (contro tutta la lega, qualunque ruolo) del giocatore
-  // selezionato per ciascuna metrica stagionale — stesso calcolo già usato
-  // in Confronto partita (computeAbsoluteRank), qui riusato per non
-  // duplicare la logica. Richiesto per punto 7: rank nel pannello Player.
-  const PLAYER_RANK_COLS = { Tiri: 'Tiri_90', SOT: 'SOT_90', FC: 'FC_90', FD: 'FD_90', Cart: 'Cartellini_90' };
-  const playerAbsRanks = {};
-  for (const [key, col90] of Object.entries(PLAYER_RANK_COLS)) {
-    playerAbsRanks[key] = computeAbsoluteRank(playerId, 'TOTALE', col90);
-  }
-  function rankSuffix(key){
-    const r = playerAbsRanks[key];
-    if (!r || r.rank == null || r.eligible < 6) return '';
-    return ` <span class="subtle">(${r.rank}°/${r.eligible})</span>`;
-  }
-
-  main.innerHTML = `
-    <div style="margin-bottom:18px;">
-      <h2 class="match-title">${match.Home} – ${match.Away}</h2>
-      <div class="subtle">Giornata ${match.Giornata} · ${player.Nome_completo} (${player.Squadra_Rif}, ${role}) · gioca in ${playerVenue === 'HOME' ? 'casa' : 'trasferta'} contro ${oppVenue === 'HOME' ? 'una squadra in casa' : 'una squadra in trasferta'}</div>
-    </div>
-
-    ${renderArbitroSnippet(match)}
-
-    ${renderNotableFactsPanel(match)}
-
-    ${renderTeamStatsPanel(match)}
-
-    <div class="grid" style="margin-top:28px;">
-
-      <div class="panel">
-        <h2><span class="info-title" title="Quanto fa in media il giocatore selezionato: tiri, tiri in porta, falli, cartellini — sulla stagione intera, nel venue di questa partita (casa o trasferta) e nelle ultime gare (L10/L5/L3, calcolate SOLO tra le presenze in quello stesso venue). Esempio: 'Tiri stagione 2.1, HOME 3.4' significa che tira di più quando gioca in casa. Il rank tra parentesi confronta con TUTTI i giocatori della lega, qualunque ruolo.">Player</span> <span class="tag">${scopeSquadra ? 'con ' + player.Squadra_Rif : 'tutte le squadre'}: ${pTot.Partite} presenze${titolareFiltro ? ' · solo ' + (titolareFiltro === 'TITOLARE' ? 'titolare' : 'subentrato') : ''}</span>${haCambiatoSquadra ? `<span class="tag" style="color:var(--muted);" title="Questo giocatore ha giocato anche con un'altra squadra in stagione. Con 'Tutta la stagione' vedresti ${pTotOgniSquadra.Partite} presenze totali invece di ${pTot.Partite}.">⚠ ha cambiato squadra in stagione</span>` : ''}</h2>
-        <div class="body">
-          <table class="stat">
-            <tr><th>Metrica</th><th class="num">Stagione /90</th><th class="num">Stagione /partita</th><th class="num">${playerVenue} /90</th><th class="num">${playerVenue} L10 /90</th><th class="num">${playerVenue} L5 /90</th><th class="num">${playerVenue} L3 /90</th></tr>
-            <tr><td class="metricname">Tiri</td><td class="num">${fmt(pTot.Tiri_90)}${rankSuffix('Tiri')}</td><td class="num">${fmt(pTot.Partite ? sum2(DB.matchLog, playerId, teamFiltro, 'Tiri') / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.Tiri_90)}</td><td class="num">${fmt(pVenue.L10_Tiri_90)}</td><td class="num">${fmt(pVenue.L5_Tiri_90)}</td><td class="num">${fmt(pVenue.L3_Tiri_90)}</td></tr>
-            <tr><td class="metricname">Tiri in porta</td><td class="num">${fmt(pTot.SOT_90)}${rankSuffix('SOT')}</td><td class="num">${fmt(pTot.Partite ? sum2(DB.matchLog, playerId, teamFiltro, 'Tiri_in_porta') / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.SOT_90)}</td><td class="num">${fmt(pVenue.L10_SOT_90)}</td><td class="num">${fmt(pVenue.L5_SOT_90)}</td><td class="num">${fmt(pVenue.L3_SOT_90)}</td></tr>
-            <tr><td class="metricname">Falli commessi</td><td class="num">${fmt(pTot.FC_90)}${rankSuffix('FC')}</td><td class="num">${fmt(pTot.Partite ? sum2(DB.matchLog, playerId, teamFiltro, 'Falli_commessi') / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.FC_90)}</td><td class="num">${fmt(pVenue.L10_FC_90)}</td><td class="num">${fmt(pVenue.L5_FC_90)}</td><td class="num">${fmt(pVenue.L3_FC_90)}</td></tr>
-            <tr><td class="metricname">Falli subiti</td><td class="num">${fmt(pTot.FD_90)}${rankSuffix('FD')}</td><td class="num">${fmt(pTot.Partite ? sum2(DB.matchLog, playerId, teamFiltro, 'Falli_subiti') / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.FD_90)}</td><td class="num">${fmt(pVenue.L10_FD_90)}</td><td class="num">${fmt(pVenue.L5_FD_90)}</td><td class="num">${fmt(pVenue.L3_FD_90)}</td></tr>
-            <tr><td class="metricname">Cartellini</td><td class="num">${fmt(pTot.Cartellini_90)}${rankSuffix('Cart')}</td><td class="num">${fmt(pTot.Partite ? pTot.Cartellini / pTot.Partite : null)}</td><td class="num">${fmt(pVenue.Cartellini_90)}</td><td class="num">${fmt(pVenue.L10_Cart_90)}</td><td class="num">${fmt(pVenue.L5_Cart_90)}</td><td class="num">${fmt(pVenue.L3_Cart_90)}</td></tr>
-          </table>
-          <div class="subtle" style="margin-top:10px;">Hit rate stagione — Tiri 1+/2+/3+: ${pct(pTot.Hit_Tiri_1)} / ${pct(pTot.Hit_Tiri_2)} / ${pct(pTot.Hit_Tiri_3)} · SOT 1+: ${pct(pTot.Hit_SOT_1)} · Cartellino: ${pct(pTot.Hit_Cart_1)}</div>
-          <div class="subtle" style="margin-top:14px;margin-bottom:6px;">Consistenza (stagione) <span style="color:var(--muted);">— quanto oscilla la prestazione da una partita all'altra, a parità di media</span></div>
-          <table class="stat" style="max-width:320px;">
-            <tr><td class="metricname">Tiri</td><td>${cvBadge(pTot.Tiri_CV)}</td></tr>
-            <tr><td class="metricname">Tiri in porta</td><td>${cvBadge(pTot.SOT_CV)}</td></tr>
-            <tr><td class="metricname">Falli commessi</td><td>${cvBadge(pTot.FC_CV)}</td></tr>
-          </table>
-          <div class="subtle" style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <span class="filter-label">Legenda:</span>
-            <span class="status-pill status-OK">stabile</span> sotto 0,5
-            <span class="status-pill status-CAMPIONE">variabile</span> 0,5–1
-            <span class="status-pill status-NO">incostante</span> sopra 1
-            <span style="color:var(--muted);">(deviazione standard ÷ media sulle partite giocate — più basso, più regolare)</span>
-          </div>
-          <div class="subtle" style="margin-top:10px;">N presenze ${playerVenue}: ${pVenue.Partite} · L10 N: ${pVenue.L10_N} · L5 N: ${pVenue.L5_N} · L3 N: ${pVenue.L3_N}</div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2><span class="info-title" title="Cosa concede tipicamente la squadra avversaria in questo venue (casa o trasferta), confrontato con le altre squadre della lega (rank). Non riguarda il tuo giocatore, riguarda quanto è permeabile o solida la difesa che affronta. Esempio: 'Tiri concessi 15/90, rank 2°/18' = è la seconda difesa che subisce più tiri in quel venue.">Team matchup</span> <span class="tag">${oppTeam} — ${oppVenue}</span></h2>
-        <div class="body">
-          <table class="stat">
-            <tr><th>Metrica</th><th class="num">Valore /90</th><th class="num">Rank /20</th></tr>
-            ${teamRows.map(r => `<tr><td class="metricname">${r.label}</td><td class="num">${fmt(r.value)}</td><td class="num ${r.rank==='N/D'?'rank nd':'rank'}">${showProvisional ? (r.prov.rank + (r.prov.rank!=='N/D' ? '/'+r.prov.eligible+'*' : '') ) : r.rank}</td></tr>`).join('')}
-          </table>
-          <div class="subtle" style="margin-top:10px;">Rank 1 = concede di più. Campione: ${oppStatsVenue.Partite} partite ${oppVenue.toLowerCase()} (min. ${minSample}) · Possesso medio ${oppVenue.toLowerCase()}: ${fmt(oppStatsVenue.Possesso_Medio,1)}%${showProvisional ? ' · *rank provvisorio: solo tra le squadre già con campione sufficiente, non le 20 totali — cambia partita dopo partita' : ''}</div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2><span class="info-title" title="Come sopra, ma specifico per il ruolo tattico del tuo giocatore (es. Trequartista), non per la squadra in generale — una difesa può essere forte contro le punte ma debole contro i centrocampisti. Esempio: 'Tiri concessi ai trequartisti 3.2/90, rank 1°/15' = è la difesa che concede più tiri ai trequartisti in quel venue.">Role matchup</span> <span class="tag">${role}</span></h2>
-        <div class="body">
-          <table class="stat">
-            <tr><th>Metrica</th><th class="num">Valore /90</th><th class="num">Rank /20</th></tr>
-            ${roleRows.map(r => `<tr><td class="metricname">${r.label}</td><td class="num">${fmt(r.value)}</td><td class="num ${r.rank==='N/D'?'rank nd':'rank'}">${showProvisional ? (r.prov.rank + (r.prov.rank!=='N/D' ? '/'+r.prov.eligible+'*' : '') ) : r.rank}</td></tr>`).join('')}
-          </table>
-          <div class="subtle" style="margin-top:10px;">N prestazioni ${role} concesse in ${oppVenue.toLowerCase()}: ${roleConc.N_Prestazioni_Ruolo}${roleConc.N_Prestazioni_Ruolo < 3 ? ' — campione ridotto, leggi con cautela' : ''}</div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2><span class="info-title" title="Tre numeri distinti, mai fusi in uno solo. 'Baseline' combina stagione/venue/L10/L5 con shrinkage (come sempre). 'Ruolo concesso' è quanto l'avversario concede a questo ruolo in questo venue, rispetto alla media di lega. 'Proiezione aggiustata' moltiplica Baseline per quel fattore — ma il fattore è tirato verso 1.0 (nessuna correzione) se il campione di prestazioni di quel ruolo contro questo avversario è ancora piccolo, così un campione minuscolo non stravolge il numero finale.">Baseline</span> <span class="tag">${playerVenue} ${statusPill(baseStatus)}</span></h2>
-        <div class="body">
-          <table class="stat">
-            <tr><th>Metrica</th><th class="num">Baseline /90</th><th class="num" title="Quanto l'avversario concede a questo ruolo in questo venue, diviso la media di lega per lo stesso ruolo/venue. Sopra 1 = avversario più permeabile della media, sotto 1 = più solido.">Ruolo conc. (vs media lega)</th><th class="num" title="Il rapporto qui sopra, tirato verso 1.0 in proporzione a quante prestazioni di quel ruolo l'avversario ha già affrontato (N riportato accanto) — con poche prestazioni il fattore resta vicino a 1, cioè quasi nessuna correzione.">Fattore (N)</th><th class="num" title="Baseline × Fattore — il numero finale, con la correzione già applicata e visibile nelle colonne precedenti.">Proiezione aggiustata</th></tr>
-            ${adjRows.map(r => {
-              const ratioTxt = r.rawRatio != null ? fmt(r.rawRatio,2) + '×' : '—';
-              const fattoreTxt = `${fmt(r.fattore,2)}× <span class="subtle">(N=${r.nRuolo})</span>`;
-              return `<tr><td class="metricname">${r.label}</td><td class="num"><span class="baseline-value">${fmt(r.baseVal)}</span></td><td class="num">${ratioTxt}</td><td class="num">${fattoreTxt}</td><td class="num"><span class="baseline-value">${fmt(r.proiezione)}</span></td></tr>`;
-            }).join('')}
-          </table>
-          <div class="subtle" style="margin-top:10px;">Baseline: media pesata stagione 40% · venue 30% · L10 20% · L5 10%. Fattore ruolo: stesso shrinkage (k=3) già usato per Baseline e per le proiezioni squadra — con N=0-2 prestazioni il fattore resta praticamente 1.0, con N alto si avvicina al rapporto pieno. Volume, non probabilità.</div>
-        </div>
-      </div>
-
-    </div>
-
-    ${renderRoleVulnerabilityPanel(match)}
-    ${renderMatchOverview(match)}
-  `;
-}
 
 // Somma grezza di una colonna di MATCH_LOG per un giocatore (con eventuale
 // filtro squadra) — usata solo per calcolare la media "a partita" (non /90)
@@ -996,7 +854,7 @@ function metricIcon(label){
     return svg('<circle cx="12" cy="12" r="8.5"/><path d="M9.5 8.5 12 7l2.5 1.5-.9 3h-3.2zM7 13l3.4-1.5 2.4 2.8-2.2 3M17 13l-3.4-1.5-2.4 2.8 2.2 3"/>');
   }
   if (l.includes('falli')) {
-    return svg('<path d="M5 14.5c0-3.8 2.9-6.5 6.7-6.5H18v4h-5.5c-1.8 0-3 1-3 2.5S8.3 17 6.8 17H5z"/><path d="M18 8v4M19.5 5.5l1.5-1.5M16.5 5.5 15 4"/>');
+    return svg('<circle cx="8.5" cy="14.5" r="4.5"/><path d="M12.5 12.5 21 9v4l-6.5 2.2"/><path d="M8.5 10V6M5.5 11 4 9.5"/>'); // fischietto
   }
   if (l.includes('cartellin')) {
     return svg('<rect x="7" y="5" width="9" height="13" rx="1.3" transform="rotate(-8 11.5 11.5)"/><path d="M11 5.5 17 6.5 15.5 18"/>');
@@ -1398,6 +1256,7 @@ function computeStreakFacts(teamId, venue, venueLabel){
 }
 
 
+
 // Minimizza/espandi per Fatti salienti e Statistiche squadra — stato semplice,
 // persiste finché non cambi partita (viene ricreato ad ogni render() ma lo
 // stato JS resta, quindi il pannello resta chiuso se lo era).
@@ -1425,19 +1284,6 @@ function pctColorClass(rate){
 const teamLineState = {};
 let _teamStatsMatch = null;
 function teamLineKey(teamId, key){ return teamId + '|' + key; }
-function updateTeamLineRow(teamId, key, venue){
-  const val = document.getElementById(`tlInput-${teamId}-${key}`).value;
-  const line = Number(String(val).replace(',', '.'));
-  teamLineState[teamLineKey(teamId, key)] = Number.isFinite(line) ? line : null;
-  const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
-  const lineVal = teamLineState[teamLineKey(teamId, key)];
-  const hOver = teamHitRate(totals, key, lineVal, 'over');
-  const hUnder = teamHitRate(totals, key, lineVal, 'under');
-  const fmtRes = (h) => h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
-  document.getElementById(`tlResultOver-${teamId}-${key}`).innerHTML = fmtRes(hOver);
-  document.getElementById(`tlResultUnder-${teamId}-${key}`).innerHTML = fmtRes(hUnder);
-}
-
 // Overrides arbitro inseriti a mano dalla pagina (per partite non ancora
 // presenti nel foglio ARBITRI dell'Excel). Salvati SEMPRE in localStorage
 // (risposta immediata, funziona anche offline) e in più sincronizzati con
@@ -1564,66 +1410,6 @@ function renderArbitroSnippet(match){
       <button onclick="saveArbitroOverride('${match.Match_ID}', ''); render();" title="Rimuovi e scegli un altro arbitro" style="margin-left:8px;font-size:11px;padding:2px 6px;">cambia</button>
     </div>`;
 }
-
-// ---------------------------------------------------------------------------
-// Proiezione avanzata (Statistiche squadra): quando ci sono titolari spuntati
-// in "Confronto partita", la Proiezione per Tiri/SOT/Falli/Cartellini non usa
-// più la media dell'intera rosa, ma la somma dei singoli titolari — ciascuno
-// con il proprio fattore di aggiustamento per ruolo (stesso calcolo già
-// usato per la Proiezione aggiustata del pannello Baseline, qui ripetuto per
-// più giocatori). Falli e Cartellini ricevono in più il fattore arbitro.
-// Corner resta SEMPRE a livello squadra: non c'è attribuzione per giocatore
-// nei nostri dati, quindi titolari/ruolo/arbitro non si applicano lì.
-// ---------------------------------------------------------------------------
-const BASELINE_ROLE_MAP = {
-  Tiri: 'Tiri_Concessi_90', SOT: 'SOT_Concessi_90', FC: 'Falli_Contro_Ruolo_90', Cart: 'Cartellini_Ruolo_90',
-};
-let _roleLeagueAvgCache = {};
-function getRoleLeagueAvg(oppVenue, role, roleCol){
-  const k = oppVenue + '|' + role + '|' + roleCol;
-  if (k in _roleLeagueAvgCache) return _roleLeagueAvgCache[k];
-  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
-  const minSample = oppVenue === 'TOTALE' ? 3 : 2;
-  let sum = 0, n = 0;
-  for (const t of teamsAll) {
-    const ts = computeTeamStats(DB.matchLog, t, oppVenue);
-    const rc = computeRoleConcessions(DB.matchLog, t, oppVenue, role, ts.Partite);
-    if (rc[roleCol] != null && ts.Partite >= minSample) { sum += rc[roleCol]; n++; }
-  }
-  const avg = n ? sum / n : null;
-  _roleLeagueAvgCache[k] = avg;
-  return avg;
-}
-
-// Baseline "solo titolare" di UN giocatore per una metrica, aggiustata per
-// quanto l'avversario concede al suo ruolo specifico — fattore shrinkato sul
-// numero di prestazioni di quel ruolo che l'avversario ha già affrontato.
-function computePlayerRoleAdjustedProjection(playerId, teamId, venue, oppTeamId, oppVenue, metricKey){
-  const pTot = computePlayerStats(DB.matchLog, playerId, 'TOTALE', 'TITOLARE', teamId);
-  const pHome = computePlayerStats(DB.matchLog, playerId, 'HOME', 'TITOLARE', teamId);
-  const pAway = computePlayerStats(DB.matchLog, playerId, 'AWAY', 'TITOLARE', teamId);
-  const baseline = computeBaseline(pTot, pHome, pAway);
-  const baseCol = venue === 'HOME' ? '_BASE_HOME' : '_BASE_AWAY';
-  const baseVal = baseline[metricKey + baseCol];
-  if (baseVal == null) return { baseVal: null, roleVal: null, fattore: 1, proiezione: null, nRuolo: 0 };
-
-  const player = DB.rosters.find(p => p.Player_ID === playerId);
-  const role = player.Posizione_Analitica;
-  const oppStats = computeTeamStats(DB.matchLog, oppTeamId, oppVenue);
-  const roleConc = computeRoleConcessions(DB.matchLog, oppTeamId, oppVenue, role, oppStats.Partite);
-  const roleCol = BASELINE_ROLE_MAP[metricKey];
-  const roleVal = roleConc[roleCol];
-  const nRuolo = roleConc.N_Prestazioni_Ruolo;
-  const leagueAvg = getRoleLeagueAvg(oppVenue, role, roleCol);
-
-  let fattore = 1;
-  if (roleVal != null && leagueAvg) {
-    const rawRatio = roleVal / leagueAvg;
-    fattore = 1 + (rawRatio - 1) * (nRuolo / (nRuolo + SHRINK_K));
-  }
-  return { baseVal, roleVal, fattore, proiezione: baseVal * fattore, nRuolo };
-}
-
 // Fattore arbitro, solo per Falli e Cartellini: rapporto tra la sua media per
 // quel lato (casa/trasferta) e la media di lega, shrinkato sul numero di
 // partite dirette. Nessun arbitro assegnato/valido → fattore 1 (nessun
@@ -1649,62 +1435,6 @@ function computeArbitroFactorForSide(match, side, metricKey){
   }
   return { fattore, nArbitro: s.N_Partite, arbitroNome: s.Arbitro };
 }
-
-// Riga di proiezione per UN lato (home/away) e UNA metrica: se ci sono
-// titolari spuntati, somma le loro proiezioni aggiustate per ruolo; altrimenti
-// ricade sulla proiezione a livello squadra (comportamento di sempre).
-const CENTRAL_METRICS = [
-  ['⚽', 'Tiri Totali', 'Tiri', 'Tiri'],
-  ['🎯', 'Tiri in porta', 'SOT', 'SOT'],
-  ['🥾', 'Falli', 'Falli', 'FC'],
-  ['🟨', 'Cartellini', 'Cart', 'Cart'],
-  ['🚩', 'Corner', 'Corner', null],
-];
-function computeSideProjectionRow(side, teamId, venue, oppTeamId, oppVenue, teamKey, playerKey, leagueAvgTeamKey, match){
-  let propria, concesso, proiezioneBase, nConc, usaTitolari = false;
-
-  if (playerKey && moState[side].checked.size > 0) {
-    usaTitolari = true;
-    let sumBase = 0, sumProiez = 0, sumConc = 0, sumN = 0, cnt = 0;
-    for (const pid of moState[side].checked) {
-      const r = computePlayerRoleAdjustedProjection(pid, teamId, venue, oppTeamId, oppVenue, playerKey);
-      if (r.baseVal == null) continue;
-      sumBase += r.baseVal;
-      sumProiez += r.proiezione;
-      if (r.roleVal != null) { sumConc += r.roleVal; sumN += r.nRuolo; cnt++; }
-    }
-    propria = sumBase;
-    concesso = cnt ? sumConc / cnt : null;
-    nConc = cnt ? Math.round(sumN / cnt) : 0;
-    proiezioneBase = sumProiez;
-  } else {
-    const p = multiplicativeProjection(DB.matchLog, teamId, venue, oppTeamId, oppVenue, teamKey, leagueAvgTeamKey, DB.calendar);
-    propria = p.ownAvgA;
-    concesso = p.concedeAvgB;
-    nConc = p.nB;
-    proiezioneBase = p.projection;
-  }
-
-  let fattoreArbitro = 1, nArbitro = 0;
-  if (playerKey && ['FC', 'Cart'].includes(playerKey) && proiezioneBase != null) {
-    const af = computeArbitroFactorForSide(match, side, playerKey);
-    fattoreArbitro = af.fattore;
-    nArbitro = af.nArbitro;
-  }
-  const proiezione = proiezioneBase != null ? proiezioneBase * fattoreArbitro : null;
-  return { propria, concesso, proiezione, usaTitolari, nConc, nArbitro, fattoreArbitro };
-}
-
-// Punteggio di solidità (0-1) di una cella di proiezione: quanto campione
-// c'è dietro alle correzioni applicate (ruolo, arbitro) — stessa logica di
-// shrinkage già usata ovunque, qui riletta come indicatore di fiducia.
-function computeSolidita(r){
-  const shrink = (n) => n / (n + SHRINK_K);
-  const soloRuolo = shrink(r.nConc || 0);
-  const soloArbitro = r.nArbitro > 0 ? shrink(r.nArbitro) : 1; // non applicabile = neutro, non penalizza
-  return soloRuolo * soloArbitro;
-}
-
 // "Segnale più forte" tra tutte le 10 caselle (5 metriche x 2 lati): non un
 // numero nuovo, non una proiezione — la direzione (Over/Under X, o "vince il
 // duello") che si è verificata più spesso storicamente, pesata dal campione.
@@ -1755,149 +1485,6 @@ function computeSignalStrength(teamId, teamKey, venue, proiezione, proiezioneOpp
 
   return { confidence, hitBest, duelInfo };
 }
-
-function renderCentralProjectionTable(match){
-  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
-  const leagueAvg = {};
-  TEAM_METRIC_LABELS.forEach(([key]) => { leagueAvg[key] = leagueAverageMetric(DB.matchLog, teamsAll, 'TOTALE', key, DB.calendar); });
-
-  const computed = CENTRAL_METRICS.map(([icon, label, teamKey, playerKey]) => {
-    const home = computeSideProjectionRow('home', match.Home_ID, 'HOME', match.Away_ID, 'AWAY', teamKey, playerKey, leagueAvg[teamKey], match);
-    const away = computeSideProjectionRow('away', match.Away_ID, 'AWAY', match.Home_ID, 'HOME', teamKey, playerKey, leagueAvg[teamKey], match);
-    // Punto 4A: passiamo la proiezione di ciascun lato e quella dell'avversario
-    // sulla stessa riga, così computeSignalStrength può verificare la coerenza
-    // prima di lasciar vincere un segnale contraddetto dal valore proiettato.
-    const sigHome = computeSignalStrength(match.Home_ID, teamKey, 'HOME', home.proiezione, away.proiezione);
-    const sigAway = computeSignalStrength(match.Away_ID, teamKey, 'AWAY', away.proiezione, home.proiezione);
-    return { icon, label, teamKey, home, away, sigHome, sigAway };
-  });
-
-  // Cerco il segnale più forte su tutte le 10 caselle (5 metriche x 2 lati) —
-  // uno solo, non uno per riga. Un segnale con confidence 0 (scartato per
-  // incoerenza col valore proiettato, vedi computeSignalStrength) non può
-  // mai vincere qui: la soglia "best.confidence > 0" più sotto lo esclude.
-  let best = { confidence: -1 };
-  for (const row of computed) {
-    if (row.sigHome.confidence > best.confidence) best = { confidence: row.sigHome.confidence, label: row.label, side: 'home', teamName: match.Home, sig: row.sigHome };
-    if (row.sigAway.confidence > best.confidence) best = { confidence: row.sigAway.confidence, label: row.label, side: 'away', teamName: match.Away, sig: row.sigAway };
-  }
-
-  const rows = computed.map(row => {
-    const cell = (r, isBest) => {
-      if (r.proiezione == null) return `<td class="iqx-val">—</td>`;
-      let detail = `propria: ${fmt(r.propria)} · conc: ${r.concesso != null ? fmt(r.concesso) : '—'}`;
-      if (r.usaTitolari) detail = 'titolari · ' + detail;
-      if (r.nArbitro > 0) detail += ` · arb: ${r.fattoreArbitro.toFixed(2)}× (N=${r.nArbitro})`;
-      const pillStyle = isBest ? ' style="background:#5BA8E8;color:#FFFFFF;"' : '';
-      return `<td class="iqx-val">
-        <span class="baseline-value"${pillStyle}>${fmt(r.proiezione)}</span>
-        <div class="subtle" style="margin-top:4px;">${detail}</div>
-      </td>`;
-    };
-    const isBestHome = row.label === best.label && best.side === 'home';
-    const isBestAway = row.label === best.label && best.side === 'away';
-    return `<tr class="iqx-row">${cell(row.home, isBestHome)}<td class="iqx-metric">${row.icon} ${row.label}</td>${cell(row.away, isBestAway)}</tr>`;
-  }).join('');
-
-  const bestBox = best.confidence > 0 ? `
-    <div class="subtle" style="margin-top:10px;padding:8px 10px;border:1px solid #5BA8E8;border-radius:8px;background:var(--panel-2);">
-      <strong style="color:#5BA8E8;">Segnale più forte del blocco:</strong> ${best.teamName} — ${best.label}
-      ${best.sig.hitBest ? ` · ${best.sig.hitBest.label} nel ${Math.round(best.sig.hitBest.rate*100)}% delle partite (${best.sig.hitBest.n})` : ''}
-      ${best.sig.duelInfo ? ` · duello vinto ${Math.round(best.sig.duelInfo.rate*100)}% (${best.sig.duelInfo.n})` : ''}
-      <div style="margin-top:2px;">Frequenza storica osservata, non una previsione — pesata dal campione dietro.</div>
-    </div>` : '';
-
-  // Punto 4B fix: tabella + box "segnale più forte" restano avvolti in UN
-  // unico contenitore con id fisso (centralProjWrap). In precedenza
-  // toggleMoCheck sostituiva l'outerHTML della sola <table id="centralProjTable">
-  // con questa stringa che contiene DUE elementi (tabella + box) — il box
-  // finiva come nodo fratello orfano, senza id, e ogni click su un titolare
-  // ne aggiungeva uno nuovo senza rimuovere i precedenti (da qui gli
-  // 8-9 blocchi duplicati). Ora si sostituisce sempre il wrapper intero.
-  return `
-    <div id="centralProjWrap">
-    <table class="stat iqx-table" style="margin-bottom:8px;">
-      <tr class="iqx-header"><td class="iqx-val" style="color:var(--text);font-weight:700;">${match.Home}</td><td class="iqx-metric" style="font-weight:700;">Proiezione</td><td class="iqx-val" style="color:var(--text);font-weight:700;">${match.Away}</td></tr>
-      ${rows}
-    </table>
-    ${bestBox}
-    </div>`;
-}
-
-function renderTeamStatsPanel(match){
-  _teamStatsMatch = match;
-  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
-  const leagueAvg = {};
-  TEAM_METRIC_LABELS.forEach(([key]) => { leagueAvg[key] = leagueAverageMetric(DB.matchLog, teamsAll, 'TOTALE', key, DB.calendar); });
-
-  function side(teamId, venue, label, oppTeamId, oppVenue){
-    const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
-    const duels = computeTeamDuelTotals(DB.matchLog, teamId, venue, DB.calendar);
-
-    // Punto 5: nel pannello "Confronto diretto" aggiungiamo la MEDIA REALE
-    // per partita di questa squadra in questo venue (accanto al record
-    // vinto/perso del duello) — così questo primo blocco porta
-    // un'informazione che il blocco sotto (hit rate su linea manuale) non
-    // duplica: qui è il valore assoluto proprio + chi vince lo scontro,
-    // sotto resta solo la soglia libera che sceglie Marco.
-    const duelRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
-      const d = teamDuelRecord(duels, key);
-      const vals = totals.map(t => t[key]).filter(v => v != null);
-      const media = vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
-      return `<tr><td class="metricname">${label2}</td><td class="num">${fmt(media)}</td><td class="num">${d.n ? `${d.wins}/${d.n} <span class="subtle">(</span><span class="${pctColorClass(d.rate)}">${Math.round(d.rate*100)}%</span><span class="subtle">)</span>` : '—'}</td></tr>`;
-    }).join('');
-
-    const hitRows = TEAM_METRIC_LABELS.map(([key, label2]) => {
-      const defaultLine = TEAM_LINE_SETS[key][1]; // preset centrale come default
-      if (!(teamLineKey(teamId, key) in teamLineState)) teamLineState[teamLineKey(teamId, key)] = defaultLine;
-      const line = teamLineState[teamLineKey(teamId, key)];
-      const hOver = teamHitRate(totals, key, line, 'over');
-      const hUnder = teamHitRate(totals, key, line, 'under');
-      const fmtRes = (h) => h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n} (${Math.round(h.rate*100)}%)</span>` : '—';
-      return `<tr>
-        <td class="metricname">${label2}</td>
-        <td class="num"><input type="text" inputmode="decimal" id="tlInput-${teamId}-${key}" value="${line}" onchange="updateTeamLineRow('${teamId}','${key}','${venue}')" style="width:52px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px;text-align:right;" /></td>
-        <td class="num" id="tlResultOver-${teamId}-${key}">${fmtRes(hOver)}</td>
-        <td class="num" id="tlResultUnder-${teamId}-${key}">${fmtRes(hUnder)}</td>
-      </tr>`;
-    }).join('');
-
-    const rest = restDaysBefore(DB.calendar, teamId, match.Data);
-
-    return `
-      <div>
-        <div class="metricname" style="margin-bottom:8px;">${label} <span class="subtle">(${totals.length} partite · riposo: ${rest != null ? rest + ' giorni' : '—'})</span></div>
-        <div class="subtle" style="margin-bottom:4px;">Confronto diretto — media propria a partita in questo venue, e quante volte ha fatto più dell'avversario nella stessa gara</div>
-        <table class="stat" style="margin-bottom:16px;">
-          <tr><th>Metrica</th><th class="num">Media/partita</th><th class="num">Vinto</th></tr>
-          ${duelRows}
-        </table>
-        <div class="subtle" style="margin-bottom:4px;">Hit rate sulla linea che scegli tu — modifica il numero e premi invio</div>
-        <table class="stat">
-          <tr><th>Metrica</th><th class="num">Linea</th><th class="num">Over</th><th class="num">Under</th></tr>
-          ${hitRows}
-        </table>
-      </div>`;
-  }
-
-  return `
-    <div class="panel section-gap">
-      <h2><span class="info-title" title="Proiezione: somma dei titolari spuntati (dati solo-da-titolare, aggiustati per il ruolo dell'avversario, shrinkage indipendente) se ne hai scelti, altrimenti media di squadra × forza attacco × debolezza difesa avversario. Falli e Cartellini moltiplicano anche un fattore arbitro shrinkato sulle sue partite dirette. Corner resta sempre a livello squadra. 'Confronto diretto' mostra la media propria a partita e chi ha fatto di più DENTRO la stessa partita. 'Hit rate sulla linea' ti lascia scegliere qualunque soglia. Il riposo (giorni dall'ultima partita) è mostrato come informazione, non è integrato nel calcolo — verificato che non ha una correlazione affidabile nei nostri dati.">Statistiche squadra</span> <span class="tag" style="flex:1;">per venue reale della partita</span>
-        <button class="panel-collapse-btn" onclick="togglePanelCollapse('teamStats')" id="panelBtn-teamStats">${panelCollapseState.teamStats ? 'espandi ▸' : 'minimizza ▾'}</button>
-      </h2>
-      <div id="panelBody-teamStats" style="${panelCollapseState.teamStats ? 'display:none;' : ''}">
-        <div class="body">
-          <div class="subtle" style="margin-bottom:6px;">Proiezione — se hai spuntato dei titolari in "Confronto partita" qui sotto, la somma usa i loro dati personali (solo da titolare) aggiustati per il ruolo dell'avversario; altrimenti usa la media dell'intera squadra. Falli e Cartellini includono anche l'arbitro assegnato. Corner resta sempre a livello squadra.</div>
-          ${renderCentralProjectionTable(match)}
-        </div>
-        <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;overflow-x:auto;padding-top:0;">
-          ${side(match.Home_ID, 'HOME', match.Home + ' — Casa', match.Away_ID, 'AWAY')}
-          ${side(match.Away_ID, 'AWAY', match.Away + ' — Trasferta', match.Home_ID, 'HOME')}
-        </div>
-      </div>
-    </div>`;
-}
-
 function renderNotableFactsPanel(match){
   _pCache = {}; _roleCache = {}; _leagueMetricCache = {}; // reset cache per questo render
 
@@ -1936,7 +1523,7 @@ function renderNotableFactsPanel(match){
           <div><div style="margin-bottom:6px;font-weight:600;"><span style="color:var(--accent);">${match.Away}</span> <span class="subtle">— Trasferta</span></div>${list(match.Away, away)}</div>
         </div>
         <div class="body" style="padding-top:0;">
-          <div class="subtle">Rank provvisori (X°/Y eleggibili): con solo 30 partite giocate su 380, non tutte le squadre/giocatori hanno ancora campione sufficiente — mostrato solo dove almeno 6 sono confrontabili. Cambierà nel corso della stagione. I fatti sui ruoli sono mostrati solo se l'avversario reale di questa partita ha davvero giocatori attivi in quel ruolo. A livello di singolo giocatore vengono mostrati solo i primati (mai gli "ultimi posti") — un rank basso ha senso solo letto a livello di squadra.</div>
+          <div class="subtle">Rank provvisori (X°/Y eleggibili): con solo ${DB.calendar.filter(c => c.Stato === 'CONCLUSA').length} partite giocate su ${DB.calendar.length}, non tutte le squadre/giocatori hanno ancora campione sufficiente — mostrato solo dove almeno 6 sono confrontabili. Cambierà nel corso della stagione. I fatti sui ruoli sono mostrati solo se l'avversario reale di questa partita ha davvero giocatori attivi in quel ruolo. A livello di singolo giocatore vengono mostrati solo i primati (mai gli "ultimi posti") — un rank basso ha senso solo letto a livello di squadra.</div>
           <div class="subtle" style="margin-top:7px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
             <strong style="color:var(--text-2);font-weight:600;">Rank:</strong>
             ${factsRankBadgeV2(1,6)} 1° · ${factsRankBadgeV2(2,6)} 2° · ${factsRankBadgeV2(3,6)} 3° · ${factsRankBadgeV2(4,6)} terzultimo · ${factsRankBadgeV2(5,6)} penultimo · ${factsRankBadgeV2(6,6)} ultimo
@@ -1949,7 +1536,6 @@ function renderNotableFactsPanel(match){
       </div>
     </div>`;
 }
-
 // ---------------------------------------------------------------------------
 // PANNELLO "Rank ruolo — vulnerabilità avversario": una riga per ciascuno
 // degli 8 ruoli analitici, con il rank dell'avversario (tra le 20 squadre)
@@ -1986,236 +1572,791 @@ function computeRoleVulnerabilityTable(oppTeamId, oppVenue){
     return row;
   });
 }
+// ============================================================================
+// v2 — Matchup Engine a 4 sezioni (Sintesi / Squadre e linee / Matchup e giocatori / Formazioni)
+// Tutto il codice sopra questo blocco (Fatti salienti, arbitri, helper) e' quello della
+// pagina precedente, invariato. Qui: stato, formazioni salvate, sezioni, scheda laterale.
+// ============================================================================
+let MODEL = null, CARDPF = null;
+const S = { sez: 'sintesi', mk: 'Tiri', team: 'home', pl: null, sort: { key: 'mu', dir: -1 } };
+const SEZ = [
+  ['sintesi', 'Sintesi partita', 'Dove concentrare l\'analisi?'],
+  ['squadre', 'Squadre e linee', 'Cosa producono e quanto superano le soglie?'],
+  ['matchup', 'Matchup e giocatori', 'Chi può esprimere il vantaggio?'],
+  ['formazioni', 'Formazioni', 'Su chi si basa lo scenario?'],
+];
+const MK = [['Tiri', 'Tiri'], ['SOT', 'Tiri in porta'], ['FC', 'Falli commessi'], ['FD', 'Falli subiti'], ['Cart', 'Cartellini']];
+const MK_LABEL = Object.fromEntries(MK);
+const MK_ROLECOL = { Tiri: 'Tiri_Concessi_90', SOT: 'SOT_Concessi_90', FC: 'Falli_Contro_Ruolo_90', FD: 'FalliSubiti_Ruolo_90', Cart: 'Cartellini_Ruolo_90' };
+const MK_ICON = { Tiri: 'tiri', SOT: 'tiri in porta', FC: 'falli', FD: 'falli', Cart: 'cartellini' };
+// metriche di SQUADRA: [chiave modello, chiave totali squadra, etichetta]
+const TM = [['Tiri', 'Tiri', 'Tiri totali'], ['SOT', 'SOT', 'Tiri in porta'], ['FC', 'Falli', 'Falli'], ['Cart', 'Cart', 'Cartellini'], ['Corner', 'Corner', 'Corner']];
+const ROLE_ORDER = ['Portiere', 'Centrale difensivo', 'Terzino', 'Esterno/Quinto', 'Centrocampista centrale', 'Trequartista', 'Esterno offensivo', 'Punta centrale'];
+// soglie shortlist (provvisorie, da validare su piu' giornate)
+const SL = { statDelta: 0.12, statMinN: 3, arbDelta: 0.10, arbMinN: 3, playerRatio: 1.25, playerRatioLow: 0.75, minPrior: 0.8, roleSigMinN: 3, roleSigMinElig: 6 };
 
-// Stato di ordinamento del pannello Rank ruolo, per lato (home/away) —
-// indipendenti tra loro, resettato solo quando cambia partita (gestito in
-// initMoState insieme al resto dello stato "Confronto partita").
-const roleVulnState = {
-  home: { sort: { key: null, dir: 1 } },
-  away: { sort: { key: null, dir: 1 } },
-};
+const pc = (p) => (p == null ? '—' : Math.round(p * 100) + '%');
+const qm = (p) => (p != null && p > 0.0001 ? (1 / p).toFixed(2) : '—');
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ic = (k) => metricIcon(k);
 
-function renderRoleVulnTable(oppTeamId, oppVenue, oppLabel, side){
-  const rows = computeRoleVulnerabilityTable(oppTeamId, oppVenue);
-  const st = roleVulnState[side];
-  if (st.sort.key) {
-    rows.sort((a, b) => {
-      const va = a[st.sort.key].value, vb = b[st.sort.key].value;
-      const na = va == null, nb = vb == null;
-      if (na && nb) return 0;
-      if (na) return 1; // N/D sempre in fondo, qualunque direzione
-      if (nb) return -1;
-      return (va - vb) * st.sort.dir;
-    });
+function getMatch() {
+  const el = document.getElementById('selMatch');
+  return el && DB ? DB.calendar.find((m) => m.Match_ID === el.value) : null;
+}
+function sideInfo(match, side) {
+  return side === 'home'
+    ? { side, teamId: match.Home_ID, name: match.Home, venue: 'HOME', oppId: match.Away_ID, oppName: match.Away, oppVenue: 'AWAY', oppSide: 'away' }
+    : { side, teamId: match.Away_ID, name: match.Away, venue: 'AWAY', oppId: match.Home_ID, oppName: match.Home, oppVenue: 'HOME', oppSide: 'home' };
+}
+const venueTxt = (v) => (v === 'HOME' ? 'in casa' : 'in trasferta');
+
+// ---------------------------------------------------------------------------
+// Cache per render
+// ---------------------------------------------------------------------------
+let _arb = {}, _tsCache = {}, _lgTeam = {}, _roleRank = {}, _vuln = {};
+function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; }
+function arbFactor(match, side, m) {
+  const key = m === 'Cart' ? 'Cart' : 'FC';
+  const k = side + key;
+  if (!(k in _arb)) _arb[k] = computeArbitroFactorForSide(match, side, key);
+  return _arb[k];
+}
+function teamsAllIds() { return [...new Set(DB.rosters.map((r) => r.Team_ID_Rif))]; }
+function leagueAvgTeam(tkey) {
+  if (!(tkey in _lgTeam)) _lgTeam[tkey] = leagueAverageMetric(DB.matchLog, teamsAllIds(), 'TOTALE', tkey, DB.calendar);
+  return _lgTeam[tkey];
+}
+function teamStatsC(teamId, venue) {
+  const k = teamId + '|' + venue;
+  if (!(k in _tsCache)) _tsCache[k] = computeTeamStats(DB.matchLog, teamId, venue);
+  return _tsCache[k];
+}
+function vulnC(oppId, oppVenue) {
+  const k = oppId + '|' + oppVenue;
+  if (!(k in _vuln)) _vuln[k] = computeRoleVulnerabilityTable(oppId, oppVenue);
+  return _vuln[k];
+}
+
+// ---------------------------------------------------------------------------
+// FORMAZIONI — stato salvato in localStorage (subito) e su Supabase (tabella
+// "formazioni", vedi supabase_formazioni.sql). Chiave: partita + squadra.
+// Se non c'e' nulla di salvato, parte da una STIMA (11 piu' impiegati da
+// titolare), sempre etichettata "ipotetica" finche' non la confermi tu.
+// ---------------------------------------------------------------------------
+const LU_KEY = (id) => 'lineup_v2_' + id;
+let LU = null; // { matchId, teams:{teamId:{ids,confirmed,source,ts}}, base:{teamId:[ids]}, cloud }
+let _luTimers = {};
+
+function stimaFormazione(teamId) {
+  const players = DB.rosters.filter((p) => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
+  const stat = players.map((p) => {
+    const rows = DB.matchLog.filter((r) => r.Player_ID === p.Player_ID && r.Team_ID === teamId);
+    return { p, starts: rows.filter((r) => r.Titolare === 'Sì').length, min: rows.reduce((a, r) => a + (Number(r.Minuti) || 0), 0) };
+  });
+  const cmp = (a, b) => b.starts - a.starts || b.min - a.min || a.p.Nome_completo.localeCompare(b.p.Nome_completo);
+  const gk = stat.filter((s) => s.p.Posizione_Analitica === 'Portiere').sort(cmp).slice(0, 1);
+  const out = stat.filter((s) => s.p.Posizione_Analitica !== 'Portiere').sort(cmp).slice(0, 11 - gk.length);
+  return [...gk, ...out].map((s) => s.p.Player_ID);
+}
+function luLoadLocal(matchId) {
+  try { return JSON.parse(localStorage.getItem(LU_KEY(matchId)) || '{}') || {}; } catch (e) { return {}; }
+}
+function luSaveLocal() {
+  try { localStorage.setItem(LU_KEY(LU.matchId), JSON.stringify(LU.teams)); } catch (e) {}
+}
+function initLineups(match) {
+  const saved = luLoadLocal(match.Match_ID);
+  LU = { matchId: match.Match_ID, teams: {}, base: {}, cloud: sb ? 'sync' : 'local' };
+  for (const t of [match.Home_ID, match.Away_ID]) {
+    LU.base[t] = stimaFormazione(t);
+    const s = saved[t];
+    LU.teams[t] = s && Array.isArray(s.ids)
+      ? { ids: s.ids.slice(), confirmed: !!s.confirmed, source: s.source || 'manuale', ts: s.ts || 0 }
+      : { ids: LU.base[t].slice(), confirmed: false, source: 'stima', ts: 0 };
   }
-  const head = ROLE_VULN_METRICS.map(([key, label, title]) =>
-    `<th class="num sortable" title="${title}" data-key="${key}" onclick="sortRoleVuln('${side}','${oppTeamId}','${oppVenue}','${key}')">${label}<span class="arrow">${st.sort.key===key ? (st.sort.dir===1?'▲':'▼') : ''}</span></th>`
-  ).join('');
-  const body = rows.map(r => {
-    const cells = ROLE_VULN_METRICS.map(([key]) => {
-      const c = r[key];
-      if (c.rank === 'N/D' || c.rank == null) return `<td class="num rank nd">N/D</td>`;
-      return `<td class="num ${rankColorClass(c.rank)}">${fmt(c.value)} <span class="subtle">(${c.rank}°/${c.eligible})</span></td>`;
-    }).join('');
-    return `<tr><td class="metricname">${r.ruolo}</td>${cells}</tr>`;
+  luPullCloud(match);
+}
+async function luPullCloud(match) {
+  if (!sb) return;
+  const id = match.Match_ID;
+  try {
+    const { data, error } = await sb.from('formazioni').select('team_id, starters, confirmed, updated_at').eq('match_id', id);
+    if (error) throw error;
+    if (!LU || LU.matchId !== id) return; // nel frattempo hai cambiato partita
+    let changed = false;
+    const have = {};
+    for (const row of data || []) {
+      if (!LU.teams[row.team_id]) continue;
+      have[row.team_id] = true;
+      const cloudTs = Date.parse(row.updated_at) || 0;
+      if (cloudTs > (LU.teams[row.team_id].ts || 0) && Array.isArray(row.starters)) {
+        LU.teams[row.team_id] = { ids: row.starters.slice(), confirmed: !!row.confirmed, source: 'cloud', ts: cloudTs };
+        changed = true;
+      }
+    }
+    // formazioni salvate solo in locale: le porto su cloud, cosi' le trovi anche sugli altri dispositivi
+    for (const t of Object.keys(LU.teams)) if (!have[t] && LU.teams[t].ts > 0) luPush(t, id);
+    LU.cloud = 'saved';
+    luSaveLocal();
+    if (changed) renderAll(); else luStatusUpdate();
+  } catch (e) {
+    console.warn('Supabase: formazioni non lette, resto sui dati locali.', e);
+    if (LU && LU.matchId === id) { LU.cloud = 'err'; luStatusUpdate(); }
+  }
+}
+function luPush(teamId, matchId) {
+  if (!sb) return;
+  const t = LU.teams[teamId];
+  LU.cloud = 'saving'; luStatusUpdate();
+  sb.from('formazioni').upsert({ match_id: matchId, team_id: teamId, starters: t.ids, confirmed: t.confirmed, updated_at: new Date(t.ts || Date.now()).toISOString() })
+    .then(({ error }) => {
+      if (!LU || LU.matchId !== matchId) return;
+      LU.cloud = error ? 'err' : 'saved';
+      if (error) console.warn('Supabase: formazione non salvata, resta su questo dispositivo.', error);
+      luStatusUpdate();
+    });
+}
+function luCommit(teamId) {
+  const t = LU.teams[teamId];
+  t.ts = Date.now();
+  luSaveLocal();
+  if (!sb) { LU.cloud = 'local'; luStatusUpdate(); return; }
+  const matchId = LU.matchId;
+  clearTimeout(_luTimers[teamId]);
+  _luTimers[teamId] = setTimeout(() => luPush(teamId, matchId), 500);
+  LU.cloud = 'saving'; luStatusUpdate();
+}
+function luStatusUpdate() {
+  const el = document.getElementById('luStatus');
+  if (!el || !LU) return;
+  const m = {
+    local: ['salvata su questo browser (cloud non collegato)', 'err'],
+    sync: ['sincronizzazione…', ''],
+    saving: ['salvataggio…', ''],
+    saved: ['salvata su cloud e su questo browser ✓', 'ok'],
+    err: ['salvata solo su questo browser — cloud non raggiungibile', 'err'],
+  }[LU.cloud] || ['', ''];
+  el.textContent = m[0]; el.className = 'lustatus ' + m[1];
+}
+function luToggle(teamId, pid) {
+  const t = LU.teams[teamId];
+  const i = t.ids.indexOf(pid);
+  if (i >= 0) t.ids.splice(i, 1); else t.ids.push(pid);
+  t.source = 'manuale'; t.confirmed = false;
+  luCommit(teamId); renderAll();
+}
+function luConfirm(teamId) {
+  const t = LU.teams[teamId];
+  t.confirmed = !t.confirmed; if (t.confirmed) t.source = 'manuale';
+  luCommit(teamId); renderAll();
+}
+function luReset(teamId) {
+  const t = LU.teams[teamId];
+  t.ids = LU.base[teamId].slice(); t.source = 'stima'; t.confirmed = false;
+  luCommit(teamId); renderAll();
+}
+function luSummary(match, side) {
+  const info = sideInfo(match, side);
+  const t = LU.teams[info.teamId];
+  const pl = t.ids.map((id) => DB.rosters.find((r) => r.Player_ID === id)).filter(Boolean);
+  const gk = pl.filter((p) => p.Posizione_Analitica === 'Portiere').length;
+  const issues = [];
+  if (pl.length < 11) issues.push('mancano ' + (11 - pl.length)); else if (pl.length > 11) issues.push((pl.length - 11) + ' di troppo');
+  if (gk !== 1) issues.push(gk === 0 ? 'manca il portiere' : gk + ' portieri');
+  const stato = t.confirmed ? 'confermata' : (t.source === 'stima' ? 'ipotetica (stima)' : 'ipotetica');
+  return { n: pl.length, gk, issues, ok: t.confirmed && !issues.length, stato, t, info };
+}
+
+// ---------------------------------------------------------------------------
+// Proiezioni giocatore / squadra
+// ---------------------------------------------------------------------------
+function pData(match, side, p, m, titolare) {
+  const info = sideInfo(match, side);
+  const pr = projectPlayer(MODEL, DB.matchLog, { id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }, info.oppId, titolare, m);
+  const af = (m === 'FC' || m === 'Cart') ? arbFactor(match, side, m).fattore : 1;
+  return { ...pr, fattoreArbitro: af, rate90Fin: pr.rate90 == null ? null : pr.rate90 * af, muFin: pr.mu == null ? null : pr.mu * af };
+}
+function lineupPlayers(match, side, ids) {
+  const info = sideInfo(match, side);
+  const list = ids || LU.teams[info.teamId].ids;
+  return list.map((id) => DB.rosters.find((r) => r.Player_ID === id)).filter(Boolean);
+}
+function teamProj(match, side, key, ids) {
+  const info = sideInfo(match, side);
+  const tkey = key === 'FC' ? 'Falli' : key;
+  const totals = computeTeamMatchTotals(DB.matchLog, info.teamId, info.venue, DB.calendar);
+  const vals = totals.map((t) => t[tkey]).filter((v) => v != null);
+  const own = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  if (key === 'Corner') {
+    const p = multiplicativeProjection(DB.matchLog, info.teamId, info.venue, info.oppId, info.oppVenue, 'Corner', leagueAvgTeam('Corner'), DB.calendar);
+    return { total: p.projection, own, nVenue: vals.length, counted: null, expected: null, complete: true, af: 1, kind: 'squadra' };
+  }
+  const players = lineupPlayers(match, side, ids).map((p) => ({ id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }));
+  const af = (key === 'FC' || key === 'Cart') ? arbFactor(match, side, key).fattore : 1;
+  const R = projectLineupTotal(MODEL, DB.matchLog, players, info.oppId, key, af);
+  return { total: R.withBench, starters: R.startersTotal, own, nVenue: vals.length, counted: R.counted, expected: players.length, complete: R.complete, af, lowRel: R.lowReliability, kind: 'formazione' };
+}
+function allTeamProj(match) {
+  const out = {};
+  for (const side of ['home', 'away']) { out[side] = {}; for (const [mk] of TM) out[side][mk] = teamProj(match, side, mk); }
+  return out;
+}
+function relHtml(r) { return `<span class="rel ${r}"><i></i>${r}</span>`; }
+
+// ---------------------------------------------------------------------------
+// Navigazione e stato nell'indirizzo
+// ---------------------------------------------------------------------------
+function syncHash() {
+  const m = getMatch();
+  const p = new URLSearchParams();
+  if (m) p.set('m', m.Match_ID);
+  p.set('s', S.sez);
+  if (S.sez === 'matchup') { p.set('k', S.mk); p.set('t', S.team); }
+  if (S.pl) p.set('p', S.pl);
+  try { history.replaceState(null, '', '#' + p.toString()); } catch (e) {}
+}
+function readHash() {
+  const p = new URLSearchParams(location.hash.replace(/^#/, ''));
+  return { m: p.get('m'), s: p.get('s'), k: p.get('k'), t: p.get('t'), p: p.get('p') };
+}
+function go(sez, o) {
+  o = o || {};
+  S.sez = sez;
+  if (o.mk) S.mk = o.mk;
+  if (o.team) S.team = o.team;
+  if (o.pl !== undefined) S.pl = o.pl;
+  renderAll();
+  const tabs = document.getElementById('secTabs');
+  if (tabs && o.scroll !== false) window.scrollTo({ top: Math.max(0, tabs.getBoundingClientRect().top + window.scrollY - 6), behavior: 'auto' });
+}
+function openPlayer(pid) { S.pl = pid; renderDrawer(); syncHash(); }
+function closePlayer() { S.pl = null; renderDrawer(); syncHash(); }
+function sortBy(key) {
+  if (S.sort.key === key) S.sort.dir *= -1; else S.sort = { key, dir: key === 'name' ? 1 : -1 };
+  renderAll();
+}
+
+// ---------------------------------------------------------------------------
+// Render principale
+// ---------------------------------------------------------------------------
+let _lastMatchId = null;
+let _firstLoad = true;
+function render() {
+  const match = getMatch();
+  const main = document.getElementById('main');
+  if (!match) { main.innerHTML = '<div class="empty">Seleziona una partita.</div>'; return; }
+  if (_lastMatchId !== match.Match_ID) {
+    _lastMatchId = match.Match_ID;
+    initLineups(match);
+    if (_firstLoad) {
+      const h = readHash();
+      if (h.s && SEZ.some((s) => s[0] === h.s)) S.sez = h.s;
+      if (h.k && MK_LABEL[h.k]) S.mk = h.k;
+      if (h.t === 'home' || h.t === 'away') S.team = h.t;
+      S.pl = h.p || null;
+      _firstLoad = false;
+    } else S.pl = null;
+    try { localStorage.setItem('mx_last_match', match.Match_ID); } catch (e) {}
+  }
+  renderAll();
+}
+function headerCard(match) {
+  const chips = ['home', 'away'].map((side) => {
+    const u = luSummary(match, side);
+    return `<button class="lchip ${u.ok ? 'ok' : 'warn'}" onclick="go('formazioni')" title="Apri Formazioni">${esc(u.info.name)} ${u.n}/11 · ${u.stato}${u.issues.length ? ' · ' + esc(u.issues.join(', ')) : ''} ${u.ok ? '✓' : '⚠'}</button>`;
   }).join('');
   return `
-    <table class="stat" style="margin-top:8px;font-size:11px;" id="roleVulnTable-${side}">
-      <thead><tr><th>Ruolo</th>${head}</tr></thead>
-      <tbody>${body}</tbody>
-    </table>`;
-}
-
-function sortRoleVuln(side, oppTeamId, oppVenue, key){
-  const st = roleVulnState[side];
-  if (st.sort.key === key) st.sort.dir *= -1;
-  else st.sort = { key, dir: -1 }; // primo click: decrescente, così i valori più alti (di solito i più "interessanti") emergono subito
-  const table = document.getElementById('roleVulnTable-' + side);
-  if (table) table.outerHTML = renderRoleVulnTable(oppTeamId, oppVenue, null, side);
-}
-
-function renderRoleVulnerabilityPanel(match){
-  return `
-    <div class="panel section-gap">
-      <h2>Rank ruolo <span class="tag" style="flex:1;">quanto ogni squadra concede a ciascun ruolo, nel proprio venue di questa partita — clic sulle colonne per ordinare</span></h2>
-      <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;overflow-x:auto;">
-        <div>
-          <div style="font-weight:600;margin-bottom:4px;">Casa — <span style="color:var(--accent);">${match.Home}</span></div>
-          ${renderRoleVulnTable(match.Home_ID, 'HOME', match.Home, 'home')}
-        </div>
-        <div>
-          <div style="font-weight:600;margin-bottom:4px;">Trasferta — <span style="color:var(--accent);">${match.Away}</span></div>
-          ${renderRoleVulnTable(match.Away_ID, 'AWAY', match.Away, 'away')}
-        </div>
-      </div>
+    <div class="matchcard">
+      <div class="mtitle"><h2 class="match-title">${esc(match.Home)} – ${esc(match.Away)}</h2>
+        <span class="msub">Giornata ${match.Giornata}${match.Data ? ' · ' + esc(match.Data) : ''}</span></div>
+      <div style="margin-top:8px;">${renderArbitroSnippet(match).replace('margin-bottom:18px;', 'margin-bottom:0;')}</div>
+      <div class="lurow"><span class="lbl">Formazioni usate nei calcoli</span>${chips}<span class="subtle">(modificabili nella sezione Formazioni)</span></div>
     </div>`;
 }
-
-// Stato dei "Rank ruolo" (Confronto partita): righe calcolate, ordinamento e
-// stato aperto/chiuso per lato (Casa/Trasferta), indipendenti tra loro e
-// persistenti finché non cambi partita — così un click su una colonna o sul
-// pulsante minimizza non ricalcola né richiude tutto il resto della pagina.
-const moState = {
-  home: { rows: [], sort: { key: null, dir: 1 }, collapsed: false, checked: new Set() },
-  away: { rows: [], sort: { key: null, dir: 1 }, collapsed: false, checked: new Set() },
-};
-const MO_ACCESSORS = {
-  giocatore: r => r.p.Nome_completo,
-  ruolo: r => r.p.Posizione_Analitica,
-  min: r => r.pv.Minuti_Medi ?? -1,
-  tiri: r => r.pv.Tiri_90 ?? -1,
-  sot: r => r.pv.SOT_90 ?? -1,
-  fc: r => r.pv.FC_90 ?? -1,
-  fd: r => r.pv.FD_90 ?? -1,
-  cart: r => r.pv.Cartellini_90 ?? -1,
-};
-const MO_COLUMNS = [
-  ['giocatore', 'Giocatore', ''], ['ruolo', 'Ruolo', ''], ['min', 'Min. medi', 'num'],
-  ['tiri', 'Tiri/90', 'num'], ['sot', 'SOT/90', 'num'], ['fc', 'FC/90', 'num'],
-  ['fd', 'FD/90', 'num'], ['cart', 'Cart/90', 'num'],
-];
-const MO_STAT_KEYS = ['tiri', 'sot', 'fc', 'fd', 'cart'];
-const MO_STAT_LABELS = { tiri: 'Tiri/90', sot: 'SOT/90', fc: 'FC/90', fd: 'FD/90', cart: 'Cart/90' };
-const MO_STAT_TO_PV = { tiri: 'Tiri_90', sot: 'SOT_90', fc: 'FC_90', fd: 'FD_90', cart: 'Cartellini_90' };
-
-// initMoState ora accetta isNewMatch (punto 10): le spunte "titolare" vengono
-// azzerate SOLO quando cambia davvero la partita selezionata. In precedenza
-// venivano azzerate ad ogni chiamata di render() — quindi anche solo
-// spuntando "rank provvisorio" o cambiando il filtro Titolare sulla stessa
-// partita, le spunte sparivano. Ora persistono finché resti sulla stessa
-// partita.
-function initMoState(match, isNewMatch){
-  function buildSide(teamId, venue){
-    const players = DB.rosters
-      .filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId)
-      .sort((a,b) => a.Posizione_Analitica.localeCompare(b.Posizione_Analitica) || a.Nome_completo.localeCompare(b.Nome_completo));
-
-    return players.map(p => {
-      const pv = computePlayerStats(DB.matchLog, p.Player_ID, venue, null, teamId);
-      const ranks = {};
-      for (const [statKey, pvKey] of Object.entries(MO_STAT_TO_PV)) {
-        ranks[statKey] = computeAbsoluteRank(p.Player_ID, venue, pvKey);
-      }
-      return { p, pv, ranks };
-    });
-  }
-
-  moState.home.rows = buildSide(match.Home_ID, 'HOME');
-  moState.away.rows = buildSide(match.Away_ID, 'AWAY');
-  if (isNewMatch) {
-    moState.home.sort = { key: 'tiri', dir: -1 };
-    moState.away.sort = { key: 'tiri', dir: -1 };
-    moState.home.checked = new Set();
-    moState.away.checked = new Set();
-    roleVulnState.home.sort = { key: null, dir: 1 };
-    roleVulnState.away.sort = { key: null, dir: 1 };
-  }
+function tabsHtml(match) {
+  const warn = ['home', 'away'].some((s) => !luSummary(match, s).ok);
+  return `<div class="sections" id="secTabs">${SEZ.map((s) => `<button class="${s[0] === S.sez ? 'on' : ''}" onclick="go('${s[0]}')"><b>${s[1]}${s[0] === 'formazioni' && warn ? '<span class="dot" title="formazioni ipotetiche o incomplete"></span>' : ''}</b><small>${s[2]}</small></button>`).join('')}</div>`;
+}
+function renderAll() {
+  const match = getMatch();
+  if (!match || !LU) return;
+  resetRenderCaches();
+  const main = document.getElementById('main');
+  let body = '';
+  try {
+    body = S.sez === 'sintesi' ? secSintesi(match)
+      : S.sez === 'squadre' ? secSquadre(match)
+      : S.sez === 'matchup' ? secMatchup(match)
+      : secFormazioni(match);
+  } catch (e) { console.error(e); body = `<div class="warnbox">Errore nel calcolo di questa sezione: ${esc(e.message)}</div>`; }
+  main.innerHTML = headerCard(match) + tabsHtml(match) + `<div id="secBody">${body}</div><div id="drawerHost"></div>`;
+  luStatusUpdate();
+  renderDrawer();
+  syncHash();
 }
 
-function renderMatchOverview(match){
-  return `<div id="moContainer">${renderSidePanel('home', match.Home, 'Casa')}${renderSidePanel('away', match.Away, 'Trasferta')}</div>`;
+// ---------------------------------------------------------------------------
+// SEZIONE 1 — Sintesi partita
+// ---------------------------------------------------------------------------
+function secSintesi(match) {
+  const unconf = ['home', 'away'].map((s) => luSummary(match, s)).filter((u) => !u.ok);
+  const note = unconf.length
+    ? `<div class="infobox">Le stime di questa pagina usano formazioni <b>non ancora confermate</b> (${unconf.map((u) => esc(u.info.name) + ': ' + u.stato).join(' · ')}). <a href="#" onclick="go('formazioni');return false;">Controlla le formazioni →</a></div>` : '';
+  const P = allTeamProj(match);
+  return note + factsBlock(match) + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, P) + shortPlayersBlock(match);
+}
+function factsBlock(match) {
+  return renderNotableFactsPanel(match).replace('<div class="panel" style="margin-top:28px;">', '<div class="panel" style="margin-bottom:22px;">');
 }
 
-function renderSidePanel(side, teamName, label){
-  const st = moState[side];
-  const bodyHtml = renderSideRowsHtml(side);
+function cmpBlock(match, P) {
+  const rows = TM.map(([mk, tk, label]) => {
+    const h = P.home[mk], a = P.away[mk];
+    if (h.total == null || a.total == null) return '';
+    const sum = h.total + a.total;
+    const share = sum ? (h.total / sum) * 100 : 50;
+    const d = h.total - a.total;
+    const hiH = d > 0, hiA = d < 0;
+    const warn = (x) => (x.counted != null && !x.complete ? ' <span class="tagwarn" title="Formazione incompleta: totale calcolato su ' + x.counted + ' giocatori">⚠ ' + x.counted + '/' + x.expected + '</span>' : '');
+    const sub = (x) => `media ${x.own != null ? fmt(x.own, 1) : '—'} · ${x.nVenue} partite`;
+    return `<div class="cmp-row">
+      <div class="v l"><b class="${hiH ? 'hi' : ''}">${fmt(h.total, 1)}${warn(h)}</b><small>${sub(h)}</small></div>
+      <div class="mid"><div class="mname">${mk === 'FC' ? ic('falli') : ic(tk === 'SOT' ? 'tiri in porta' : tk === 'Cart' ? 'cartellini' : tk === 'Corner' ? 'corner' : 'tiri')} ${label}</div>
+        <div class="bar"><i style="width:${share.toFixed(1)}%"></i></div>
+        <div class="diff">${Math.abs(d) < 0.05 ? 'equilibrio' : `<b class="${hiH ? 'h' : 'a'}">${esc(hiH ? match.Home : match.Away)}</b> +${fmt(Math.abs(d), 1)}`}</div></div>
+      <div class="v r"><b class="${hiA ? 'hi' : ''}">${fmt(a.total, 1)}${warn(a)}</b><small>${sub(a)}</small></div>
+    </div>`;
+  }).join('');
+  const hp = teamStatsC(match.Home_ID, 'HOME'), ap = teamStatsC(match.Away_ID, 'AWAY');
+  let poss = '';
+  if (hp.Possesso_Medio != null && ap.Possesso_Medio != null) {
+    const s = hp.Possesso_Medio + ap.Possesso_Medio;
+    poss = `<div class="cmp-row"><div class="v l"><b>${fmt(hp.Possesso_Medio, 0)}%</b><small>${hp.Possesso_N} partite in casa</small></div>
+      <div class="mid"><div class="mname">Possesso medio <span class="subtle">(contesto)</span></div><div class="bar"><i style="width:${(hp.Possesso_Medio / s * 100).toFixed(1)}%"></i></div><div class="diff">non entra nelle proiezioni</div></div>
+      <div class="v r"><b>${fmt(ap.Possesso_Medio, 0)}%</b><small>${ap.Possesso_N} partite in trasferta</small></div></div>`;
+  }
   return `
-      <div class="panel section-gap">
-        <h2>${teamName} — ${label} <span class="tag" style="flex:1;">statistiche personali dei giocatori, con il rank di ciascuno rispetto a TUTTA la lega (non solo il suo ruolo)</span>
-          <button class="panel-collapse-btn" onclick="toggleMoSide('${side}')" id="moBtn-${side}">${st.collapsed ? 'espandi ▸' : 'minimizza ▾'}</button>
-        </h2>
-        <div class="body" style="overflow-x:auto;${st.collapsed ? 'display:none;' : ''}" id="moBody-${side}">
-          <table class="stat">
-            <thead><tr id="moHead-${side}">
-              <th title="Spunta i titolari previsti per sommare le loro statistiche qui sotto — persiste finché resti su questa partita">Tit.?</th>
-              ${MO_COLUMNS.map(([key,label2,cls]) => `<th class="sortable ${cls}" data-key="${key}" onclick="sortMoSide('${side}','${key}')">${label2}<span class="arrow">${st.sort.key===key ? (st.sort.dir===1?'▲':'▼') : ''}</span></th>`).join('')}
-            </tr></thead>
-            <tbody id="moTbody-${side}">${bodyHtml}</tbody>
-          </table>
-          <div class="subtle" id="moSummary-${side}" style="margin-top:8px;">${renderMoSummaryHtml(side)}</div>
-        </div>
-      </div>`;
+  <div class="card"><h3>Confronto squadre <span class="tag">proiezione per partita con le formazioni scelte (titolari + stima panchina) · barra = quota sul totale delle due squadre, tacca centrale = parità</span></h3>
+    <div class="cb"><div class="cmp">
+      <div class="cmp-head"><span class="h">${esc(match.Home)} <span class="subtle">· casa</span></span><span class="m">metrica</span><span class="a">${esc(match.Away)} <span class="subtle">· trasferta</span></span></div>
+      ${rows}${poss}
+    </div>
+    <div class="subtle" style="margin-top:10px;">Sotto ogni valore: media reale per partita della squadra nel suo venue e numero di partite. Il possesso medio è solo contesto: nel backtest è già dentro le medie di squadra, usarlo come moltiplicatore conterebbe lo stesso effetto due volte.</div>
+    </div>
+  </div>`;
 }
 
-function rankColorClass(rank){
-  if (rank === 'N/D') return 'rank nd';
-  if (rank <= 3) return 'rank';       // tra le 3 che concedono di più — lime
-  if (rank >= 18) return 'rank-bad';  // tra le 3 che concedono di meno — colore diverso
-  return '';                          // posizione intermedia, nessuna evidenza
-}
-function renderSideRowsHtml(side){
-  const st = moState[side];
-  let rows = [...st.rows];
-  if (st.sort.key) {
-    const acc = MO_ACCESSORS[st.sort.key];
-    rows.sort((a,b) => {
-      const va = acc(a), vb = acc(b);
-      if (va < vb) return -1 * st.sort.dir;
-      if (va > vb) return 1 * st.sort.dir;
-      return 0;
+function matrixCells(match, attackSide) {
+  // cosa concede l'avversario (oppSide) ai ruoli della squadra che attacca
+  const info = sideInfo(match, attackSide);
+  const vuln = vulnC(info.oppId, info.oppVenue);
+  const tsOpp = teamStatsC(info.oppId, info.oppVenue);
+  const lineupRoles = new Set(lineupPlayers(match, attackSide).map((p) => p.Posizione_Analitica));
+  const rows = [];
+  for (const row of vuln) {
+    if (!lineupRoles.has(row.ruolo)) continue;
+    const cells = MK.map(([mk]) => {
+      const c = row[MK_ROLECOL[mk]];
+      if (!c || c.rank === 'N/D' || c.rank == null || c.eligible < SL.roleSigMinElig) return null;
+      const rc = computeRoleConcessions(DB.matchLog, info.oppId, info.oppVenue, row.ruolo, tsOpp.Partite);
+      if (rc.N_Prestazioni_Ruolo < SL.roleSigMinN) return null;
+      let cls = null;
+      if (c.rank === 1) cls = 'top1'; else if (c.rank === 2) cls = 'top2'; else if (c.rank >= c.eligible - 1) cls = 'low';
+      if (!cls) return null;
+      return { cls, rank: c.rank, eligible: c.eligible, n: rc.N_Prestazioni_Ruolo, value: c.value };
     });
+    if (cells.some(Boolean)) rows.push({ ruolo: row.ruolo, cells });
   }
-  const fmtCell = (pv, r) => (r.rank == null ? fmt(pv) : `${fmt(pv)} <span class="subtle">(${r.rank}°/${r.eligible})</span>`);
-  return rows.map(r => `<tr>
-              <td class="num"><input type="checkbox" ${st.checked.has(r.p.Player_ID) ? 'checked' : ''} onchange="toggleMoCheck('${side}','${r.p.Player_ID}')" /></td>
-              <td class="metricname">${r.p.Nome_completo}</td>
-              <td>${r.p.Posizione_Analitica}</td>
-              <td class="num">${fmt(r.pv.Minuti_Medi,0)}</td>
-              <td class="num">${fmtCell(r.pv.Tiri_90, r.ranks.tiri)}</td>
-              <td class="num">${fmtCell(r.pv.SOT_90, r.ranks.sot)}</td>
-              <td class="num">${fmtCell(r.pv.FC_90, r.ranks.fc)}</td>
-              <td class="num">${fmtCell(r.pv.FD_90, r.ranks.fd)}</td>
-              <td class="num">${fmtCell(r.pv.Cartellini_90, r.ranks.cart)}</td>
-            </tr>`).join('');
+  return { info, rows, hidden: lineupRoles.size - rows.length };
+}
+function matrixBlock(match) {
+  const one = (attackSide) => {
+    const M = matrixCells(match, attackSide);
+    const head = MK.map(([, l]) => `<th>${l.replace('Falli commessi', 'Falli comm.').replace('Falli subiti', 'Falli sub.').replace('Tiri in porta', 'SOT')}</th>`).join('');
+    const body = M.rows.length ? M.rows.map((r) => `<tr><td>${esc(r.ruolo)}</td>${r.cells.map((c, i) => c
+      ? `<td class="${c.cls}" title="${esc(MK[i][1])}: concede ${fmt(c.value)} per partita a questo ruolo · ${c.n} prestazioni" onclick="go('matchup',{mk:'${MK[i][0]}',team:'${attackSide}'})">${c.cls === 'low' ? '▼' : '★'}${c.rank}°/${c.eligible}<small>N=${c.n}</small></td>`
+      : '<td>·</td>').join('')}</tr>`).join('')
+      : `<tr><td colspan="6" style="text-align:left;color:var(--muted);font-weight:400;">Nessuna cella significativa (serve posizione estrema con almeno ${SL.roleSigMinN} prestazioni e ${SL.roleSigMinElig} squadre confrontabili).</td></tr>`;
+    return `<div><div style="font-weight:600;margin-bottom:6px;"><span style="color:var(--accent);">${esc(M.info.name)}</span> <span class="subtle">attacca · ${esc(M.info.oppName)} concede ${venueTxt(M.info.oppVenue)}</span></div>
+      <table class="mx"><tr><th></th>${head}</tr>${body}</table>${M.hidden > 0 ? `<div class="subtle">${M.hidden} ruoli della formazione senza segnali nascosti.</div>` : ''}</div>`;
+  };
+  return `
+  <div class="card"><h3>Vulnerabilità per ruolo <span class="tag">solo celle significative · clic su una cella apre Matchup e giocatori su quel mercato</span></h3>
+    <div class="cb"><div class="twocol">${one('home')}${one('away')}</div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>★1° concede più di tutti</span><span><i style="background:#1d3550;border:1px solid var(--opp-dim)"></i>★2°</span><span><i style="background:#3a1a14;border:1px solid #6b2b20"></i>▼ tra le 2 che concedono meno</span><span>· non significativo (campione &lt; ${SL.roleSigMinN}, posizione intermedia o squadre confrontabili &lt; ${SL.roleSigMinElig})</span></div>
+      <div class="subtle" style="margin-top:6px;">Con poche giornate una posizione estrema può essere in buona parte casuale: leggila insieme a N.</div>
+    </div></div>`;
 }
 
-function renderMoSummaryHtml(side){
-  const st = moState[side];
-  const checkedRows = st.rows.filter(r => st.checked.has(r.p.Player_ID));
-  if (!checkedRows.length) return 'Nessun titolare spuntato — spunta i giocatori per vedere qui la somma delle loro statistiche.';
-  const sums = MO_STAT_KEYS.map(k => {
-    const pvKey = MO_STAT_TO_PV[k];
-    const tot = checkedRows.reduce((a, r) => a + (r.pv[pvKey] || 0), 0);
-    return `${MO_STAT_LABELS[k]}: <strong>${tot.toFixed(2)}</strong>`;
-  }).join(' · ');
-  return `Somma su ${checkedRows.length} titolari spuntati — ${sums}`;
+function shortStatsBlock(match, P) {
+  const rows = [];
+  const dirBadge = (up) => (up ? '<span class="tagok">▲ sopra media</span>' : '<span class="tagbad">▼ sotto media</span>');
+  for (const [mk, tk, label] of TM) {
+    const lg = leagueAvgTeam(tk);
+    if (!lg) continue;
+    for (const side of ['home', 'away']) {
+      const x = P[side][mk]; const info = sideInfo(match, side);
+      if (x.total == null || x.nVenue < SL.statMinN) continue;
+      const delta = x.total / lg - 1;
+      if (Math.abs(delta) < SL.statDelta) continue;
+      rows.push({ score: Math.abs(delta) * Math.min(1, x.nVenue / 5), mk: label, who: info.name, up: delta > 0,
+        why: `${esc(info.name)} proietta ${fmt(x.total, 1)} contro una media di lega di ${fmt(lg, 1)} (${delta > 0 ? '+' : ''}${Math.round(delta * 100)}%) — ${esc(venueTxt(info.venue))}`,
+        n: `${x.nVenue} partite nel venue`, tab: 'squadre' });
+    }
+    // totale partita
+    const h = P.home[mk], a = P.away[mk];
+    if (h.total != null && a.total != null && Math.min(h.nVenue, a.nVenue) >= SL.statMinN) {
+      const tot = h.total + a.total, d = tot / (2 * lg) - 1;
+      if (Math.abs(d) >= SL.statDelta) rows.push({ score: Math.abs(d) * Math.min(1, Math.min(h.nVenue, a.nVenue) / 5), mk: label + ' (totale partita)', who: 'Partita', up: d > 0,
+        why: `Totale proiettato ${fmt(tot, 1)} contro ${fmt(2 * lg, 1)} della media di lega per due squadre (${d > 0 ? '+' : ''}${Math.round(d * 100)}%)`,
+        n: `${Math.min(h.nVenue, a.nVenue)} partite per squadra`, tab: 'squadre' });
+    }
+  }
+  // arbitro
+  const eff = arbitriEffettivi();
+  const riga = eff.find((a) => a.Match_ID === match.Match_ID && isArbitroNomeValido(a.Arbitro));
+  if (riga) {
+    const s = computeArbitroStats(DB.matchLog, eff, riga.Arbitro);
+    if (s.N_Partite >= SL.arbMinN) {
+      for (const [lab, val, lgk, mult] of [['Falli (arbitro)', s.Falli_Totali_Medi, 'Falli', 2], ['Cartellini (arbitro)', s.Cartellini_Totali_Medi, 'Cart', 2]]) {
+        const lg = leagueAvgTeam(lgk); if (!lg || val == null) continue;
+        const d = val / (lg * mult) - 1;
+        if (Math.abs(d) >= SL.arbDelta) rows.push({ score: Math.abs(d) * Math.min(1, s.N_Partite / 5), mk: lab, who: s.Arbitro, up: d > 0,
+          why: `${esc(s.Arbitro)} fischia in media ${fmt(val, 1)} a partita contro ${fmt(lg * mult, 1)} della media di lega (${d > 0 ? '+' : ''}${Math.round(d * 100)}%)`,
+          n: `${s.N_Partite} partite dirette`, tab: 'squadre' });
+      }
+    }
+  }
+  rows.sort((a, b) => b.score - a.score);
+  const top = rows.slice(0, 6);
+  const body = top.length ? top.map((r) => `<tr><td><span class="pname">${esc(r.mk)}</span><span class="psub">${esc(r.who)}</span></td><td>${dirBadge(r.up)}</td><td>${r.why}</td><td class="num">${esc(r.n)}</td><td><button class="btn" onclick="go('squadre')">Linee →</button></td></tr>`).join('')
+    : `<tr><td colspan="5" style="color:var(--muted);">Nessuno scostamento oltre ${Math.round(SL.statDelta * 100)}% con campione sufficiente.</td></tr>`;
+  return `
+  <div class="card"><h3>Shortlist statistiche di squadra e arbitro <span class="tag">regola: scostamento dalla media di lega ≥ ${Math.round(SL.statDelta * 100)}% con almeno ${SL.statMinN} partite · non è una linea: confrontala con la quota</span></h3>
+    <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Mercato</th><th>Segnale</th><th>Perché</th><th class="num">Campione</th><th></th></tr></thead><tbody>${body}</tbody></table></div></div>`;
 }
 
-function toggleMoCheck(side, playerId){
-  const st = moState[side];
-  if (st.checked.has(playerId)) st.checked.delete(playerId);
-  else st.checked.add(playerId);
-  document.getElementById('moSummary-' + side).innerHTML = renderMoSummaryHtml(side);
-  // Punto 4B: sostituiamo sempre il WRAPPER (tabella+box segnale insieme),
-  // mai la sola tabella — vedi commento in renderCentralProjectionTable.
-  const centralWrap = document.getElementById('centralProjWrap');
-  if (centralWrap && _teamStatsMatch) centralWrap.outerHTML = renderCentralProjectionTable(_teamStatsMatch);
+function shortPlayersBlock(match) {
+  const cands = [];
+  for (const side of ['home', 'away']) {
+    const info = sideInfo(match, side);
+    for (const p of lineupPlayers(match, side)) {
+      for (const m of ['Tiri', 'SOT', 'FC', 'FD']) {
+        if (m === 'Tiri' && p.Posizione_Analitica === 'Portiere') continue;
+        const d = pData(match, side, p, m, true);
+        if (d.rate90Fin == null || d.prior90 == null || d.prior90 < SL.minPrior || d.affidabilita === 'bassa') continue;
+        const r = d.rate90Fin / d.prior90;
+        const over = r >= SL.playerRatio, under = r <= SL.playerRatioLow;
+        if (!over && !under) continue;
+        const wt = d.affidabilita === 'alta' ? 1 : d.affidabilita === 'media' ? 0.8 : 0.5;
+        cands.push({ p, info, m, d, r, over, score: Math.abs(Math.log(r)) * wt });
+      }
+    }
+  }
+  cands.sort((a, b) => b.score - a.score);
+  const top = cands.slice(0, 6);
+  const body = top.length ? top.map((c) => `<tr class="prow" onclick="openPlayer('${c.p.Player_ID}')">
+      <td><span class="pname">${esc(c.p.Nome_completo)}</span><span class="psub">${esc(c.p.Posizione_Analitica)} · ${esc(c.info.name)}</span></td>
+      <td>${ic(MK_ICON[c.m])} ${MK_LABEL[c.m]}</td>
+      <td>${c.over ? '<span class="tagok">▲ Over</span>' : '<span class="tagbad">▼ Under</span>'}</td>
+      <td>${fmt(c.d.rate90Fin)}/90 contro ${fmt(c.d.prior90)} medio del ruolo (${fmt(c.r, 2)}×) · ${esc(c.info.oppName)} ${fmt(c.d.fattoreAvversario, 2)}× al ruolo · atteso ${fmt(c.d.muFin)} a partita</td>
+      <td>${relHtml(c.d.affidabilita)}<span class="sm">${Math.round(c.d.minutiStagione)}' giocati</span></td>
+      <td><button class="btn" onclick="event.stopPropagation();openPlayer('${c.p.Player_ID}')">Scheda →</button></td></tr>`).join('')
+    : `<tr><td colspan="6" style="color:var(--muted);">Nessun titolare si discosta abbastanza dal ruolo (rapporto ≥ ${SL.playerRatio} o ≤ ${SL.playerRatioLow}).</td></tr>`;
+  return `
+  <div class="card"><h3>Shortlist giocatori <span class="tag">titolari delle formazioni correnti · regola: stima per 90 ≥ ${SL.playerRatio}× o ≤ ${SL.playerRatioLow}× la media del ruolo, ruolo con media ≥ ${SL.minPrior}/90, affidabilità almeno media</span></h3>
+    <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Giocatore</th><th>Mercato</th><th>Direzione</th><th>Perché</th><th>Affidabilità</th><th></th></tr></thead><tbody>${body}</tbody></table>
+    <div class="subtle" style="padding:10px 20px;">Over/Under qui significa "sopra/sotto il livello tipico del ruolo", non rispetto a una linea di quota. Con poche giornate le stime sono tirate verso il ruolo: pochi giocatori superano la soglia, ed è voluto.</div></div></div>`;
 }
 
-function toggleMoSide(side){
-  moState[side].collapsed = !moState[side].collapsed;
-  document.getElementById('moBody-' + side).style.display = moState[side].collapsed ? 'none' : '';
-  document.getElementById('moBtn-' + side).textContent = moState[side].collapsed ? 'espandi ▸' : 'minimizza ▾';
+// ---------------------------------------------------------------------------
+// SEZIONE 2 — Squadre e linee
+// ---------------------------------------------------------------------------
+function secSquadre(match) {
+  const P = allTeamProj(match);
+  return projBlock(match, P) + linesBlock(match, P);
 }
-function sortMoSide(side, key){
-  const st = moState[side];
-  if (st.sort.key === key) st.sort.dir *= -1;
-  else st.sort = { key, dir: 1 };
-  document.getElementById('moTbody-' + side).innerHTML = renderSideRowsHtml(side);
-  document.querySelectorAll(`#moHead-${side} th`).forEach(th => {
-    const arrow = th.querySelector('.arrow');
-    arrow.textContent = th.dataset.key === key ? (st.sort.dir === 1 ? '▲' : '▼') : '';
+function projBlock(match, P) {
+  const computed = TM.map(([mk, tk, label]) => {
+    const h = P.home[mk], a = P.away[mk];
+    const sigH = h.total != null ? computeSignalStrength(match.Home_ID, tk, 'HOME', h.total, a.total) : { confidence: 0 };
+    const sigA = a.total != null ? computeSignalStrength(match.Away_ID, tk, 'AWAY', a.total, h.total) : { confidence: 0 };
+    return { mk, tk, label, h, a, sigH, sigA };
   });
+  let best = { confidence: -1 };
+  for (const r of computed) {
+    if (r.sigH.confidence > best.confidence) best = { confidence: r.sigH.confidence, label: r.label, side: 'home', teamName: match.Home, sig: r.sigH };
+    if (r.sigA.confidence > best.confidence) best = { confidence: r.sigA.confidence, label: r.label, side: 'away', teamName: match.Away, sig: r.sigA };
+  }
+  const cell = (x, isBest) => {
+    if (x.total == null) return '<td class="num">—</td>';
+    let d = x.kind === 'formazione' ? `titolari ${fmt(x.starters, 1)} + panchina · media venue ${x.own != null ? fmt(x.own, 1) : '—'} (${x.nVenue})` : `media venue ${x.own != null ? fmt(x.own, 1) : '—'} (${x.nVenue}) · a livello squadra`;
+    if (x.kind === 'formazione' && x.af !== 1) d += ` · arb ${fmt(x.af, 2)}×`;
+    const w = x.counted != null && !x.complete ? ` <span class="tagwarn">⚠ ${x.counted}/${x.expected}</span>` : '';
+    return `<td class="num"><span class="res"${isBest ? ' style="background:#5BA8E8;color:#fff;"' : ''}>${fmt(x.total, 1)}</span>${w}<span class="sm">${d}</span></td>`;
+  };
+  const rows = computed.map((r) => `<tr><td class="num">${cell(r.h, best.label === r.label && best.side === 'home')[0] ? '' : ''}</td></tr>`); // placeholder (sostituito sotto)
+  const body = computed.map((r) => `<tr>${cell(r.h, best.label === r.label && best.side === 'home')}<td style="text-align:center;font-weight:600;color:var(--text);">${r.mk === 'FC' ? ic('falli') : ic(r.tk === 'SOT' ? 'tiri in porta' : r.tk === 'Cart' ? 'cartellini' : r.tk === 'Corner' ? 'corner' : 'tiri')} ${r.label}</td>${cell(r.a, best.label === r.label && best.side === 'away')}</tr>`).join('');
+  const bestBox = best.confidence > 0 ? `<div class="infobox" style="border-color:#5BA8E8;"><b style="color:#5BA8E8;">Segnale più forte del blocco:</b> ${esc(best.teamName)} — ${esc(best.label)}${best.sig.hitBest ? ` · ${esc(best.sig.hitBest.label)} nel ${Math.round(best.sig.hitBest.rate * 100)}% delle partite (${best.sig.hitBest.n})` : ''}${best.sig.duelInfo ? ` · duello vinto ${Math.round(best.sig.duelInfo.rate * 100)}% (${best.sig.duelInfo.n})` : ''}<br><span class="subtle">Frequenza storica osservata, non una previsione — pesata dal campione.</span></div>` : '';
+  const anyIncomplete = ['home', 'away'].some((s) => TM.some(([mk]) => P[s][mk].counted != null && !P[s][mk].complete));
+  return `
+  <div class="card"><h3>Proiezione partita <span class="tag">somma dei titolari scelti (ciascuno con minuti attesi) + stima panchina · Corner a livello squadra</span></h3>
+    <div class="cb">
+      ${anyIncomplete ? '<div class="warnbox">Una formazione non ha 11 giocatori: i totali sono calcolati solo sui giocatori presenti. Sistema in <a href="#" onclick="go(\'formazioni\');return false;">Formazioni</a>.</div>' : ''}
+      <div style="overflow-x:auto;"><table class="dt"><thead><tr><th class="num" style="text-align:center;">${esc(match.Home)}</th><th style="text-align:center;">Proiezione</th><th class="num" style="text-align:center;">${esc(match.Away)}</th></tr></thead><tbody>${body}</tbody></table></div>
+      ${bestBox}
+      <div class="subtle">Falli e cartellini includono il fattore arbitro (smorzato sulle sue partite dirette). Il totale con panchina = titolari × rapporto osservato in lega tra totale squadra e solo titolari.</div>
+    </div></div>`;
+}
+function lineInput(teamId, key) { const k = teamLineKey(teamId, key); if (!(k in teamLineState)) teamLineState[k] = TEAM_LINE_SETS[key][1]; return teamLineState[k]; }
+function setTeamLine(teamId, key, val) {
+  const line = Number(String(val).replace(',', '.'));
+  teamLineState[teamLineKey(teamId, key)] = Number.isFinite(line) ? line : null;
+  renderAll();
+}
+function linesBlock(match, P) {
+  const side = (sd) => {
+    const info = sideInfo(match, sd);
+    const totals = computeTeamMatchTotals(DB.matchLog, info.teamId, info.venue, DB.calendar);
+    const duels = computeTeamDuelTotals(DB.matchLog, info.teamId, info.venue, DB.calendar);
+    const rest = restDaysBefore(DB.calendar, info.teamId, match.Data);
+    const rows = TM.map(([mk, tk, label]) => {
+      const d = teamDuelRecord(duels, tk);
+      const vals = totals.map((t) => t[tk]).filter((v) => v != null);
+      const media = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      const line = lineInput(info.teamId, tk);
+      const hO = teamHitRate(totals, tk, line, 'over'), hU = teamHitRate(totals, tk, line, 'under');
+      const proj = P[sd][mk].total;
+      let mO = null, mU = null, push = null;
+      if (proj != null && line != null) {
+        const alpha = MODEL_PARAMS.TEAM_ALPHA[tk] || 0;
+        const isInt = Math.abs(line - Math.round(line)) < 1e-9;
+        const kOver = isInt ? line + 1 : Math.ceil(line);
+        mO = probAtLeastAlpha(proj, kOver, alpha);
+        mU = 1 - probAtLeastAlpha(proj, isInt ? line : Math.ceil(line), alpha);
+        if (isInt) push = pmfNB(line, proj, alpha);
+      }
+      const fh = (h) => (h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n}</span>` : '—');
+      return `<tr>
+        <td class="pname">${tk === 'Falli' ? ic('falli') : ic(tk === 'SOT' ? 'tiri in porta' : tk === 'Cart' ? 'cartellini' : tk === 'Corner' ? 'corner' : 'tiri')} ${label}</td>
+        <td class="num">${fmt(media, 1)}</td>
+        <td class="num">${d.n ? `${d.wins}/${d.n} <span class="${pctColorClass(d.rate)}">${Math.round(d.rate * 100)}%</span>` : '—'}</td>
+        <td class="num"><input type="text" inputmode="decimal" value="${line == null ? '' : line}" onchange="setTeamLine('${info.teamId}','${tk}',this.value)" style="width:54px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px;text-align:right;"/></td>
+        <td class="num">${fh(hO)}<span class="sm">storico</span></td>
+        <td class="num">${fh(hU)}<span class="sm">storico</span></td>
+        <td class="num"><b>${pc(mO)}</b><span class="sm">quota min ${qm(mO)}</span></td>
+        <td class="num"><b>${pc(mU)}</b><span class="sm">quota min ${qm(mU)}</span>${push != null ? `<span class="sm">push ${pc(push)}</span>` : ''}</td>
+      </tr>`;
+    }).join('');
+    return `<div style="overflow-x:auto;"><div style="font-weight:600;margin-bottom:6px;"><span style="color:var(--accent);">${esc(info.name)}</span> <span class="subtle">· ${venueTxt(info.venue)} · ${totals.length} partite · riposo ${rest != null ? rest + ' giorni' : '—'}</span></div>
+      <table class="dt"><thead><tr><th>Metrica</th><th class="num">Media/partita</th><th class="num">Duelli vinti</th><th class="num">Linea</th><th class="num">Over</th><th class="num">Under</th><th class="num">Modello Over</th><th class="num">Modello Under</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  };
+  return `
+  <div class="card"><h3>Medie, duelli e linee <span class="tag">scegli la linea e leggi: frequenza storica (N reali) accanto alla probabilità del modello e alla quota minima</span></h3>
+    <div class="cb"><div style="display:grid;gap:26px;">${side('home')}${side('away')}</div>
+      <div class="subtle" style="margin-top:12px;">Over = più della linea, Under = meno della linea; con linea intera (es. 12) il risultato esatto è un "push" mostrato a parte, quindi Over + Under + push = 100%. Modello = binomiale negativa sulla proiezione di squadra (dispersione stimata su 100 squadra-partita, per difetto leggermente alta). Quota minima = 1 ÷ probabilità: sotto quella quota il prezzo non paga il rischio secondo il modello. Il riposo è solo informazione, non entra nel calcolo.</div>
+    </div></div>`;
 }
 
-// Consistenza (coefficiente di variazione): badge colorato usato nel pannello
-// Player. Versione completa con filtri e spiegazioni nella pagina Scanner.
-function cvBadge(cv){
-  if (cv == null) return '<span class="subtle">—</span>';
-  if (cv < 0.5) return `<span class="status-pill status-OK">stabile ${cv.toFixed(2)}</span>`;
-  if (cv < 1) return `<span class="status-pill status-CAMPIONE">variabile ${cv.toFixed(2)}</span>`;
-  return `<span class="status-pill status-NO">incostante ${cv.toFixed(2)}</span>`;
+// ---------------------------------------------------------------------------
+// SEZIONE 3 — Matchup e giocatori
+// ---------------------------------------------------------------------------
+function secMatchup(match) {
+  const info = sideInfo(match, S.team);
+  const m = S.mk;
+  const nSig = {};
+  for (const [mk] of MK) nSig[mk] = 0;
+  for (const side of ['home', 'away']) {
+    const M = matrixCells(match, side);
+    for (const r of M.rows) r.cells.forEach((c, i) => { if (c && c.cls !== 'low') nSig[MK[i][0]]++; });
+  }
+  const tabs = MK.map(([mk, l]) => `<button class="${mk === m ? 'on' : ''}" onclick="go('matchup',{mk:'${mk}',scroll:false})">${l}${nSig[mk] ? `<span class="n" title="ruoli con concessione estrema">${nSig[mk]}</span>` : ''}</button>`).join('');
+  const sideTabs = ['home', 'away'].map((s) => `<button class="${s === S.team ? 'on' : ''}" onclick="go('matchup',{team:'${s}',scroll:false})">${esc(sideInfo(match, s).name)}</button>`).join('');
+
+  // riga concessioni: solo ruoli con posizione estrema, tra quelli in formazione
+  const M = matrixCells(match, S.team);
+  const mi = MK.findIndex((x) => x[0] === m);
+  const roleBits = M.rows.map((r) => ({ r, c: r.cells[mi] })).filter((x) => x.c).map((x) => `<span class="${x.c.cls === 'low' ? 'tagbad' : x.c.cls === 'top1' ? 'tagok' : 'tagwarn'}">${esc(x.r.ruolo)} ${x.c.cls === 'low' ? '▼' : '★'}${x.c.rank}°/${x.c.eligible} · N=${x.c.n}</span>`).join(' ');
+  const roleLine = `<div class="chipline"><b style="color:var(--opp);">${esc(info.oppName)}</b> <span class="subtle">(${venueTxt(info.oppVenue)})</span> — ${esc(MK_LABEL[m].toLowerCase())} concessi per ruolo: ${roleBits || '<span class="subtle">nessun ruolo con posizione estrema e campione sufficiente</span>'}</div>`;
+
+  const players = DB.rosters.filter((p) => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === info.teamId);
+  const ids = new Set(LU.teams[info.teamId].ids);
+  const data = players.map((p) => ({ p, starter: ids.has(p.Player_ID), d: pData(match, S.team, p, m, ids.has(p.Player_ID)) }));
+  const acc = { name: (r) => r.p.Nome_completo, base: (r) => r.d.baseline90 ?? -1, factor: (r) => r.d.fattoreAvversario, mu: (r) => r.d.muFin ?? -1, rel: (r) => r.d.minutiStagione };
+  const sortRows = (rows) => {
+    const a = acc[S.sort.key] || acc.mu;
+    return [...rows].sort((x, y) => { const vx = a(x), vy = a(y); if (typeof vx === 'string') return vx.localeCompare(vy) * S.sort.dir; return (vx - vy) * S.sort.dir || x.p.Nome_completo.localeCompare(y.p.Nome_completo); });
+  };
+  const arrow = (k) => (S.sort.key === k ? `<span class="arrow">${S.sort.dir === 1 ? '▲' : '▼'}</span>` : '');
+  const th = (k, label, cls, title) => `<th class="sortable ${cls || ''}" onclick="sortBy('${k}')" title="${esc(title || 'Clic per ordinare')}">${label}${arrow(k)}</th>`;
+  const rowHtml = (r) => {
+    const d = r.d;
+    const fcls = d.fattoreAvversario >= 1.05 ? 'up' : d.fattoreAvversario <= 0.95 ? 'dn' : '';
+    const farr = d.fattoreAvversario >= 1.005 ? '▲' : d.fattoreAvversario <= 0.995 ? '▼' : '=';
+    return `<tr class="prow" onclick="openPlayer('${r.p.Player_ID}')">
+      <td><span class="pname">${esc(r.p.Nome_completo)}</span><span class="psub">${esc(r.p.Posizione_Analitica)}${r.starter ? '' : ' · panchina'}</span></td>
+      <td class="num"><span class="big">${fmt(d.baseline90)}</span><span class="sm">/90 · ${fmt(d.baseline90 == null ? null : d.baseline90 * d.minutiAttesi / 90)} a partita</span></td>
+      <td class="num c-opp"><span class="fac ${fcls}" title="Rapporto grezzo ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '×'}, smorzato in base ai minuti osservati del ruolo contro questo avversario">${farr} ${fmt(d.fattoreAvversario, 2)}×</span>${d.fattoreArbitro !== 1 ? `<span class="sm">arbitro ${fmt(d.fattoreArbitro, 2)}×</span>` : `<span class="sm">grezzo ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '×'}</span>`}</td>
+      <td class="num"><span class="res">${fmt(d.muFin)}</span><span class="sm">a partita · ${fmt(d.rate90Fin)}/90 · ${Math.round(d.minutiAttesi)}'</span></td>
+      <td class="num">${relHtml(d.affidabilita)}<span class="sm">${Math.round(d.minutiStagione)}' · ${d.presenze} pres.</span></td>
+      <td><button class="btn" onclick="event.stopPropagation();openPlayer('${r.p.Player_ID}')">Scheda</button></td></tr>`;
+  };
+  const head = `<thead>
+    <tr class="grp"><th></th><th class="g-pl">Il giocatore</th><th class="g-opp">L'avversario <span style="font-weight:500;text-transform:none;">per ruolo</span></th><th class="g-res" colspan="2">Risultato</th><th></th></tr>
+    <tr>${th('name', 'Giocatore')}${th('base', 'Baseline', 'num', 'Stima per 90 minuti, tirata verso la media del ruolo in proporzione ai minuti giocati')}${th('factor', esc(info.oppName) + ' concede', 'num', 'Quanto l\'avversario concede al ruolo rispetto alla media di lega, smorzato sul campione')}${th('mu', 'Proiezione', 'num', 'Valore atteso in questa partita = baseline × avversario × minuti attesi')}${th('rel', 'Affidabilità', 'num', 'Dipende dai minuti giocati dal giocatore in stagione')}<th></th></tr></thead>`;
+  const st = sortRows(data.filter((r) => r.starter)), bn = sortRows(data.filter((r) => !r.starter));
+  const sumMu = st.reduce((a, r) => a + (r.d.muFin || 0), 0);
+  const tp = teamProj(match, S.team, m === 'FD' ? 'Tiri' : m); // coerenza con Squadre (FD non ha totale squadra)
+  const totRow = m === 'FD' ? '' : `<div class="subtle" style="margin:8px 4px 0;">Somma dei ${st.length} titolari: <b style="color:var(--text);">${fmt(sumMu, 1)}</b>${st.length !== 11 ? ' <span class="tagwarn">⚠ ' + st.length + '/11</span>' : ''} → con panchina <b style="color:var(--text);">${fmt(tp.total, 1)}</b> (stesso valore di Proiezione partita)</div>`;
+  const warnCart = m === 'Cart' ? '<div class="infobox">Cartellini: eventi rari, campione molto piccolo — leggi la proiezione come probabilità, non come media.</div>' : '';
+  return `
+  <div class="card"><h3>${ic(MK_ICON[m])} ${MK_LABEL[m]} <span class="tag" style="background:var(--accent);color:var(--accent-ink);padding:1px 8px;border-radius:6px;font-weight:700;">UN MERCATO ALLA VOLTA</span><span class="tag">giocatore → avversario → risultato · clic su una riga o su "Scheda" per i dettagli, senza lasciare la tabella</span></h3>
+    <div class="cb">
+      <div class="toolbar"><span>Mercato</span><span class="seg">${tabs}</span><span>Squadra</span><span class="seg">${sideTabs}</span></div>
+      ${roleLine}${warnCart}
+      <div style="overflow-x:auto;"><table class="dt">${head}<tbody>${st.map(rowHtml).join('') || '<tr><td colspan="6" style="color:var(--muted);">Nessun titolare selezionato: scegli la formazione in Formazioni.</td></tr>'}</tbody></table></div>
+      ${totRow}
+      ${bn.length ? `<details class="bench"><summary>Panchina e altri giocatori della rosa (${bn.length}) — calcolati come subentranti</summary><div style="overflow-x:auto;"><table class="dt">${head}<tbody>${bn.map(rowHtml).join('')}</tbody></table></div></details>` : ''}
+      <div class="subtle" style="margin-top:12px;">Baseline: stima per 90 minuti tirata verso la media del ruolo (peso del ruolo = ${MODEL_PARAMS.K_MIN}' pseudo-minuti), con forza d'attacco della squadra. Nei test su giornate già giocate questo metodo sbaglia circa 4 volte meno del vecchio e non esclude nessun giocatore. Il fattore avversario ha segnale debole con poche giornate, per questo è molto smorzato.</div>
+    </div></div>`;
 }
+
+// ---------------------------------------------------------------------------
+// SEZIONE 4 — Formazioni
+// ---------------------------------------------------------------------------
+function secFormazioni(match) {
+  const block = (side) => {
+    const u = luSummary(match, side);
+    const info = u.info;
+    const players = DB.rosters.filter((p) => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === info.teamId)
+      .sort((a, b) => ROLE_ORDER.indexOf(a.Posizione_Analitica) - ROLE_ORDER.indexOf(b.Posizione_Analitica) || a.Nome_completo.localeCompare(b.Nome_completo));
+    const ids = new Set(u.t.ids);
+    let last = null;
+    const list = players.map((p) => {
+      const rows = DB.matchLog.filter((r) => r.Player_ID === p.Player_ID && r.Team_ID === info.teamId);
+      const starts = rows.filter((r) => r.Titolare === 'Sì').length;
+      const hdr = p.Posizione_Analitica !== last ? `<div class="lugrp">${esc(p.Posizione_Analitica)}</div>` : '';
+      last = p.Posizione_Analitica;
+      return `${hdr}<div class="lurow2 ${ids.has(p.Player_ID) ? 'sel' : ''}">
+        <input type="checkbox" ${ids.has(p.Player_ID) ? 'checked' : ''} onchange="luToggle('${info.teamId}','${p.Player_ID}')" aria-label="titolare ${esc(p.Nome_completo)}"/>
+        <span class="pname">${esc(p.Nome_completo)}</span>
+        <span class="hint">${rows.length ? starts + ' tit. su ' + rows.length + ' pres.' : 'nessuna presenza'}</span>
+        <button class="btn gray" onclick="openPlayer('${p.Player_ID}')">Scheda</button></div>`;
+    }).join('');
+    return `<div class="card" style="margin-bottom:0;"><h3>${esc(info.name)} <span class="tag">${venueTxt(info.venue)}</span>
+        <span class="${u.ok ? 'tagok' : 'tagwarn'}" style="margin-left:auto;">${u.n}/11 · ${u.stato}${u.issues.length ? ' · ' + esc(u.issues.join(', ')) : ''}</span></h3>
+      <div class="cb">
+        <div class="toolbar"><button class="btn ${u.t.confirmed ? '' : 'solid'}" onclick="luConfirm('${info.teamId}')">${u.t.confirmed ? '✓ Confermata — clic per annullare' : 'Segna come confermata'}</button>
+          <button class="btn gray" onclick="luReset('${info.teamId}')" title="Torna alla stima dagli 11 più impiegati">Ripristina stima</button></div>
+        <div class="lulist">${list}</div></div></div>`;
+  };
+  // impatto sulle linee: formazione scelta vs stima di base
+  const impactRows = TM.filter((x) => x[0] !== 'Corner').map(([mk, tk, label]) => {
+    const cell = (side) => {
+      const info = sideInfo(match, side);
+      const base = teamProj(match, side, mk, LU.base[info.teamId]).total;
+      const cur = teamProj(match, side, mk).total;
+      const d = cur - base;
+      const flat = Math.abs(d) < 0.3;
+      return `<td class="num">${fmt(base, 1)}</td><td class="num"><b style="color:var(--text);">${fmt(cur, 1)}</b></td><td class="num" style="${flat ? 'color:var(--muted);' : d > 0 ? 'color:var(--accent);' : 'color:var(--bad);'}font-weight:700;">${flat ? '=' : (d > 0 ? '+' : '') + fmt(d, 1)}</td>`;
+    };
+    return `<tr><td class="pname">${mk === 'FC' ? ic('falli') : ic(tk === 'SOT' ? 'tiri in porta' : tk === 'Cart' ? 'cartellini' : 'tiri')} ${label}</td>${cell('home')}${cell('away')}</tr>`;
+  }).join('');
+  return `
+  <div class="infobox">Spunta i titolari: il salvataggio è automatico (<span id="luStatus" class="lustatus"></span>). Le formazioni restano anche se ricarichi la pagina e le ritrovi su altri dispositivi. Finché non premi "Segna come confermata" i calcoli le trattano come ipotetiche e ti avvisano.</div>
+  <div class="twocol" style="margin-bottom:22px;">${block('home')}${block('away')}</div>
+  <div class="card"><h3>Impatto sulle proiezioni <span class="tag">formazione scelta contro la stima di base (11 più impiegati) · riga grigia = nessun cambiamento apprezzabile</span></h3>
+    <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr class="grp"><th></th><th colspan="3" style="text-align:center;" class="g-res">${esc(match.Home)}</th><th colspan="3" style="text-align:center;" class="g-opp">${esc(match.Away)}</th></tr>
+      <tr><th>Metrica</th><th class="num">Base</th><th class="num">Scelta</th><th class="num">Δ</th><th class="num">Base</th><th class="num">Scelta</th><th class="num">Δ</th></tr></thead><tbody>${impactRows}</tbody></table></div></div>`;
+}
+
+// ---------------------------------------------------------------------------
+// SCHEDA GIOCATORE (pannello laterale)
+// ---------------------------------------------------------------------------
+function roleRankFor(role, oppId, oppVenue, mk) {
+  const k = [role, oppId, oppVenue, mk].join('|');
+  if (k in _roleRank) return _roleRank[k];
+  const col = MK_ROLECOL[mk];
+  const minSample = oppVenue === 'TOTALE' ? 3 : 2;
+  const list = teamsAllIds().map((t) => {
+    const ts = teamStatsC(t, oppVenue);
+    const rc = computeRoleConcessions(DB.matchLog, t, oppVenue, role, ts.Partite);
+    return { key: t, value: rc[col], partite: ts.Partite };
+  });
+  const r = rankProvisional(list, minSample)[oppId];
+  const me = list.find((x) => x.key === oppId);
+  return (_roleRank[k] = { rank: r.rank, eligible: r.eligible, value: me ? me.value : null });
+}
+function renderDrawer() {
+  const host = document.getElementById('drawerHost');
+  const match = getMatch();
+  document.body.classList.toggle('drawer-open', !!S.pl);
+  if (!host) return;
+  if (!S.pl || !match) { host.innerHTML = ''; return; }
+  host.innerHTML = drawerHtml(match, S.pl);
+}
+function drawerHtml(match, pid) {
+  const p = DB.rosters.find((r) => r.Player_ID === pid);
+  if (!p || (p.Team_ID_Rif !== match.Home_ID && p.Team_ID_Rif !== match.Away_ID)) return '';
+  const side = p.Team_ID_Rif === match.Home_ID ? 'home' : 'away';
+  const info = sideInfo(match, side);
+  const starter = LU.teams[info.teamId].ids.includes(pid);
+  const rows = playerRows(DB.matchLog, pid, info.teamId);
+  const tot = computePlayerStats(DB.matchLog, pid, 'TOTALE', null, info.teamId);
+  const ven = computePlayerStats(DB.matchLog, pid, info.venue, null, info.teamId);
+  const pp = (n) => (tot.Partite ? n / tot.Partite : null);
+  const S90 = { Tiri: 'Tiri_90', SOT: 'SOT_90', FC: 'FC_90', FD: 'FD_90', Cart: 'Cartellini_90' };
+  const SCNT = { Tiri: tot.Tiri, SOT: tot.SOT, FC: tot.FC, FD: tot.FD, Cart: tot.Cartellini };
+  const L5 = { Tiri: 'L5_Tiri_90', SOT: 'L5_SOT_90', FC: 'L5_FC_90', FD: 'L5_FD_90', Cart: 'L5_Cart_90' };
+  const plRows = MK.map(([mk, l]) => `<tr><td>${l}</td><td>${fmt(tot[S90[mk]])}</td><td>${fmt(pp(SCNT[mk]))}</td><td>${fmt(ven[S90[mk]])}</td><td>${fmt(tot[L5[mk]])}</td></tr>`).join('');
+  const hit = ['Tiri', 'SOT', 'FC', 'FD'].map((m) => {
+    const cells = [1, 2, 3].map((k) => { const h = playerHitRateK(rows, m, k); return `<td title="${h.n ? 'Intervallo di fiducia 95%: ' + pc(h.lo) + '–' + pc(h.hi) : ''}">${h.n ? pc(h.rate) + ' <span class="subtle">' + h.hits + '/' + h.n + '</span>' : '—'}</td>`; }).join('');
+    return `<tr><td>${MK_LABEL[m]}</td>${cells}</tr>`;
+  }).join('');
+  const nHR = rows.filter((r) => (Number(r.Minuti) || 0) >= MODEL_PARAMS.MIN_HITRATE).length;
+  // regolarita: indice di dispersione, solo da 8 presenze utili
+  let reg = `Non valutabile: servono almeno 8 presenze da ${MODEL_PARAMS.MIN_HITRATE}' o più (ne ha ${nHR}). Con meno partite la variabilità osservata non distingue regolarità da caso.`;
+  if (nHR >= 8) {
+    const v = rows.filter((r) => (Number(r.Minuti) || 0) >= MODEL_PARAMS.MIN_HITRATE);
+    reg = ['Tiri', 'SOT', 'FC'].map((m) => { const x = v.map((r) => metricValue(r, m)); const mean = x.reduce((a, b) => a + b, 0) / x.length; const va = x.reduce((a, b) => a + (b - mean) ** 2, 0) / (x.length - 1); return mean ? `${MK_LABEL[m]}: varianza/media ${fmt(va / mean, 2)}` : `${MK_LABEL[m]}: —`; }).join(' · ') + ' (1 = come il caso puro; sopra 1 = più irregolare)';
+  }
+  // avversario per il ruolo
+  const proj = Object.fromEntries(MK.map(([m]) => [m, pData(match, side, p, m, starter)]));
+  const opRows = MK.map(([m, l]) => {
+    const rk = roleRankFor(p.Posizione_Analitica, info.oppId, info.oppVenue, m);
+    const d = proj[m];
+    return `<tr><td>${l}</td><td>${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '×'}</td><td>${fmt(d.fattoreAvversario, 2)}×</td><td>${rk.rank === 'N/D' ? 'N/D' : rk.rank + '°/' + rk.eligible + '*'}</td></tr>`;
+  }).join('');
+  const rc = computeRoleConcessions(DB.matchLog, info.oppId, info.oppVenue, p.Posizione_Analitica, teamStatsC(info.oppId, info.oppVenue).Partite);
+  // come nasce la proiezione
+  const rsRows = MK.map(([m, l]) => { const d = proj[m]; return `<tr><td>${l}</td><td>${fmt(d.baseline90)}</td><td>${fmt(d.fattoreAvversario, 2)}×${d.fattoreArbitro !== 1 ? ' · ' + fmt(d.fattoreArbitro, 2) + '×' : ''}</td><td>${Math.round(d.minutiAttesi)}'</td><td><b style="color:var(--accent);">${fmt(d.muFin)}</b></td></tr>`; }).join('');
+  const prRows = MK.map(([m, l]) => {
+    const d = proj[m];
+    const c = [1, 2, 3].map((k) => { const pr = probAtLeast(d.muFin, k, m); return `<td>${pc(pr)}<span class="sm">quota ≥ ${qm(pr)}</span></td>`; }).join('');
+    return `<tr><td>${l}</td>${c}</tr>`;
+  }).join('');
+  const t = proj.Tiri;
+  return `<div class="drawer">
+    <div class="dh"><div><h3>${esc(p.Nome_completo)}</h3><div class="sub">${esc(p.Posizione_Analitica)} · ${esc(info.name)} · ${starter ? 'titolare previsto' : 'non in formazione'} · ${venueTxt(info.venue)} contro ${esc(info.oppName)}</div></div><button class="x" onclick="closePlayer()" aria-label="Chiudi">✕</button></div>
+    <div class="ds pl"><h4>Il giocatore</h4>
+      <table><tr><th></th><th>Stagione /90</th><th>A partita</th><th>${info.venue === 'HOME' ? 'Casa' : 'Trasf.'} /90</th><th>Ultime 5 /90</th></tr>${plRows}</table>
+      <div class="note">${tot.Partite} presenze con ${esc(info.name)} · ${Math.round(tot.Minuti)} minuti${DB.matchLog.some((r) => r.Player_ID === pid && r.Team_ID !== info.teamId) ? ' · ha giocato anche con un\'altra squadra (non conteggiata)' : ''}. Con pochi minuti i valori /90 sono instabili: guarda anche "A partita".</div>
+      <table style="margin-top:10px;"><tr><th>Hit rate</th><th>1 o più</th><th>2 o più</th><th>3 o più</th></tr>${hit}</table>
+      <div class="note">Solo presenze con almeno ${MODEL_PARAMS.MIN_HITRATE}' (${nHR}). Al passaggio del mouse l'intervallo di fiducia al 95%.</div>
+      <div class="note"><b>Regolarità:</b> ${reg}</div></div>
+    <div class="ds op"><h4>${esc(info.oppName)} contro il ruolo</h4>
+      <table><tr><th></th><th>Rapporto grezzo</th><th>Usato (smorzato)</th><th>Posizione*</th></tr>${opRows}</table>
+      <div class="note">${rc.N_Prestazioni_Ruolo} prestazioni di "${esc(p.Posizione_Analitica)}" subite ${venueTxt(info.oppVenue)} · ${Math.round(t.minutiAvversarioRuolo)}' osservati del ruolo in totale. Il rapporto grezzo è per 90 minuti di giocatore del ruolo contro la media di lega; "usato" è quanto pesa davvero, con campione piccolo resta vicino a 1. *Posizione tra le squadre confrontabili nel venue della partita (provvisoria).</div></div>
+    <div class="ds rs"><h4>Come nasce la proiezione</h4>
+      <table><tr><th></th><th>Baseline /90</th><th>× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th><th>Min attesi</th><th>Atteso a partita</th></tr>${rsRows}</table>
+      <div class="note">Baseline: il giocatore pesa ${Math.round(t.pesoGiocatore * 100)}% (${Math.round(t.minutiStagione)}' giocati), il resto è la media del ruolo ${t.prior90 != null ? '(' + fmt(t.prior90) + ' tiri/90)' : ''}. Affidabilità: ${relHtml(t.affidabilita)}.</div>
+      <table style="margin-top:10px;"><tr><th>Probabilità</th><th>1 o più</th><th>2 o più</th><th>3 o più</th></tr>${prRows}</table>
+      <div class="note">Probabilità dal modello (binomiale negativa sui tiri, Poisson sui cartellini) sul valore atteso di questa partita. Quota minima = 1 ÷ probabilità: sotto quella quota il prezzo non copre il rischio secondo il modello. È una stima, non una certezza: con poche giornate l'incertezza resta alta.</div></div>
+  </div>`;
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.pl) closePlayer(); });
+
 </script>
 </body>
 </html>

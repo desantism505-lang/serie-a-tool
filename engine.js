@@ -200,8 +200,9 @@ function computeTeamStats(matchLog, team, segmento) {
   out.Cartellini = out.Gialli + out.Rossi;
   out.Cartellini_90 = partite ? out.Cartellini / partite : null;
   out.Possesso_Medio = possessoRows.length
-    ? possessoRows.reduce((a, b) => a + b, 0) / partite
+    ? possessoRows.reduce((a, b) => a + b, 0) / possessoRows.length // divide per le sole partite col dato
     : null;
+  out.Possesso_N = possessoRows.length;
   return out;
 }
 
@@ -441,7 +442,10 @@ function teamHitRate(totals, key, line, mode) {
   const hits = mode === 'under'
     ? valid.filter((t) => t[key] < line).length
     : valid.filter((t) => t[key] > line).length;
-  return { n, hits, rate: n ? hits / n : null };
+  // pushes = partite esattamente sulla linea (possibili solo con linee intere):
+  // Over + Under + Push = n. Con linee .5 pushes e' sempre 0.
+  const pushes = valid.filter((t) => t[key] === line).length;
+  return { n, hits, pushes, rate: n ? hits / n : null };
 }
 
 // Media di lega di una metrica, per-partita, sul segmento richiesto — media
@@ -731,6 +735,226 @@ function computeAllArbitroStats(matchLog, arbitri) {
   return [...canonici.values()].map((nome) => computeArbitroStats(matchLog, arbitri, nome));
 }
 
+// ============================================================================
+// MODELLO v2 — proiezione giocatore (parametri scelti con backtest rolling-origin
+// su data.json, giornate 2-5 previste con le precedenti; vedi BACKTEST.md).
+//
+// Idea: stima per minuto "tirata" verso la media di lega del RUOLO, con peso
+// proporzionale ai minuti giocati dal giocatore; fattore avversario per ruolo
+// molto smorzato; minuti attesi separati dal tasso. Un giocatore NON viene mai
+// escluso: se non ha dati vale la media del ruolo (e l'affidabilita' e' "bassa").
+// ============================================================================
+const MODEL_PARAMS = {
+  K_MIN: 600,   // pseudo-minuti del prior di ruolo (~6,7 partite intere). Ottimo ~450-720 nel backtest
+  K_OPP: 2160,  // pseudo-minuti per il fattore avversario (segnale debole: forte smorzamento)
+  // sovradispersione extra-Poisson stimata sulle presenze (var = mu + alpha*mu^2)
+  ALPHA: { Tiri: 0.18, SOT: 0.16, FC: 0.06, FD: 0.02, Cart: 0 },
+  MIN_AFFIDABILITA_ALTA: 450,   // minuti del giocatore (5 partite intere)
+  MIN_AFFIDABILITA_MEDIA: 180,  // 2 partite intere
+  MIN_HITRATE: 60,              // l'hit rate usa solo presenze con almeno 60'
+  // sovradispersione dei TOTALI di squadra (100 squadra-partita; include anche differenze tra squadre, quindi e' un limite alto)
+  TEAM_ALPHA: { Tiri: 0.135, SOT: 0.037, Falli: 0.039, Cart: 0.01, Corner: 0.224 },
+  K_TEAM: 4,                    // partite-equivalenti per il fattore forza-squadra sul prior (backtest: ottimo 2-8)
+  TEAM_FACTOR_METRICS: ['Tiri', 'SOT', 'FC'], // dove migliora la previsione; su FD/Cart no
+};
+const MODEL_METRICS = ['Tiri', 'SOT', 'FC', 'FD', 'Cart'];
+const METRIC_COL = { Tiri: 'Tiri', SOT: 'Tiri_in_porta', FC: 'Falli_commessi', FD: 'Falli_subiti' };
+function metricValue(r, m) {
+  if (m === 'Cart') return (Number(r.Gialli) || 0) + (Number(r.Rossi) || 0);
+  return Number(r[METRIC_COL[m]]) || 0;
+}
+
+// Aggregati di lega: per ruolo, per (avversario, ruolo), minuti medi titolari/
+// subentrati e rapporto totale-squadra / solo-titolari (per stimare la panchina).
+function buildLeagueModel(matchLog) {
+  const role = {}, opp = {}, teamTot = {}, teamMatches = {};
+  let stMin = 0, stN = 0, sbMin = 0, sbN = 0;
+  const shareAll = {}, shareSt = {};
+  for (const m of MODEL_METRICS) { shareAll[m] = 0; shareSt[m] = 0; }
+  const add = (obj, key, r) => {
+    const o = obj[key] || (obj[key] = { min: 0 });
+    o.min += Number(r.Minuti) || 0;
+    for (const m of MODEL_METRICS) o[m] = (o[m] || 0) + metricValue(r, m);
+  };
+  for (const r of matchLog) {
+    add(role, r.Posizione_Analitica, r);
+    add(opp, r.Opp_ID + '|' + r.Posizione_Analitica, r);
+    const tt = teamTot[r.Team_ID] || (teamTot[r.Team_ID] = {});
+    for (const m of MODEL_METRICS) tt[m] = (tt[m] || 0) + metricValue(r, m);
+    (teamMatches[r.Team_ID] || (teamMatches[r.Team_ID] = new Set())).add(r.Match_ID);
+    if (r.Titolare === 'Sì') { stMin += Number(r.Minuti) || 0; stN++; } else { sbMin += Number(r.Minuti) || 0; sbN++; }
+    for (const m of MODEL_METRICS) { const v = metricValue(r, m); shareAll[m] += v; if (r.Titolare === 'Sì') shareSt[m] += v; }
+  }
+  const benchFactor = {};
+  for (const m of MODEL_METRICS) benchFactor[m] = shareSt[m] ? shareAll[m] / shareSt[m] : 1;
+  // media di lega per squadra-partita (base del fattore forza-squadra)
+  const nTM = Object.values(teamMatches).reduce((a, s2) => a + s2.size, 0);
+  const lgPerTeamMatch = {};
+  for (const m of MODEL_METRICS) {
+    let t = 0; for (const k in teamTot) t += teamTot[k][m] || 0;
+    lgPerTeamMatch[m] = nTM ? t / nTM : null;
+  }
+  return {
+    role, opp, teamTot, teamN: Object.fromEntries(Object.entries(teamMatches).map(([k, v]) => [k, v.size])), lgPerTeamMatch,
+    startMinMean: stN ? stMin / stN : 88,
+    subMinMean: sbN ? sbMin / sbN : 25,
+    benchFactor, // moltiplicatore "totale squadra / solo titolari" osservato in lega
+  };
+}
+
+function rate90Of(agg, m) { return agg && agg.min ? (agg[m] / agg.min) * 90 : null; }
+
+// Righe di un giocatore con la squadra attuale (niente mescolanza di maglie).
+function playerRows(matchLog, playerId, teamId) {
+  return matchLog.filter((r) => r.Player_ID === playerId && (!teamId || r.Team_ID === teamId));
+}
+
+// Tasso/90 stimato: (X + prior*K/90) / ((minuti + K)/90). Con 0 minuti = prior.
+function teamStrengthFactor(model, teamId, m) {
+  if (!MODEL_PARAMS.TEAM_FACTOR_METRICS.includes(m)) return 1;
+  const n = model.teamN[teamId], lg = model.lgPerTeamMatch[m];
+  if (!n || !lg) return 1;
+  const ratio = model.teamTot[teamId][m] / n / lg;
+  return 1 + (ratio - 1) * (n / (n + MODEL_PARAMS.K_TEAM));
+}
+
+function shrunkRate90(model, rows, ruolo, m, teamId) {
+  let prior = rate90Of(model.role[ruolo], m);
+  if (prior != null && teamId) prior *= teamStrengthFactor(model, teamId, m);
+  let X = 0, mn = 0;
+  for (const r of rows) { X += metricValue(r, m); mn += Number(r.Minuti) || 0; }
+  if (prior == null) return { rate90: mn ? (X / mn) * 90 : null, prior90: null, minutes: mn, wPlayer: 1 };
+  const K = MODEL_PARAMS.K_MIN;
+  return { rate90: (X + (prior * K) / 90) / ((mn + K) / 90), prior90: prior, minutes: mn, wPlayer: mn / (mn + K) };
+}
+
+// Fattore avversario: concessione per 90 del ruolo vs media di lega del ruolo,
+// smorzata con i minuti osservati di quel ruolo contro l'avversario. Nel backtest
+// il guadagno e' piccolo: per questo K_OPP e' alto.
+function opponentFactor(model, oppId, ruolo, m) {
+  const a = model.opp[oppId + '|' + ruolo];
+  const prior = rate90Of(model.role[ruolo], m);
+  if (!a || !a.min || !prior) return { factor: 1, ratio: null, minutes: a ? a.min : 0, weight: 0 };
+  const ratio = rate90Of(a, m) / prior;
+  const w = a.min / (a.min + MODEL_PARAMS.K_OPP);
+  return { factor: 1 + (ratio - 1) * w, ratio, minutes: a.min, weight: w };
+}
+
+// Minuti attesi: media delle proprie presenze nello stesso ruolo di impiego
+// (titolare/subentrato) se ce n'e' almeno una, altrimenti media di lega.
+// Per i subentrati nel backtest la media di lega e' piu' stabile di quella personale.
+function expectedMinutes(model, rows, titolare) {
+  if (titolare) {
+    const st = rows.filter((r) => r.Titolare === 'Sì');
+    if (st.length) return st.reduce((a, r) => a + (Number(r.Minuti) || 0), 0) / st.length;
+    return model.startMinMean;
+  }
+  return model.subMinMean;
+}
+
+function reliabilityOf(minutes) {
+  if (minutes >= MODEL_PARAMS.MIN_AFFIDABILITA_ALTA) return 'alta';
+  if (minutes >= MODEL_PARAMS.MIN_AFFIDABILITA_MEDIA) return 'media';
+  return 'bassa';
+}
+
+// Proiezione completa di un giocatore su una metrica, PER QUESTA PARTITA.
+// player = { id, team, ruolo }; opp = Team_ID avversario; titolare = bool.
+function projectPlayer(model, matchLog, player, oppId, titolare, m) {
+  const rows = playerRows(matchLog, player.id, player.team);
+  const base = shrunkRate90(model, rows, player.ruolo, m, player.team);
+  const of = opponentFactor(model, oppId, player.ruolo, m);
+  const expMin = expectedMinutes(model, rows, titolare);
+  const rate90 = base.rate90 == null ? null : base.rate90 * of.factor;
+  return {
+    metric: m,
+    presenze: rows.length,
+    minutiStagione: base.minutes,
+    baseline90: base.rate90,       // tasso/90 tirato verso il ruolo (senza avversario)
+    prior90: base.prior90,         // media di lega del ruolo
+    pesoGiocatore: base.wPlayer,   // 0 = tutto ruolo, 1 = tutto giocatore
+    fattoreAvversario: of.factor,
+    rapportoGrezzoAvversario: of.ratio,
+    minutiAvversarioRuolo: of.minutes,
+    rate90,                        // baseline90 * fattore
+    minutiAttesi: expMin,
+    mu: rate90 == null ? null : (rate90 * expMin) / 90, // valore atteso in questa partita
+    affidabilita: reliabilityOf(base.minutes),
+  };
+}
+
+// --- Distribuzioni: Poisson (alpha=0) e Binomiale Negativa (var = mu + alpha*mu^2)
+function pmfNB(k, mu, alpha) {
+  if (mu <= 0) return k === 0 ? 1 : 0;
+  if (!alpha) { // Poisson
+    let p = Math.exp(-mu);
+    for (let i = 1; i <= k; i++) p *= mu / i;
+    return p;
+  }
+  const r = 1 / alpha, p0 = r / (r + mu); // P(0) = p0^r
+  let pk = Math.pow(p0, r);
+  for (let i = 0; i < k; i++) pk *= ((r + i) / (i + 1)) * (1 - p0);
+  return pk;
+}
+// P(X >= k): k = soglia intera. "Over 2,5" = P(X>=3); "Under 2,5" = 1 - P(X>=3).
+function probAtLeast(mu, k, metric) {
+  return probAtLeastAlpha(mu, k, MODEL_PARAMS.ALPHA[metric] || 0);
+}
+// Variante con alpha esplicito (usata per i totali di squadra: TEAM_ALPHA).
+function probAtLeastAlpha(mu, k, a) {
+  if (mu == null || !Number.isFinite(mu)) return null;
+  if (k <= 0) return 1;
+  let cdf = 0;
+  for (let i = 0; i < k; i++) cdf += pmfNB(i, mu, a);
+  return Math.max(0, Math.min(1, 1 - cdf));
+}
+function minOddsFromProb(p) { return p && p > 0 ? 1 / p : null; }
+
+// Hit rate di un giocatore su soglia intera k (k o piu'), solo presenze con
+// almeno MIN_HITRATE minuti, con intervallo di Wilson. Mostrare SEMPRE n.
+function playerHitRateK(rows, metric, k) {
+  const valid = rows.filter((r) => (Number(r.Minuti) || 0) >= MODEL_PARAMS.MIN_HITRATE);
+  const n = valid.length;
+  const hits = valid.filter((r) => metricValue(r, metric) >= k).length;
+  const rate = n ? hits / n : null;
+  const [lo, hi] = wilsonInterval(rate, n);
+  return { n, hits, rate, lo, hi };
+}
+
+// Cartellini attesi in una partita dai falli attesi: falli * (cartellini per fallo
+// di lega). Poi Poisson: P(almeno 1) = 1 - exp(-lambda).
+function cardsPerFoulLeague(matchLog) {
+  let c = 0, f = 0;
+  for (const r of matchLog) { c += metricValue(r, 'Cart'); f += metricValue(r, 'FC'); }
+  return f ? c / f : null;
+}
+function probCardFromFouls(expFouls, cardsPerFoul) {
+  if (expFouls == null || cardsPerFoul == null) return null;
+  return 1 - Math.exp(-expFouls * cardsPerFoul);
+}
+
+// Totale squadra da una formazione. players: [{id, team, ruolo}]. Restituisce
+// somma sui titolari, stima con panchina e il CONTEGGIO dei giocatori contati,
+// cosi' un totale incompleto non passa mai inosservato.
+function projectLineupTotal(model, matchLog, players, oppId, m, extraFactor) {
+  const ef = extraFactor == null ? 1 : extraFactor; // es. fattore arbitro per Falli/Cartellini
+  let sumStarters = 0, counted = 0, lowRel = 0;
+  const rows = [];
+  for (const p of players) {
+    const pr = projectPlayer(model, matchLog, p, oppId, true, m);
+    rows.push({ player: p, proj: pr });
+    if (pr.mu != null) { sumStarters += pr.mu * ef; counted++; if (pr.affidabilita === 'bassa') lowRel++; }
+  }
+  return {
+    metric: m,
+    startersTotal: sumStarters,
+    withBench: sumStarters * (model.benchFactor[m] || 1),
+    counted, expected: players.length, lowReliability: lowRel,
+    complete: counted === players.length && players.length === 11,
+    rows,
+  };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     buildIndexes,
@@ -760,5 +984,10 @@ if (typeof module !== 'undefined') {
     estimateCardProbability,
     BASELINE_THRESHOLDS,
     SHRINK_K,
+    // --- v2
+    MODEL_PARAMS, MODEL_METRICS, metricValue, buildLeagueModel, playerRows,
+    shrunkRate90, teamStrengthFactor, opponentFactor, expectedMinutes, reliabilityOf, projectPlayer,
+    pmfNB, probAtLeast, probAtLeastAlpha, minOddsFromProb, playerHitRateK, cardsPerFoulLeague,
+    probCardFromFouls, projectLineupTotal,
   };
 }
