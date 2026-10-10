@@ -2245,7 +2245,7 @@ function shortPlayersBlock(match) {
 function secSquadre(match) {
   const P = allTeamProj(match);
   const Pb = S.bench ? P : allTeamProj(match, true); // probabilita' e linee usano sempre il totale con panchina
-  return projBlock(match, P) + prospettoBlock(match, Pb) + giocateBlock(match, Pb) + winnersBlock(match, Pb);
+  return projBlock(match, P) + giocateBlock(match, Pb) + winnersBlock(match, Pb);
 }
 
 function winnersBlock(match, P) {
@@ -2285,20 +2285,24 @@ function projBlock(match, P) {
     if (r.sigH.confidence > best.confidence) best = { confidence: r.sigH.confidence, label: r.label, side: 'home', teamName: match.Home, sig: r.sigH };
     if (r.sigA.confidence > best.confidence) best = { confidence: r.sigA.confidence, label: r.label, side: 'away', teamName: match.Away, sig: r.sigA };
   }
-  const cell = (x, isBest, left) => {
+  const cell = (x, isBest, left, sd, tk) => {
     const al = `style="text-align:${left ? 'left' : 'right'};"`;
     if (x.total == null) return `<td class="num" ${al}>—</td>`;
-    let d = x.kind === 'formazione' ? `${S.bench ? `titolari ${fmt(x.starters, 1)} + panchina` : 'solo titolari'} · media venue ${x.own != null ? fmt(x.own, 1) : '—'} (${x.nVenue})` : `media venue ${x.own != null ? fmt(x.own, 1) : '—'} (${x.nVenue}) · a livello squadra`;
+    const T = sd === 'home' ? { id: match.Home_ID, v: 'HOME', n: match.Home } : { id: match.Away_ID, v: 'AWAY', n: match.Away };
+    const O = sd === 'home' ? { id: match.Away_ID, v: 'AWAY', n: match.Away } : { id: match.Home_ID, v: 'HOME', n: match.Home };
+    const own = scopeSet(T.id, T.v, tk, 'own').map((q) => q.v), con = scopeSet(O.id, O.v, tk, 'opp').map((q) => q.v);
+    let d = `produce ${fmt(avgOf(own), 1)} (${own.length}) · ${esc(O.n)} concede ${fmt(avgOf(con), 1)} (${con.length})${S.scope === 'venue' ? ' · ' + (T.v === 'HOME' ? 'in casa' : 'in trasferta') : ''}`;
+    if (x.kind === 'formazione') d += S.bench ? ` · titolari ${fmt(x.starters, 1)} + panchina` : ' · solo titolari';
     if (x.kind === 'formazione' && x.af !== 1) d += ` · arb ${fmt(x.af, 2)}×`;
     const w = x.counted != null && !x.complete ? ` <span class="tagwarn">⚠ ${x.counted}/${x.expected}</span>` : '';
     return `<td class="num" ${al}><span class="res"${isBest ? ' style="background:#5BA8E8;color:#fff;"' : ''}>${fmt(x.total, 1)}</span>${w}<span class="sm">${d}</span></td>`;
   };
   const rows = computed.map((r) => `<tr><td class="num">${cell(r.h, best.label === r.label && best.side === 'home')[0] ? '' : ''}</td></tr>`); // placeholder (sostituito sotto)
-  const body = computed.map((r) => `<tr>${cell(r.h, best.label === r.label && best.side === 'home')}<td style="text-align:center;font-weight:600;color:var(--text);">${r.mk === 'FC' ? ic('falli') : ic(r.tk === 'SOT' ? 'tiri in porta' : r.tk === 'Cart' ? 'cartellini' : r.tk === 'Corner' ? 'corner' : 'tiri')} ${r.label}</td>${cell(r.a, best.label === r.label && best.side === 'away', true)}</tr>`).join('');
-  const bestBox = best.confidence > 0 ? `<div class="infobox" style="border-color:#5BA8E8;"><b style="color:#5BA8E8;">Segnale più forte del blocco:</b> ${esc(best.teamName)} — ${esc(best.label)}${best.sig.hitBest ? ` · ${esc(best.sig.hitBest.label)} nel ${Math.round(best.sig.hitBest.rate * 100)}% delle partite (${best.sig.hitBest.n})` : ''}${best.sig.duelInfo ? ` · duello vinto ${Math.round(best.sig.duelInfo.rate * 100)}% (${best.sig.duelInfo.n})` : ''}<br><span class="subtle">Frequenza storica osservata, non una previsione — pesata dal campione.</span></div>` : '';
+  const body = computed.map((r) => `<tr>${cell(r.h, best.label === r.label && best.side === 'home', false, 'home', r.tk)}<td style="text-align:center;font-weight:600;color:var(--text);">${r.mk === 'FC' ? ic('falli') : ic(r.tk === 'SOT' ? 'tiri in porta' : r.tk === 'Cart' ? 'cartellini' : r.tk === 'Corner' ? 'corner' : 'tiri')} ${r.label}</td>${cell(r.a, best.label === r.label && best.side === 'away', true, 'away', r.tk)}</tr>`).join('');
+  const bestBox = best.confidence > 0 ? `<div class="infobox" style="border-color:#5BA8E8;"><b style="color:#5BA8E8;">Segnale più forte del blocco:</b> ${esc(best.teamName)} — ${esc(best.label)}${best.sig.hitBest && best.sig.hitBest.n >= 5 ? ` · ${esc(best.sig.hitBest.label)} nel ${Math.round(best.sig.hitBest.rate * 100)}% delle partite (${best.sig.hitBest.n})` : ''}${best.sig.duelInfo && best.sig.duelInfo.n >= 5 ? ` · duello vinto ${Math.round(best.sig.duelInfo.rate * 100)}% (${best.sig.duelInfo.n})` : ''}<br><span class="subtle">Frequenza storica osservata, non una previsione — pesata dal campione.</span></div>` : '';
   const anyIncomplete = ['home', 'away'].some((s) => TM.some(([mk]) => P[s][mk].counted != null && !P[s][mk].complete));
   return `
-  <div class="card"><h3>Proiezione partita <span class="tag">somma dei titolari scelti (ciascuno con minuti attesi)${S.bench ? ' + stima panchina' : ''} · Corner a livello squadra</span>${benchToggle()}</h3>
+  <div class="card"><h3>Proiezione partita <span class="tag">somma dei titolari scelti (ciascuno con minuti attesi)${S.bench ? ' + stima panchina' : ''} · Corner a livello squadra · sotto ogni valore: cosa produce la squadra e cosa concede l'altra</span>${benchToggle()}${scopeToggle()}</h3>
     <div class="cb">
       ${anyIncomplete ? '<div class="warnbox">Una formazione non ha 11 giocatori: i totali sono calcolati solo sui giocatori presenti. Sistema in <a href="#" onclick="go(\'formazioni\');return false;">Formazioni</a>.</div>' : ''}
       <div style="overflow-x:auto;"><table class="dt" style="table-layout:fixed;"><colgroup><col style="width:38%"><col style="width:24%"><col style="width:38%"></colgroup><thead><tr><th class="num" style="text-align:right;">${esc(match.Home)}</th><th style="text-align:center;">Proiezione</th><th style="text-align:left;">${esc(match.Away)}</th></tr></thead><tbody>${body}</tbody></table></div>
