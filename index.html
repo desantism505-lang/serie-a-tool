@@ -1954,7 +1954,7 @@ function secSintesi(match) {
     ? `<div class="infobox">Le stime di questa pagina usano formazioni <b>non ancora confermate</b> (${unconf.map((u) => esc(u.info.name) + ': ' + u.stato).join(' · ')}). <a href="#" onclick="go('formazioni');return false;">Controlla le formazioni →</a></div>` : '';
   const P = allTeamProj(match);
   const Pb = S.bench ? P : allTeamProj(match, true); // la shortlist confronta con la media di lega, che include la panchina
-  return note + factsBlock(match) + lineFactsBlock(match, 5, 'Fatti salienti sulle linee') + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, Pb) + shortPlayersBlock(match);
+  return note + factsBlock(match) + lineFactsBlock(match, 6, 'Fatti salienti sulle linee') + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, Pb) + shortPlayersBlock(match);
 }
 function factsBlock(match) {
   return renderNotableFactsPanel(match).replace('<div class="panel" style="margin-top:28px;">', '<div class="panel" style="margin-bottom:22px;">');
@@ -2251,7 +2251,7 @@ function shortPlayersBlock(match) {
 function secSquadre(match) {
   const P = allTeamProj(match);
   const Pb = S.bench ? P : allTeamProj(match, true); // probabilita' e linee usano sempre il totale con panchina
-  return projBlock(match, P, Pb) + lineFactsBlock(match, 10, 'Fatti salienti sulle linee') + giocateBlock(match, Pb) + winnersBlock(match, Pb);
+  return lineFactsBlock(match, 8, 'Fatti salienti sulle linee') + projBlock(match, P, Pb) + giocateBlock(match, Pb) + winnersBlock(match, Pb);
 }
 
 function winnersBlock(match, P) {
@@ -2453,10 +2453,15 @@ function lineFacts(match) {
   return res;
 }
 function lineFactsBlock(match, limit, title) {
-  const facts = lineFacts(match).slice(0, limit);
-  const body = facts.length ? facts.map((f) => `<li><span class="pill" style="margin-right:6px;">${f.type === 'duel' ? 'DUELLO' : f.type === 'rank' ? 'CLASSIFICA' : 'LINEA'}</span>${f.txt} <span class="subtle">· campione ${f.n}</span></li>`).join('') : '<li class="subtle">Nessun fatto netto con il campione attuale (servono almeno 4-5 partite, o 8 squadre confrontabili per le classifiche).</li>';
-  return `<div class="card"><h3>${title} <span class="tag">duelli, classifiche e linee ricorrenti · stesso campione dell'interruttore</span>${scopeToggle()}</h3><div class="cb"><ul class="lf">${body}</ul>
-    <div class="subtle" style="margin-top:8px;">Duello vinto = la squadra ha fatto più dell'avversario nella stessa partita (per falli e cartellini vuol dire commetterne di più). Classifica = posizione tra le squadre con campione sufficiente nello stesso venue. Linea ricorrente = soglia mai superata o sempre superata in tutte le partite del campione, scelta vicino alla media di lega.</div></div></div>`;
+  const all = lineFacts(match);
+  const col = (name, role, fs) => {
+    const li = fs.slice(0, limit).map((f) => `<li style="margin-bottom:5px;"><span class="pill" style="margin-right:6px;">${f.type === 'duel' ? 'DUELLO' : f.type === 'rank' ? 'CLASSIFICA' : 'LINEA'}</span>${f.txt} <span class="tag-inline">· campione ${f.n}</span></li>`).join('');
+    return `<div><div style="margin-bottom:6px;font-weight:600;"><span style="color:var(--accent);">${esc(name)}</span> <span class="subtle">— ${role}</span></div>${li ? `<ul class="facts-list lf" style="margin:0;padding-left:0;list-style:none;">${li}</ul>` : '<div class="subtle">Nessun fatto netto con il campione attuale.</div>'}</div>`;
+  };
+  const hf = all.filter((f) => f.team === match.Home), af = all.filter((f) => f.team === match.Away);
+  return `<div class="panel" style="margin-bottom:22px;"><h2>${title} <span class="tag" style="flex:1;">duelli, classifiche e linee ricorrenti · ${S.scope === 'venue' ? 'solo casa / trasferta' : 'tutte le partite'}</span>${scopeToggle()}</h2>
+    <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">${col(match.Home, 'Casa', hf)}${col(match.Away, 'Trasferta', af)}</div>
+    <div class="body" style="padding-top:0;"><div class="subtle">Duello vinto = la squadra ha fatto più dell'avversario nella stessa partita (per falli e cartellini: commetterne di più). Classifica = posizione tra le squadre con campione sufficiente. Linea ricorrente = soglia mai superata o sempre superata in tutto il campione, scelta vicino alla media di lega. Servono almeno 4-5 partite o 8 squadre confrontabili.</div></div></div>`;
 }
 
 function projBlock(match, P, Pb) {
