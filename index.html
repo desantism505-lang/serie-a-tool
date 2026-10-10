@@ -1578,7 +1578,12 @@ function computeRoleVulnerabilityTable(oppTeamId, oppVenue){
 // pagina precedente, invariato. Qui: stato, formazioni salvate, sezioni, scheda laterale.
 // ============================================================================
 let MODEL = null, CARDPF = null;
-const S = { sez: 'sintesi', mk: 'Tiri', team: 'home', pl: null, sort: { key: 'mu', dir: -1 } };
+const S = { sez: 'sintesi', mk: 'Tiri', team: 'home', pl: null, sort: { key: 'mu', dir: -1 }, bench: true };
+try { if (localStorage.getItem('mx_bench') === '0') S.bench = false; } catch (e) {}
+function setBench(v) { S.bench = !!v; try { localStorage.setItem('mx_bench', v ? '1' : '0'); } catch (e) {} renderAll(); }
+function benchToggle() {
+  return `<label title="Con panchina: titolari + stima della panchina (come nelle linee di mercato sui totali di squadra, che contano tutti i giocatori). Senza: solo la somma dei titolari scelti. Valido per i totali mostrati; probabilità e shortlist usano sempre il totale con panchina." style="margin-left:auto;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><input type="checkbox" ${S.bench ? 'checked' : ''} onchange="setBench(this.checked)" style="width:13px;height:13px;accent-color:var(--accent);margin:0;"> con panchina</label>`;
+}
 const SEZ = [
   ['sintesi', 'Sintesi partita', 'Dove concentrare l\'analisi?'],
   ['squadre', 'Squadre e linee', 'Cosa producono e quanto superano le soglie?'],
@@ -1782,7 +1787,7 @@ function lineupPlayers(match, side, ids) {
   const list = ids || LU.teams[info.teamId].ids;
   return list.map((id) => DB.rosters.find((r) => r.Player_ID === id)).filter(Boolean);
 }
-function teamProj(match, side, key, ids) {
+function teamProj(match, side, key, ids, forceBench) {
   const info = sideInfo(match, side);
   const tkey = key === 'FC' ? 'Falli' : key;
   const totals = computeTeamMatchTotals(DB.matchLog, info.teamId, info.venue, DB.calendar);
@@ -1795,11 +1800,12 @@ function teamProj(match, side, key, ids) {
   const players = lineupPlayers(match, side, ids).map((p) => ({ id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }));
   const af = (key === 'FC' || key === 'Cart') ? arbFactor(match, side, key).fattore : 1;
   const R = projectLineupTotal(MODEL, DB.matchLog, players, info.oppId, key, af);
-  return { total: R.withBench, starters: R.startersTotal, own, nVenue: vals.length, counted: R.counted, expected: players.length, complete: R.complete, af, lowRel: R.lowReliability, kind: 'formazione' };
+  const useBench = forceBench || S.bench;
+  return { total: useBench ? R.withBench : R.startersTotal, withBench: R.withBench, benchOn: useBench, starters: R.startersTotal, own, nVenue: vals.length, counted: R.counted, expected: players.length, complete: R.complete, af, lowRel: R.lowReliability, kind: 'formazione' };
 }
-function allTeamProj(match) {
+function allTeamProj(match, forceBench) {
   const out = {};
-  for (const side of ['home', 'away']) { out[side] = {}; for (const [mk] of TM) out[side][mk] = teamProj(match, side, mk); }
+  for (const side of ['home', 'away']) { out[side] = {}; for (const [mk] of TM) out[side][mk] = teamProj(match, side, mk, undefined, forceBench); }
   return out;
 }
 function relHtml(r) { return `<span class="rel ${r}"><i></i>${r}</span>`; }
@@ -1904,7 +1910,8 @@ function secSintesi(match) {
   const note = unconf.length
     ? `<div class="infobox">Le stime di questa pagina usano formazioni <b>non ancora confermate</b> (${unconf.map((u) => esc(u.info.name) + ': ' + u.stato).join(' · ')}). <a href="#" onclick="go('formazioni');return false;">Controlla le formazioni →</a></div>` : '';
   const P = allTeamProj(match);
-  return note + factsBlock(match) + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, P) + shortPlayersBlock(match);
+  const Pb = S.bench ? P : allTeamProj(match, true); // la shortlist confronta con la media di lega, che include la panchina
+  return note + factsBlock(match) + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, Pb) + shortPlayersBlock(match);
 }
 function factsBlock(match) {
   return renderNotableFactsPanel(match).replace('<div class="panel" style="margin-top:28px;">', '<div class="panel" style="margin-bottom:22px;">');
@@ -1937,7 +1944,7 @@ function cmpBlock(match, P) {
       <div class="v r"><b>${fmt(ap.Possesso_Medio, 0)}%</b><small>${ap.Possesso_N} partite in trasferta</small></div></div>`;
   }
   return `
-  <div class="card"><h3>Confronto squadre <span class="tag">proiezione per partita con le formazioni scelte (titolari + stima panchina) · barra = quota sul totale delle due squadre, tacca centrale = parità</span></h3>
+  <div class="card"><h3>Confronto squadre <span class="tag">proiezione per partita con le formazioni scelte (${S.bench ? 'titolari + stima panchina' : 'solo titolari'}) · barra = quota sul totale, tacca centrale = parità</span>${benchToggle()}</h3>
     <div class="cb"><div class="cmp">
       <div class="cmp-head"><span class="h">${esc(match.Home)} <span class="subtle">· casa</span></span><span class="m">metrica</span><span class="a">${esc(match.Away)} <span class="subtle">· trasferta</span></span></div>
       ${rows}${poss}
@@ -2075,7 +2082,8 @@ function shortPlayersBlock(match) {
 // ---------------------------------------------------------------------------
 function secSquadre(match) {
   const P = allTeamProj(match);
-  return projBlock(match, P) + linesBlock(match, P);
+  const Pb = S.bench ? P : allTeamProj(match, true); // probabilita' e linee usano sempre il totale con panchina
+  return projBlock(match, P) + linesBlock(match, Pb);
 }
 function projBlock(match, P) {
   const computed = TM.map(([mk, tk, label]) => {
@@ -2089,22 +2097,23 @@ function projBlock(match, P) {
     if (r.sigH.confidence > best.confidence) best = { confidence: r.sigH.confidence, label: r.label, side: 'home', teamName: match.Home, sig: r.sigH };
     if (r.sigA.confidence > best.confidence) best = { confidence: r.sigA.confidence, label: r.label, side: 'away', teamName: match.Away, sig: r.sigA };
   }
-  const cell = (x, isBest) => {
-    if (x.total == null) return '<td class="num">—</td>';
-    let d = x.kind === 'formazione' ? `titolari ${fmt(x.starters, 1)} + panchina · media venue ${x.own != null ? fmt(x.own, 1) : '—'} (${x.nVenue})` : `media venue ${x.own != null ? fmt(x.own, 1) : '—'} (${x.nVenue}) · a livello squadra`;
+  const cell = (x, isBest, left) => {
+    const al = `style="text-align:${left ? 'left' : 'right'};"`;
+    if (x.total == null) return `<td class="num" ${al}>—</td>`;
+    let d = x.kind === 'formazione' ? `${S.bench ? `titolari ${fmt(x.starters, 1)} + panchina` : 'solo titolari'} · media venue ${x.own != null ? fmt(x.own, 1) : '—'} (${x.nVenue})` : `media venue ${x.own != null ? fmt(x.own, 1) : '—'} (${x.nVenue}) · a livello squadra`;
     if (x.kind === 'formazione' && x.af !== 1) d += ` · arb ${fmt(x.af, 2)}×`;
     const w = x.counted != null && !x.complete ? ` <span class="tagwarn">⚠ ${x.counted}/${x.expected}</span>` : '';
-    return `<td class="num"><span class="res"${isBest ? ' style="background:#5BA8E8;color:#fff;"' : ''}>${fmt(x.total, 1)}</span>${w}<span class="sm">${d}</span></td>`;
+    return `<td class="num" ${al}><span class="res"${isBest ? ' style="background:#5BA8E8;color:#fff;"' : ''}>${fmt(x.total, 1)}</span>${w}<span class="sm">${d}</span></td>`;
   };
   const rows = computed.map((r) => `<tr><td class="num">${cell(r.h, best.label === r.label && best.side === 'home')[0] ? '' : ''}</td></tr>`); // placeholder (sostituito sotto)
-  const body = computed.map((r) => `<tr>${cell(r.h, best.label === r.label && best.side === 'home')}<td style="text-align:center;font-weight:600;color:var(--text);">${r.mk === 'FC' ? ic('falli') : ic(r.tk === 'SOT' ? 'tiri in porta' : r.tk === 'Cart' ? 'cartellini' : r.tk === 'Corner' ? 'corner' : 'tiri')} ${r.label}</td>${cell(r.a, best.label === r.label && best.side === 'away')}</tr>`).join('');
+  const body = computed.map((r) => `<tr>${cell(r.h, best.label === r.label && best.side === 'home')}<td style="text-align:center;font-weight:600;color:var(--text);">${r.mk === 'FC' ? ic('falli') : ic(r.tk === 'SOT' ? 'tiri in porta' : r.tk === 'Cart' ? 'cartellini' : r.tk === 'Corner' ? 'corner' : 'tiri')} ${r.label}</td>${cell(r.a, best.label === r.label && best.side === 'away', true)}</tr>`).join('');
   const bestBox = best.confidence > 0 ? `<div class="infobox" style="border-color:#5BA8E8;"><b style="color:#5BA8E8;">Segnale più forte del blocco:</b> ${esc(best.teamName)} — ${esc(best.label)}${best.sig.hitBest ? ` · ${esc(best.sig.hitBest.label)} nel ${Math.round(best.sig.hitBest.rate * 100)}% delle partite (${best.sig.hitBest.n})` : ''}${best.sig.duelInfo ? ` · duello vinto ${Math.round(best.sig.duelInfo.rate * 100)}% (${best.sig.duelInfo.n})` : ''}<br><span class="subtle">Frequenza storica osservata, non una previsione — pesata dal campione.</span></div>` : '';
   const anyIncomplete = ['home', 'away'].some((s) => TM.some(([mk]) => P[s][mk].counted != null && !P[s][mk].complete));
   return `
-  <div class="card"><h3>Proiezione partita <span class="tag">somma dei titolari scelti (ciascuno con minuti attesi) + stima panchina · Corner a livello squadra</span></h3>
+  <div class="card"><h3>Proiezione partita <span class="tag">somma dei titolari scelti (ciascuno con minuti attesi)${S.bench ? ' + stima panchina' : ''} · Corner a livello squadra</span>${benchToggle()}</h3>
     <div class="cb">
       ${anyIncomplete ? '<div class="warnbox">Una formazione non ha 11 giocatori: i totali sono calcolati solo sui giocatori presenti. Sistema in <a href="#" onclick="go(\'formazioni\');return false;">Formazioni</a>.</div>' : ''}
-      <div style="overflow-x:auto;"><table class="dt"><thead><tr><th class="num" style="text-align:center;">${esc(match.Home)}</th><th style="text-align:center;">Proiezione</th><th class="num" style="text-align:center;">${esc(match.Away)}</th></tr></thead><tbody>${body}</tbody></table></div>
+      <div style="overflow-x:auto;"><table class="dt" style="table-layout:fixed;"><colgroup><col style="width:38%"><col style="width:24%"><col style="width:38%"></colgroup><thead><tr><th class="num" style="text-align:right;">${esc(match.Home)}</th><th style="text-align:center;">Proiezione</th><th style="text-align:left;">${esc(match.Away)}</th></tr></thead><tbody>${body}</tbody></table></div>
       ${bestBox}
       <div class="subtle">Falli e cartellini includono il fattore arbitro (smorzato sulle sue partite dirette). Il totale con panchina = titolari × rapporto osservato in lega tra totale squadra e solo titolari.</div>
     </div></div>`;
@@ -2154,7 +2163,7 @@ function linesBlock(match, P) {
   };
   return `
   <div class="card"><h3>Medie, duelli e linee <span class="tag">scegli la linea e leggi: frequenza storica (N reali) accanto alla probabilità del modello e alla quota minima</span></h3>
-    <div class="cb"><div style="display:grid;gap:26px;">${side('home')}${side('away')}</div>
+    <div class="cb">${S.bench ? '' : '<div class="infobox">Le probabilità e le quote minime qui sotto usano sempre il totale <b>con panchina</b>: le linee di mercato contano tutti i giocatori, quindi il confronto con solo i titolari sarebbe sbilanciato verso l\'Under.</div>'}<div style="display:grid;gap:26px;">${side('home')}${side('away')}</div>
       <div class="subtle" style="margin-top:12px;">Over = più della linea, Under = meno della linea; con linea intera (es. 12) il risultato esatto è un "push" mostrato a parte, quindi Over + Under + push = 100%. Modello = binomiale negativa sulla proiezione di squadra (dispersione stimata su 100 squadra-partita, per difetto leggermente alta). Quota minima = 1 ÷ probabilità: sotto quella quota il prezzo non paga il rischio secondo il modello. Il riposo è solo informazione, non entra nel calcolo.</div>
     </div></div>`;
 }
@@ -2208,7 +2217,7 @@ function secMatchup(match) {
   const st = sortRows(data.filter((r) => r.starter)), bn = sortRows(data.filter((r) => !r.starter));
   const sumMu = st.reduce((a, r) => a + (r.d.muFin || 0), 0);
   const tp = teamProj(match, S.team, m === 'FD' ? 'Tiri' : m); // coerenza con Squadre (FD non ha totale squadra)
-  const totRow = m === 'FD' ? '' : `<div class="subtle" style="margin:8px 4px 0;">Somma dei ${st.length} titolari: <b style="color:var(--text);">${fmt(sumMu, 1)}</b>${st.length !== 11 ? ' <span class="tagwarn">⚠ ' + st.length + '/11</span>' : ''} → con panchina <b style="color:var(--text);">${fmt(tp.total, 1)}</b> (stesso valore di Proiezione partita)</div>`;
+  const totRow = m === 'FD' ? '' : `<div class="subtle" style="margin:8px 4px 0;">Somma dei ${st.length} titolari: <b style="color:var(--text);">${fmt(sumMu, 1)}</b>${st.length !== 11 ? ' <span class="tagwarn">⚠ ' + st.length + '/11</span>' : ''} → ${S.bench ? 'con panchina' : 'totale (solo titolari)'} <b style="color:var(--text);">${fmt(tp.total, 1)}</b> (stesso valore di Proiezione partita)</div>`;
   const warnCart = m === 'Cart' ? '<div class="infobox">Cartellini: eventi rari, campione molto piccolo — leggi la proiezione come probabilità, non come media.</div>' : '';
   return `
   <div class="card"><h3>${ic(MK_ICON[m])} ${MK_LABEL[m]} <span class="tag" style="background:var(--accent);color:var(--accent-ink);padding:1px 8px;border-radius:6px;font-weight:700;">UN MERCATO ALLA VOLTA</span><span class="tag">giocatore → avversario → risultato · clic su una riga o su "Scheda" per i dettagli, senza lasciare la tabella</span></h3>
