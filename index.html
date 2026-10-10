@@ -537,6 +537,35 @@
     .matchcard{padding:14px;}
   }
 
+  /* gm-css */
+  .pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);color:var(--accent);letter-spacing:.04em}
+  .inp{display:inline-block;text-align:center;border:1px solid var(--line);background:var(--panel-2);border-radius:6px;padding:3px 6px;color:#fff;font-weight:600;font-family:inherit;font-size:12px;width:56px}
+  .gm-n{color:#fff;font-size:15px}
+  table.gm-top td{vertical-align:middle;min-width:120px}
+  .gm-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+  @media(max-width:1100px){.gm-grid{grid-template-columns:1fr}}
+  .m4{background:linear-gradient(180deg,#1a2a21,#121d17);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+  .m4 .top4{display:flex;align-items:center;gap:10px;padding:14px 18px;background:linear-gradient(90deg,#2a4130,#1d2f24);flex-wrap:wrap}
+  .m4 .top4 h4{margin:0;font-family:'Space Grotesk',Inter,sans-serif;font-size:17px;color:#fff}
+  .m4 .ln{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .m4 .ln .ln-in{font-size:18px;width:74px;padding:5px;color:var(--accent);background:#0c140f;border-color:var(--accent-dim)}
+  .m4 .body{display:grid;grid-template-columns:1fr 150px 1fr;align-items:stretch;flex:1}
+  .m4.wide .body{grid-template-columns:1fr 170px 1fr}
+  .m4 .side{padding:16px 18px;min-width:0}
+  .m4 .big2{font-family:'Space Grotesk',Inter,sans-serif;font-size:34px;font-weight:700;color:#fff;line-height:1}
+  .m4 .barsx{display:flex;align-items:flex-end;gap:7px;height:88px;position:relative;margin:18px 0 6px;border-bottom:1px solid var(--line)}
+  .m4 .barsx i{flex:1;max-width:34px;border-radius:5px 5px 0 0;position:relative}
+  .m4 .barsx i.o{background:linear-gradient(180deg,#D4FF6B,#8FA83E)}.m4 .barsx i.u{background:linear-gradient(180deg,#e8735b,#7a2f22)}
+  .m4 .barsx i em{position:absolute;top:-15px;left:0;right:0;text-align:center;font-style:normal;font-size:10px;color:var(--text-2);font-weight:600}
+  .m4 .barsx .lk{position:absolute;left:0;right:0;border-top:1.5px dashed var(--warn)}
+  .m4 .center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:radial-gradient(circle at 50% 40%,rgba(212,255,107,.10),transparent 70%);border-left:1px solid var(--line);border-right:1px solid var(--line);padding:10px 6px}
+  .m4 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.m4 .chip2{background:#0c140f;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:11px}.m4 .chip2 b{color:#fff}
+  .m4 .foot{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:#0e1812}
+  .m4 .foot>div{padding:12px 16px;border-left:1px solid var(--line)}.m4 .foot>div:first-child{border-left:0}
+  .m4 .foot b{font-size:18px;color:#fff;display:block}
+  .vtag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap}.vtag.ok{background:var(--accent);color:var(--accent-ink)}.vtag.mid{background:#3d2a08;color:var(--warn)}.vtag.bad{background:#3a1a14;color:var(--bad)}
+  @media(max-width:700px){.m4 .body{grid-template-columns:1fr}.m4 .center{border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.m4 .foot{grid-template-columns:1fr 1fr}.m4 .foot>div:nth-child(3){border-left:0}}
+  /* /gm-css */
 </style>
 </head>
 <body>
@@ -1633,7 +1662,7 @@ const venueTxt = (v) => (v === 'HOME' ? 'in casa' : 'in trasferta');
 // Cache per render
 // ---------------------------------------------------------------------------
 let _arb = {}, _tsCache = {}, _lgTeam = {}, _roleRank = {}, _vuln = {};
-function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; _rx = {}; _nPerf = {}; _rv = null; }
+function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; _rx = {}; _nPerf = {}; _rv = null; _gmData = {}; }
 function arbFactor(match, side, m) {
   const key = m === 'Cart' ? 'Cart' : 'FC';
   const k = side + key;
@@ -2157,6 +2186,22 @@ function shortStatsBlock(match, P) {
     <div class="subtle" style="padding:10px 20px;">Regola: atteso da statistiche (produzione della squadra × concessione dell'avversario, nel venue scelto in alto a destra: con «Casa / trasferta» la squadra di casa conta con le partite in casa e l'ospite con quelle in trasferta; con «Tutte le partite» il campione è più grande e viene riportato al venue col rapporto casa/trasferta di lega) e proiezione del modello devono andare nella stessa direzione oltre una soglia che scende da sola con le partite (0,30 ÷ √partite, minimo 5%). Linea proposta = la più alta (Over) con probabilità del modello ≥ 55%. Gli Under compaiono solo con soglia doppia e al massimo uno: i book li quotano poco e il modello li stima con più incertezza. Probabilità calcolate con binomiale negativa (alpha di squadra, per il totale partita è prudenziale).</div></div></div>`;
 }
 
+// Con «Casa / trasferta» la shortlist usa solo le presenze del giocatore nel venue di questa gara, tirate verso la media del
+// ruolo nello stesso venue (stesso peso K_MIN); fattore avversario e arbitro restano quelli gia' calcolati nel venue.
+function venueAdjust(d, p, info, m) {
+  const pv = scopePv(info);
+  const rows = DB.matchLog.filter((r) => r.Player_ID === p.Player_ID && r.Team_ID === info.teamId && r.Venue === pv);
+  const rv = MODEL.roleV[p.Posizione_Analitica + '|' + pv];
+  const priorV = rv && rv.min ? (rv[m] / rv.min) * 90 : null;
+  if (priorV == null) return { ...d, rate90Fin: null };
+  let X = 0, mn = 0;
+  for (const r of rows) { X += metricValue(r, m); mn += Number(r.Minuti) || 0; }
+  const K = MODEL_PARAMS.K_MIN;
+  const prior = priorV * (MODEL_PARAMS.TEAM_FACTOR_METRICS.includes(m) ? teamStrengthFactor(MODEL, info.teamId, m) : 1);
+  const r90 = (X + (prior * K) / 90) / ((mn + K) / 90);
+  const fin = r90 * d.fattoreAvversario * d.fattoreArbitro;
+  return { ...d, rate90Fin: fin, prior90: priorV, minutiStagione: mn, presenze: rows.length, affidabilita: reliabilityOf(mn), muFin: (fin * d.minutiAttesi) / 90 };
+}
 function shortPlayersBlock(match) {
   const cands = [];
   for (const side of ['home', 'away']) {
@@ -2164,7 +2209,8 @@ function shortPlayersBlock(match) {
     for (const p of lineupPlayers(match, side)) {
       for (const m of ['Tiri', 'SOT', 'FC', 'FD']) {
         if (m === 'Tiri' && p.Posizione_Analitica === 'Portiere') continue;
-        const d = pData(match, side, p, m, true);
+        let d = pData(match, side, p, m, true);
+        if (S.scope === 'venue') d = venueAdjust(d, p, info, m);
         if (d.rate90Fin == null || d.prior90 == null || d.prior90 < SL.minPrior || d.affidabilita === 'bassa') continue;
         const r = d.rate90Fin / d.prior90;
         const over = r >= SL.playerRatio;
@@ -2184,13 +2230,13 @@ function shortPlayersBlock(match) {
       <td>${ic(MK_ICON[c.m])} ${MK_LABEL[c.m]}</td>
       <td>${c.over ? '<span class="tagok">▲ Over</span>' : '<span class="tagbad">▼ Under</span>'}</td>
       <td>${fmt(c.d.rate90Fin)}/90 contro ${fmt(c.d.prior90)} medio del ruolo (${fmt(c.r, 2)}×) · ${esc(c.info.oppName)} ${fmt(c.d.fattoreAvversario, 2)}× (squadra ${fmt(c.d.fattoreSquadra, 2)}× · ruolo ${fmt(c.d.fattoreRuolo, 2)}×) · atteso ${fmt(c.d.muFin)} a partita</td>
-      <td>${relHtml(c.d.affidabilita)}<span class="sm">${Math.round(c.d.minutiStagione)}' giocati</span></td>
+      <td>${relHtml(c.d.affidabilita)}<span class="sm">${Math.round(c.d.minutiStagione)}' ${S.scope === 'venue' ? (c.info.venue === 'HOME' ? 'in casa' : 'in trasferta') : 'giocati'}</span></td>
       <td><button class="btn" onclick="event.stopPropagation();openPlayer('${c.p.Player_ID}')">Scheda →</button></td></tr>`).join('')
     : `<tr><td colspan="6" style="color:var(--muted);">Nessun titolare si discosta abbastanza dal ruolo (Over: rapporto ≥ ${SL.playerRatio}).</td></tr>`;
   return `
-  <div class="card"><h3>Shortlist giocatori <span class="tag">titolari delle formazioni correnti · Over: stima per 90 ≥ ${SL.playerRatio}× la media del ruolo (affidabilità almeno media). Under: solo se ≤ ${SL.playerRatioLow}×, affidabilità alta, ruolo con ≥ ${SL.underMinPrior}/90, mai sui tiri in porta, massimo ${SL.maxUnder}</span></h3>
+  <div class="card"><h3>Shortlist giocatori ${scopeToggle()}<span class="tag" style="flex-basis:100%;order:3">titolari delle formazioni correnti · Over: stima per 90 ≥ ${SL.playerRatio}× la media del ruolo (affidabilità almeno media). Under: solo se ≤ ${SL.playerRatioLow}×, affidabilità alta, ruolo con ≥ ${SL.underMinPrior}/90, mai sui tiri in porta, massimo ${SL.maxUnder}</span></h3>
     <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Giocatore</th><th>Mercato</th><th>Direzione</th><th>Perché</th><th>Affidabilità</th><th></th></tr></thead><tbody>${body}</tbody></table>
-    <div class="subtle" style="padding:10px 20px;">Over/Under qui significa "sopra/sotto il livello tipico del ruolo", non rispetto a una linea di quota. Con poche giornate le stime sono tirate verso il ruolo: pochi giocatori superano la soglia, ed è voluto.</div></div></div>`;
+    <div class="subtle" style="padding:10px 20px;">Over/Under qui significa "sopra/sotto il livello tipico del ruolo", non rispetto a una linea di quota. Con «Casa / trasferta» contano solo le presenze del giocatore nel venue di questa gara (media del ruolo nello stesso venue): con poche presenze il giocatore pesa poco e l'affidabilità resta bassa, quindi la lista si riduce — è il comportamento corretto. Con poche giornate le stime sono tirate verso il ruolo: pochi giocatori superano la soglia, ed è voluto.</div></div></div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -2199,7 +2245,7 @@ function shortPlayersBlock(match) {
 function secSquadre(match) {
   const P = allTeamProj(match);
   const Pb = S.bench ? P : allTeamProj(match, true); // probabilita' e linee usano sempre il totale con panchina
-  return projBlock(match, P) + linesBlock(match, Pb) + winnersBlock(match, Pb);
+  return projBlock(match, P) + prospettoBlock(match, Pb) + giocateBlock(match, Pb) + winnersBlock(match, Pb);
 }
 
 function winnersBlock(match, P) {
@@ -2260,54 +2306,138 @@ function projBlock(match, P) {
       <div class="subtle">Falli e cartellini includono il fattore arbitro (smorzato sulle sue partite dirette). Il totale con panchina = titolari × rapporto osservato in lega tra totale squadra e solo titolari.</div>
     </div></div>`;
 }
-function lineInput(teamId, key) { const k = teamLineKey(teamId, key); if (!(k in teamLineState)) teamLineState[k] = TEAM_LINE_SETS[key][1]; return teamLineState[k]; }
-function setTeamLine(teamId, key, val) {
-  const line = Number(String(val).replace(',', '.'));
-  teamLineState[teamLineKey(teamId, key)] = Number.isFinite(line) ? line : null;
+// ---------------------------------------------------------------------------
+// PROSPETTO GENERALE + GIOCATE PER MERCATO
+// Tutto e' rapportato al campione scelto con l'interruttore: «Casa / trasferta» = la squadra di casa con le sue
+// partite in casa, l'ospite con quelle in trasferta; «Tutte le partite» = tutta la stagione. L'altro campione
+// compare sempre come riga di confronto.
+// ---------------------------------------------------------------------------
+const GM = { mk: 'Tiri' };
+const gmState = {};
+function gmGet(key, def) { if (!(key in gmState)) gmState[key] = { line: def, qo: '', qu: '' }; return gmState[key]; }
+function gmSet(key, field, val) {
+  const v = String(val).replace(',', '.').trim();
+  const st = gmState[key] || (gmState[key] = { line: null, qo: '', qu: '' });
+  st[field] = v === '' ? '' : Number(v);
+  if (st[field] !== '' && !Number.isFinite(st[field])) st[field] = '';
   renderAll();
 }
-function linesBlock(match, P) {
-  const side = (sd) => {
-    const info = sideInfo(match, sd);
-    const totals = computeTeamMatchTotals(DB.matchLog, info.teamId, info.venue, DB.calendar);
-    const duels = computeTeamDuelTotals(DB.matchLog, info.teamId, info.venue, DB.calendar);
-    const rest = restDaysBefore(DB.calendar, info.teamId, match.Data);
-    const rows = TM.map(([mk, tk, label]) => {
-      const d = teamDuelRecord(duels, tk);
-      const vals = totals.map((t) => t[tk]).filter((v) => v != null);
-      const media = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-      const line = lineInput(info.teamId, tk);
-      const hO = teamHitRate(totals, tk, line, 'over'), hU = teamHitRate(totals, tk, line, 'under');
-      const proj = P[sd][mk].total;
-      let mO = null, mU = null, push = null;
-      if (proj != null && line != null) {
-        const alpha = MODEL_PARAMS.TEAM_ALPHA[tk] || 0;
-        const isInt = Math.abs(line - Math.round(line)) < 1e-9;
-        const kOver = isInt ? line + 1 : Math.ceil(line);
-        mO = probAtLeastAlpha(proj, kOver, alpha);
-        mU = 1 - probAtLeastAlpha(proj, isInt ? line : Math.ceil(line), alpha);
-        if (isInt) push = pmfNB(line, proj, alpha);
-      }
-      const fh = (h) => (h.n ? `<span class="${pctColorClass(h.rate)}">${h.hits}/${h.n}</span>` : '—');
-      return `<tr>
-        <td class="pname">${tk === 'Falli' ? ic('falli') : ic(tk === 'SOT' ? 'tiri in porta' : tk === 'Cart' ? 'cartellini' : tk === 'Corner' ? 'corner' : 'tiri')} ${label}</td>
-        <td class="num">${fmt(media, 1)}</td>
-        <td class="num">${d.n ? `${d.wins}/${d.n} <span class="${pctColorClass(d.rate)}">${Math.round(d.rate * 100)}%</span>` : '—'}</td>
-        <td class="num"><input type="text" inputmode="decimal" value="${line == null ? '' : line}" onchange="setTeamLine('${info.teamId}','${tk}',this.value)" style="width:54px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px;text-align:right;"/></td>
-        <td class="num">${fh(hO)}<span class="sm">storico</span></td>
-        <td class="num">${fh(hU)}<span class="sm">storico</span></td>
-        <td class="num"><b>${pc(mO)}</b><span class="sm">quota min ${qm(mO)}</span></td>
-        <td class="num"><b>${pc(mU)}</b><span class="sm">quota min ${qm(mU)}</span>${push != null ? `<span class="sm">push ${pc(push)}</span>` : ''}</td>
-      </tr>`;
-    }).join('');
-    return `<div style="overflow-x:auto;"><div style="font-weight:600;margin-bottom:6px;"><span style="color:var(--accent);">${esc(info.name)}</span> <span class="subtle">· ${venueTxt(info.venue)} · ${totals.length} partite · riposo ${rest != null ? rest + ' giorni' : '—'}</span></div>
-      <table class="dt"><thead><tr><th>Metrica</th><th class="num">Media/partita</th><th class="num">Duelli vinti</th><th class="num">Linea</th><th class="num">Over</th><th class="num">Under</th><th class="num">Modello Over</th><th class="num">Modello Under</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+function gmTab(mk) { GM.mk = mk; renderAll(); }
+let _gmData = {};
+// partite della squadra con valori propri e subiti (tutte), con flag del venue della squadra in quella gara
+function gmMatches(teamId, ownVenue) {
+  const k = teamId + '|' + ownVenue;
+  if (k in _gmData) return _gmData[k];
+  const cal = Object.fromEntries(DB.calendar.map((c) => [c.Match_ID, c]));
+  const rows = computeTeamDuelTotals(DB.matchLog, teamId, 'TOTALE', DB.calendar).map((d) => {
+    const c = cal[d.Match_ID] || {};
+    return { id: d.Match_ID, date: c.Data || '', inVenue: ownVenue === 'HOME' ? c.Home_ID === teamId : c.Away_ID === teamId, own: d.own, opp: d.opp };
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  return (_gmData[k] = rows);
+}
+const gmPick = (rows) => (S.scope === 'venue' ? rows.filter((r) => r.inVenue) : rows);
+const avgOf = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+function gmVals(teamId, ownVenue, tk, kind, onlyVenue) { // kind: own | opp | tot
+  const rows = gmMatches(teamId, ownVenue).filter((r) => (onlyVenue ? r.inVenue : true));
+  return rows.map((r) => {
+    const a = r.own[tk], b = r.opp ? r.opp[tk] : null;
+    const v = kind === 'own' ? a : kind === 'opp' ? b : (a != null && b != null ? a + b : null);
+    return v == null ? null : { v, inV: r.inVenue };
+  }).filter(Boolean);
+}
+const scopeSet = (teamId, ownVenue, tk, kind) => gmVals(teamId, ownVenue, tk, kind, S.scope === 'venue');
+const otherSet = (teamId, ownVenue, tk, kind) => gmVals(teamId, ownVenue, tk, kind, S.scope !== 'venue');
+const scopeName = () => (S.scope === 'venue' ? 'casa/trasf.' : 'tutte');
+const otherName = () => (S.scope === 'venue' ? 'tutte' : 'casa/trasf.');
+
+function prospettoBlock(match, P) {
+  const sides = [['home', match.Home_ID, 'HOME', match.Home, match.Away_ID, 'AWAY', match.Away, 'CASA'], ['away', match.Away_ID, 'AWAY', match.Away, match.Home_ID, 'HOME', match.Home, 'TRASFERTA']];
+  const cellFor = (sd, tId, tV, tName, oId, oV, oName, tk, mk) => {
+    const own = scopeSet(tId, tV, tk, 'own').map((x) => x.v), con = scopeSet(oId, oV, tk, 'opp').map((x) => x.v);
+    const ownO = otherSet(tId, tV, tk, 'own').map((x) => x.v), conO = otherSet(oId, oV, tk, 'opp').map((x) => x.v);
+    const mx = Math.max(avgOf(own) || 0, avgOf(con) || 0, 1);
+    const bar = (v, c) => `<div style="height:4px;border-radius:3px;background:#2a3a30;margin-top:4px"><i style="display:block;height:4px;border-radius:3px;width:${v == null ? 0 : (v / mx) * 100}%;background:${c}"></i></div>`;
+    const pr = P[sd][mk].total;
+    return `<td><b class="gm-n">${fmt(avgOf(own), 1)}</b>${bar(avgOf(own), '#D4FF6B')}<div class="sm">${esc(otherName())} ${fmt(avgOf(ownO), 1)} (${ownO.length}) · ${own.length} partite</div></td>
+      <td><b class="gm-n">${fmt(avgOf(con), 1)}</b>${bar(avgOf(con), '#5BA8E8')}<div class="sm">${esc(otherName())} ${fmt(avgOf(conO), 1)} (${conO.length}) · ${con.length} partite</div></td>
+      <td class="num"><b style="color:var(--accent);font-size:17px">${pr == null ? '—' : fmt(pr, 1)}</b></td>`;
   };
-  return `
-  <div class="card"><h3>Medie, duelli e linee <span class="tag">scegli la linea e leggi: frequenza storica (N reali) accanto alla probabilità del modello e alla quota minima</span></h3>
-    <div class="cb">${S.bench ? '' : '<div class="infobox">Le probabilità e le quote minime qui sotto usano sempre il totale <b>con panchina</b>: le linee di mercato contano tutti i giocatori, quindi il confronto con solo i titolari sarebbe sbilanciato verso l\'Under.</div>'}<div style="display:grid;gap:26px;">${side('home')}${side('away')}</div>
-      <div class="subtle" style="margin-top:12px;">Over = più della linea, Under = meno della linea; con linea intera (es. 12) il risultato esatto è un "push" mostrato a parte, quindi Over + Under + push = 100%. Modello = binomiale negativa sulla proiezione di squadra (dispersione stimata su 100 squadra-partita, per difetto leggermente alta). Quota minima = 1 ÷ probabilità: sotto quella quota il prezzo non paga il rischio secondo il modello. Il riposo è solo informazione, non entra nel calcolo.</div>
-    </div></div>`;
+  const rows = TM.map(([mk, tk, label]) => `<tr><td><b style="color:var(--accent)">${label}</b></td>${sides.map(([sd, tId, tV, tName, oId, oV, oName]) => cellFor(sd, tId, tV, tName, oId, oV, oName, tk, mk)).join('<td style="width:12px;background:var(--panel-2)"></td>')}</tr>`).join('');
+  const hd = sides.map(([, , , tName, , , , badge]) => `<th colspan="3" style="text-align:center;background:var(--panel-header);color:var(--accent)">${esc(tName)} <span class="pill">${badge}</span> attacca</th>`).join('<th style="width:12px"></th>');
+  const hd2 = sides.map(([, , , tName, , , oName]) => `<th>${esc(tName)} produce</th><th>${esc(oName)} concede</th><th class="num">Proiezione</th>`).join('<th></th>');
+  return `<div class="card"><h3>Prospetto generale <span class="tag">cosa produce ciascuna squadra · cosa concede l'altra · proiezione del modello (con panchina)</span>${scopeToggle()}</h3>
+    <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt gm-top"><thead><tr><th></th>${hd}</tr><tr><th></th>${hd2}</tr></thead><tbody>${rows}</tbody></table>
+    <div class="subtle" style="padding:10px 20px;">Numero grande = media nel campione scelto (${S.scope === 'venue' ? 'solo partite nel venue di questa gara' : 'tutte le partite'}), sotto la media nell'altro campione con il numero di partite. Verde = quanto produce, blu = quanto concede l'altra squadra.</div></div></div>`;
+}
+
+function gmGauge(p) {
+  const r = 46, c = 2 * Math.PI * r, d = c * p;
+  const col = p >= 0.55 ? '#D4FF6B' : p >= 0.4 ? '#F2A65A' : '#E8735B';
+  return `<svg width="116" height="116" viewBox="0 0 116 116"><circle cx="58" cy="58" r="${r}" fill="none" stroke="#2a3a30" stroke-width="10"/><circle cx="58" cy="58" r="${r}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${d.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 58 58)"/><text x="58" y="56" text-anchor="middle" fill="#fff" font-size="26" font-weight="700" font-family="Space Grotesk,Inter">${Math.round(p * 100)}%</text><text x="58" y="76" text-anchor="middle" fill="#93A897" font-size="10">modello Over</text></svg>`;
+}
+function gmBars(vs, line) {
+  if (!vs.length) return '<div class="barsx" style="align-items:center;justify-content:center;color:var(--muted);font-size:12px;">nessuna partita</div>';
+  const mx = Math.max(...vs.map((x) => x.v), line) * 1.18 || 1, h = 88;
+  return `<div class="barsx">${vs.map((x) => `<i class="${x.v > line ? 'o' : 'u'}" style="height:${Math.max(3, (x.v / mx) * h).toFixed(0)}px;${x.inV ? '' : 'opacity:.5'}"><em>${x.v}</em></i>`).join('')}<span class="lk" style="bottom:${((line / mx) * h).toFixed(0)}px"></span></div>`;
+}
+function gmSide(title, sub, vsScope, vsOther, line, accent) {
+  const n = vsScope.length, o = vsScope.filter((x) => x.v > line).length;
+  const no = vsOther.length, oo = vsOther.filter((x) => x.v > line).length;
+  const avg = avgOf(vsScope.map((x) => x.v));
+  return `<div class="side"><span style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:${accent};font-weight:700">${title}</span><div class="sm">${sub}</div>
+    <div style="display:flex;align-items:baseline;gap:8px;margin-top:8px"><span class="big2">${fmt(avg, 1)}</span><span class="sm">media · ${n} partite</span></div>
+    ${gmBars(vsScope, line)}
+    <div class="chips"><span class="chip2"><b>${o}/${n}</b> sopra ${fmt(line, 1)}</span><span class="chip2">${esc(otherName())} <b>${oo}/${no}</b></span></div></div>`;
+}
+function gmVerdict(p, q, hits, n) {
+  if (q === '' || q == null || !(q > 1)) return { cls: 'mid', txt: 'inserisci quota', ev: null };
+  const ev = p * q - 1;
+  if (n >= 5 && ev > 0.10 && hits / n >= 0.6) return { cls: 'ok', txt: n < 8 ? 'Indizio' : 'Valore', ev };
+  if (ev > 0) return { cls: 'mid', txt: n < 5 ? 'Al limite · campione piccolo' : 'Al limite', ev };
+  return { cls: 'bad', txt: 'Quota bassa', ev };
+}
+function gmCard(key, title, tag, left, right, defLine, proj, alpha, hist) {
+  const st = gmGet(key, defLine); const line = st.line == null || st.line === '' ? defLine : st.line;
+  const kOver = Math.floor(line) + 1; // Over x,5 = almeno x+1; linea intera: Over = oltre la linea
+  const pm = proj == null ? null : probAtLeastAlpha(proj, Math.abs(line - Math.round(line)) < 1e-9 ? line + 1 : Math.ceil(line), alpha);
+  const [hn, ho] = hist; const hitsO = ho, hitsU = hn - ho;
+  const vo = pm == null ? { cls: 'mid', txt: '—', ev: null } : gmVerdict(pm, st.qo, hitsO, hn), vu = pm == null ? { cls: 'mid', txt: '—', ev: null } : gmVerdict(1 - pm, st.qu, hitsU, hn);
+  const evT = (v) => (v.ev == null ? '' : `<span class="sm">EV ${v.ev >= 0 ? '+' : ''}${Math.round(v.ev * 100)}%</span>`);
+  const inp = (f, v) => `<input class="inp" type="text" inputmode="decimal" value="${v === '' || v == null ? '' : v}" placeholder="—" onchange="gmSet('${key}','${f}',this.value)" style="width:64px;"/>`;
+  return `<div class="m4"><div class="top4"><h4>${title}</h4><span class="pill">${tag}</span><div class="ln">Linea book <input class="inp ln-in" type="text" inputmode="decimal" value="${line}" onchange="gmSet('${key}','line',this.value)"/></div></div>
+    <div class="body">${left}<div class="center">${pm == null ? '<div class="sm">proiezione non disponibile</div>' : gmGauge(pm)}<div class="sm">proiezione</div><b style="color:var(--accent);font-size:20px">${proj == null ? '—' : fmt(proj, 1)}</b></div>${right}</div>
+    <div class="foot"><div><span class="sm">Quota minima Over</span><b>${pm == null ? '—' : qm(pm)}</b></div><div><span class="sm">Quota minima Under</span><b>${pm == null ? '—' : qm(1 - pm)}</b></div>
+      <div><span class="sm">Over · quota ${inp('qo', st.qo)}</span><div style="margin-top:6px"><span class="vtag ${vo.cls}">${vo.txt}</span> ${evT(vo)}</div></div>
+      <div><span class="sm">Under · quota ${inp('qu', st.qu)}</span><div style="margin-top:6px"><span class="vtag ${vu.cls}">${vu.txt}</span> ${evT(vu)}</div></div></div></div>`;
+}
+function giocateBlock(match, P) {
+  const [mk, tk, label] = TM.find((t) => t[0] === GM.mk) || TM[0];
+  const H = { id: match.Home_ID, v: 'HOME', name: match.Home }, A = { id: match.Away_ID, v: 'AWAY', name: match.Away };
+  const tabs = TM.map(([m, , l]) => `<button class="${m === mk ? 'on' : ''}" onclick="gmTab('${m}')">${l}</button>`).join('');
+  const defLine = (x) => (x == null ? 0.5 : Math.floor(x) + 0.5);
+  const histOf = (arr, line) => [arr.length, arr.filter((x) => x.v > line).length];
+  const mid = `${match.Match_ID}|${mk}`;
+  const lineOf = (key, def) => { const st = gmGet(key, def); return st.line == null || st.line === '' ? def : st.line; };
+  const card = (T, O, sd, keyS) => {
+    const proj = P[sd][mk].total, dl = defLine(proj), line = lineOf(keyS, dl);
+    const own = scopeSet(T.id, T.v, tk, 'own'), ownO = otherSet(T.id, T.v, tk, 'own'), con = scopeSet(O.id, O.v, tk, 'opp'), conO = otherSet(O.id, O.v, tk, 'opp');
+    return gmCard(keyS, `${label} · ${esc(T.name)}`, 'GIOCATA SQUADRA', gmSide(`${esc(T.name)} produce`, S.scope === 'venue' ? 'nelle sue partite ' + (T.v === 'HOME' ? 'in casa' : 'in trasferta') : 'in tutte le sue partite', own, ownO, line, '#D4FF6B'),
+      gmSide(`${esc(O.name)} concede`, S.scope === 'venue' ? 'nelle sue partite ' + (O.v === 'HOME' ? 'in casa' : 'in trasferta') : 'in tutte le sue partite', con, conO, line, '#5BA8E8'), dl, proj, MODEL_PARAMS.TEAM_ALPHA[tk] || 0, histOf(own, line));
+  };
+  const cH = card(H, A, 'home', `${mid}|home`), cA = card(A, H, 'away', `${mid}|away`);
+  // totale partita: somma delle due squadre nelle partite del campione scelto di ciascuna
+  const pH = P.home[mk].total, pA = P.away[mk].total;
+  const tProj = pH != null && pA != null ? pH + pA : null, dlT = defLine(tProj), lineT = lineOf(`${mid}|tot`, dlT);
+  const aH = MODEL_PARAMS.TEAM_ALPHA[tk] || 0;
+  const aTot = tProj ? ((aH * pH * pH) + (aH * pA * pA)) / (tProj * tProj) : 0; // somma di due binomiali negative indipendenti
+  const tH = scopeSet(H.id, H.v, tk, 'tot'), tA = scopeSet(A.id, A.v, tk, 'tot'), tHo = otherSet(H.id, H.v, tk, 'tot'), tAo = otherSet(A.id, A.v, tk, 'tot');
+  const sub = (T) => (S.scope === 'venue' ? `somma delle due squadre · ${T.v === 'HOME' ? 'in casa' : 'in trasferta'}` : 'somma delle due squadre');
+  const cT = gmCard(`${mid}|tot`, `Totale partita · ${label}`, 'TOTALE', gmSide(`Partite di ${esc(H.name)}`, sub(H), tH, tHo, lineT, '#D4FF6B'), gmSide(`Partite di ${esc(A.name)}`, sub(A), tA, tAo, lineT, '#5BA8E8'), dlT, tProj, aTot, histOf(tH.concat(tA), lineT)).replace('class="m4"', 'class="m4 wide"');
+  return `<div class="card"><h3>Giocate per mercato <span class="tag">inserisci linea e quota del book: chi produce, chi concede, cosa dice il modello</span>${scopeToggle()}</h3>
+    <div class="cb" style="background:#0e1812"><div class="toolbar" style="margin-bottom:14px"><span>Mercato</span><span class="seg">${tabs}</span></div>
+      ${S.bench ? '' : '<div class="infobox">Le probabilità usano sempre il totale con panchina (come le linee di mercato).</div>'}
+      <div class="gm-grid">${cH}${cA}</div>${cT}
+      <div class="subtle" style="margin-top:14px;"><span style="color:var(--accent)">■</span> partita sopra la linea · <span style="color:var(--bad)">■</span> sotto · barre sbiadite = partite fuori dal campione scelto (solo con «Tutte le partite») · tratteggio arancio = linea del book · EV = probabilità del modello × quota − 1, visibile solo dopo aver inserito la quota · «Indizio» sotto 8 partite, «Valore» da 8 in su, solo se modello e storico concordano (e almeno 5 partite). Probabilità: binomiale negativa sulla proiezione con panchina; per il totale partita la dispersione è quella della somma delle due squadre. Cambia linea e quota: restano finché non cambi partita.</div></div></div>`;
 }
 
 // ---------------------------------------------------------------------------
