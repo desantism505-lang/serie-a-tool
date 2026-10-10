@@ -2003,17 +2003,18 @@ function matrixBlock(match) {
     const M = matrixCells(match, attackSide);
     const head = MK.map(([, l]) => `<th>${l.replace('Falli commessi', 'Falli comm.').replace('Falli subiti', 'Falli sub.').replace('Tiri in porta', 'SOT')}</th>`).join('');
     const body = M.rows.length ? M.rows.map((r) => `<tr><td>${esc(r.ruolo)}</td>${r.cells.map((c, i) => c
-      ? `<td class="${c.cls}" title="${esc(rxTitle(c, r.ruolo, MK[i][1], M.info.oppName))}" onclick="go('matchup',{mk:'${MK[i][0]}',team:'${attackSide}'})">${c.cls === 'low' ? '▼' : '▲'} ${fmt(c.ratio, 2)}×<small>${fmt(c.v90, 1)} vs ${fmt(c.lg90, 1)}</small></td>`
+      ? `<td class="${c.cls}" title="${esc(rxTitle(c, r.ruolo, MK[i][1], M.info.oppName))}" onclick="go('matchup',{mk:'${MK[i][0]}',team:'${attackSide}'})">${c.cls === 'low' ? '▼ meno' : '▲ più'}<small>${fmt(c.v90, 1)} vs ${fmt(c.lg90, 1)}</small></td>`
       : '<td>·</td>').join('')}</tr>`).join('')
-      : `<tr><td colspan="6" style="text-align:left;color:var(--muted);font-weight:400;">Nessuno scostamento oltre il rumore statistico per i ruoli in campo.</td></tr>`;
-    return `<div><div style="font-weight:600;margin-bottom:6px;"><span style="color:var(--accent);">${esc(M.info.name)}</span> <span class="subtle">· i suoi ruoli contro ${esc(M.info.oppName)}</span></div>
-      <table class="mx"><tr><th></th>${head}</tr>${body}</table>${M.hidden > 0 ? `<div class="subtle">${M.hidden} ruoli senza scostamenti significativi.</div>` : ''}</div>`;
+      : `<tr><td colspan="6" style="text-align:left;color:var(--muted);font-weight:400;">Nessuna differenza chiara rispetto al solito.</td></tr>`;
+    const sentences = M.rows.flatMap((r) => r.cells.map((c, i) => c ? `<li><b>${esc(r.ruolo)}</b> · ${esc(MK[i][1].toLowerCase())}: ${fmt(c.v90, 1)} ogni 90' contro ${fmt(c.lg90, 1)} della media lega → <b>${c.cls === 'low' ? 'meno' : 'più'} del solito</b> (${fmt(c.ratio, 2)}×)</li>` : '')).filter(Boolean).join('');
+    return `<div><div style="font-weight:600;margin-bottom:2px;"><span style="color:var(--accent);">${esc(M.info.name)}</span> <span class="subtle">· come rendono i suoi ruoli quando affrontano ${esc(M.info.oppName)}</span></div>
+      <table class="mx"><tr><th></th>${head}</tr>${body}</table>${sentences ? `<ul class="subtle" style="margin:8px 0 0;padding-left:18px;line-height:1.5;">${sentences}</ul>` : ''}${M.hidden > 0 ? `<div class="subtle">${M.hidden} ruoli senza differenze chiare.</div>` : ''}</div>`;
   };
   return `
-  <div class="card"><h3>Ruoli contro l'avversario <span class="tag">eventi per 90' dei giocatori di ogni ruolo nelle partite contro quell'avversario, rispetto alla media di lega dello stesso ruolo · clic su una cella apre Matchup e giocatori</span></h3>
+  <div class="card"><h3>Ruoli contro l'avversario <span class="tag">per ogni ruolo: cosa ha fatto contro questo avversario rispetto a cosa fa di solito contro tutte le altre squadre</span></h3>
     <div class="cb"><div class="twocol">${one('home')}${one('away')}</div>
-      <div class="legend"><span><i style="background:var(--accent)"></i>▲ più eventi della media di lega</span><span><i style="background:#3a1a14;border:1px solid #6b2b20"></i>▼ meno eventi della media di lega</span><span>· scostamento nel rumore statistico (non mostrato)</span></div>
-      <div class="subtle" style="margin-top:6px;"><b>Come leggere una cella:</b> «▲ 1,45×» sopra, «4,5 vs 3,1» sotto = 4,5 eventi ogni 90' contro 3,1 di media lega per quel ruolo. Passa il cursore per i totali osservati e attesi. Sono sempre i giocatori della squadra indicata (non dell'avversario): per i falli commessi vuol dire quanti ne hanno commessi loro contro quell'avversario. Appare solo se la differenza supera ${RX.z} volte il rumore di Poisson e ci sono almeno ${RX.expMin} eventi attesi: con poche partite poche celle, ed è voluto. Colore = direzione, non un giudizio di convenienza.</div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>▲ più: contro questo avversario quel ruolo fa PIÙ eventi del solito</span><span><i style="background:#3a1a14;border:1px solid #6b2b20"></i>▼ meno: ne fa MENO del solito</span><span>· nessuna differenza chiara</span></div>
+      <div class="subtle" style="margin-top:6px;"><b>Esempio:</b> riga «Punta centrale», colonna SOT, «▼ meno · 0,3 vs 1,1» = le punte hanno fatto 0,3 tiri in porta ogni 90' contro questo avversario, mentre in media in lega ne fanno 1,1. Il numero a sinistra è contro questo avversario, quello a destra è il "solito". Le celle vuote non vogliono dire "nella media": vuol dire che i dati non bastano per dirlo (serve una differenza oltre il caso). Con poche giornate le celle sono poche. Il colore dice solo più/meno, non se conviene giocare.</div>
     </div></div>`;
 }
 
