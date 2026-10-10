@@ -565,7 +565,8 @@
   .m4 .foot b{font-size:18px;color:#fff;display:block}
   .vtag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap}.vtag.ok{background:var(--accent);color:var(--accent-ink)}.vtag.mid{background:#3d2a08;color:var(--warn)}.vtag.bad{background:#3a1a14;color:var(--bad)}
   @media(max-width:700px){.m4 .body{grid-template-columns:1fr}.m4 .center{border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.m4 .foot{grid-template-columns:1fr 1fr}.m4 .foot>div:nth-child(3){border-left:0}}
-  /* /gm-css */
+  ul.lf{list-style:none;margin:6px 0 0;padding:0}ul.lf li{padding:7px 10px;margin:4px 0;border-left:3px solid #4b8bf5;background:rgba(75,139,245,.07);border-radius:4px;font-size:13px;line-height:1.4}ul.lf li b{font-weight:600}
+/* /gm-css */
 </style>
 </head>
 <body>
@@ -1607,8 +1608,8 @@ function computeRoleVulnerabilityTable(oppTeamId, oppVenue){
 // pagina precedente, invariato. Qui: stato, formazioni salvate, sezioni, scheda laterale.
 // ============================================================================
 let MODEL = null, CARDPF = null;
-const S = { sez: 'sintesi', mk: 'Tiri', team: 'home', pl: null, sort: { key: 'mu', dir: -1 }, bench: true };
-try { if (localStorage.getItem('mx_bench') === '0') S.bench = false; } catch (e) {}
+const S = { sez: 'sintesi', mk: 'Tiri', team: 'home', pl: null, sort: { key: 'mu', dir: -1 }, bench: false };
+try { if (localStorage.getItem('mx_bench') === '1') S.bench = true; } catch (e) {}
 S.scope = 'all'; // 'venue' = casa della squadra di casa e trasferta di quella ospite; 'all' = tutte le partite
 try { if (localStorage.getItem('mx_scope') === 'venue') S.scope = 'venue'; } catch (e) {}
 function setScope(v) { S.scope = v; try { localStorage.setItem('mx_scope', v); } catch (e) {} renderAll(); }
@@ -1662,7 +1663,7 @@ const venueTxt = (v) => (v === 'HOME' ? 'in casa' : 'in trasferta');
 // Cache per render
 // ---------------------------------------------------------------------------
 let _arb = {}, _tsCache = {}, _lgTeam = {}, _roleRank = {}, _vuln = {};
-function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; _rx = {}; _nPerf = {}; _rv = null; _gmData = {}; }
+function resetRenderCaches() { _arb = {}; _tsCache = {}; _lgTeam = {}; _roleRank = {}; _vuln = {}; _lgV = {}; _rx = {}; _nPerf = {}; _rv = null; _gmData = {}; _ta = {}; _rk = {}; }
 function arbFactor(match, side, m) {
   const key = m === 'Cart' ? 'Cart' : 'FC';
   const k = side + key;
@@ -1953,7 +1954,7 @@ function secSintesi(match) {
     ? `<div class="infobox">Le stime di questa pagina usano formazioni <b>non ancora confermate</b> (${unconf.map((u) => esc(u.info.name) + ': ' + u.stato).join(' · ')}). <a href="#" onclick="go('formazioni');return false;">Controlla le formazioni →</a></div>` : '';
   const P = allTeamProj(match);
   const Pb = S.bench ? P : allTeamProj(match, true); // la shortlist confronta con la media di lega, che include la panchina
-  return note + factsBlock(match) + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, Pb) + shortPlayersBlock(match);
+  return note + factsBlock(match) + lineFactsBlock(match, 5, 'Fatti salienti sulle linee') + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, Pb) + shortPlayersBlock(match);
 }
 function factsBlock(match) {
   return renderNotableFactsPanel(match).replace('<div class="panel" style="margin-top:28px;">', '<div class="panel" style="margin-bottom:22px;">');
@@ -2086,6 +2087,8 @@ function leagueAvgVenue(venue, tk) {
   if (!(k in _lgV)) _lgV[k] = leagueAverageMetric(DB.matchLog, teamsAllIds(), venue, tk, DB.calendar);
   return _lgV[k];
 }
+// soglia per metrica: rumore atteso di una media di n partite = sqrt((1/media + dispersione)/n); scende da sola con n
+const sigThrM = (n, lg, tk) => Math.max(0.05, 0.7 * Math.sqrt((1 / Math.max(lg, 0.5) + (MODEL_PARAMS.TEAM_ALPHA[tk] || 0)) / Math.max(n, 1)));
 const sigThr = (n) => Math.max(0.05, 0.30 / Math.sqrt(Math.max(n, 1)));
 function duelMetrics(match, P) {
   return TM.map(([mk, tk, label]) => {
@@ -2122,10 +2125,9 @@ function pickLine(mu, alpha, dir) {
   }
   return best;
 }
-function shortStatsBlock(match, P) {
+function duelPicks(match, P) {
   const D = duelMetrics(match, P);
   const cands = [];
-  const arbBy = {};
   for (const x of D) {
     const alpha = MODEL_PARAMS.TEAM_ALPHA[x.tk] || 0;
     const defs = [
@@ -2136,14 +2138,14 @@ function shortStatsBlock(match, P) {
     ];
     for (const df of defs) {
       if (df.md == null || !df.lg || df.n < SL.duelMinN) continue;
-      const ds = df.st / df.lg - 1, dm = df.md / df.lg - 1, thr = sigThr(df.n);
+      const ds = df.st / df.lg - 1, dm = df.md / df.lg - 1, thr = sigThrM(df.n, df.lg, x.tk);
       // Over: statistiche e modello concordi e sopra soglia. Under: soglia doppia su entrambi (raro)
       const over = ds >= thr && dm >= thr / 2;
       const under = ds <= -2 * thr && dm <= -thr;
       if (!over && !under) continue;
       const pl = pickLine(df.md, alpha, over ? 'over' : 'under');
       if (!pl) continue;
-      cands.push({ x, df, over, ds, dm, pl, score: Math.abs(ds) * Math.min(1, df.n / 5) });
+      cands.push({ x, df, over, ds, dm, pl, score: (Math.abs(ds) / thr) * Math.min(1, df.n / 5) });
     }
   }
   cands.sort((a, b) => (b.over - a.over) || (b.score - a.score)); // Over per primi, Under (rari) in coda
@@ -2154,6 +2156,10 @@ function shortStatsBlock(match, P) {
     if (!c.over) { if (nU >= SL.maxUnder) continue; nU++; }
     perM[c.x.mk] = (perM[c.x.mk] || 0) + 1; top.push(c);
   }
+  return top;
+}
+function shortStatsBlock(match, P) {
+  const top = duelPicks(match, P);
   // arbitro: contesto per falli/cartellini
   let arbNote = '';
   const eff = arbitriEffettivi();
@@ -2175,7 +2181,7 @@ function shortStatsBlock(match, P) {
     return `<tr><td><span class="pname">${ic(c.x.mk === 'FC' ? 'falli' : c.x.tk === 'SOT' ? 'tiri in porta' : c.x.tk === 'Cart' ? 'cartellini' : c.x.tk === 'Corner' ? 'corner' : 'tiri')} ${esc(c.x.label)} · ${c.over ? 'Over' : 'Under'} ${String(c.pl.line).replace('.', ',')}</span><span class="psub">${esc(c.df.who)}${c.over ? '' : ' · giocata rara'}</span></td>
       <td>${c.df.why}<span class="sm">modello sulla formazione: ${fmt(c.df.md, 1)} (${c.dm > 0 ? '+' : ''}${Math.round(c.dm * 100)}% sulla lega)</span></td>
       <td class="num"><b>${pc(pu)}</b><span class="sm">quota minima ${qm(pu)}</span></td>
-      <td class="num">${c.df.n} partite<span class="sm">soglia ${Math.round(sigThr(c.df.n) * 100)}%</span></td>
+      <td class="num">${c.df.n} partite<span class="sm">soglia ${Math.round(sigThrM(c.df.n, c.df.lg, c.x.tk) * 100)}%</span></td>
       <td><button class="btn" onclick="go('squadre')">Linee →</button></td></tr>`;
   }).join('')
     : `<tr><td colspan="5" style="color:var(--muted);">Nessuna giocata supera le soglie${S.scope === 'venue' ? ' con il solo venue (campione di 2-3 partite per squadra: prova «Tutte le partite»)' : ''}: statistiche stagionali e modello non indicano uno scostamento netto dalla lega per queste due squadre. È un risultato valido.</td></tr>`;
@@ -2183,7 +2189,7 @@ function shortStatsBlock(match, P) {
   <div class="card"><h3>Giocate da valutare: confronto tra le due squadre <span class="tag">chi produce contro chi concede, metrica per metrica · non è una linea di quota: confronta la quota minima con il prezzo</span>${scopeToggle()}</h3>
     <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Giocata</th><th>Confronto</th><th class="num">Modello</th><th class="num">Campione</th><th></th></tr></thead><tbody>${body}</tbody></table>
     ${arbNote}
-    <div class="subtle" style="padding:10px 20px;">Regola: atteso da statistiche (produzione della squadra × concessione dell'avversario, nel venue scelto in alto a destra: con «Casa / trasferta» la squadra di casa conta con le partite in casa e l'ospite con quelle in trasferta; con «Tutte le partite» il campione è più grande e viene riportato al venue col rapporto casa/trasferta di lega) e proiezione del modello devono andare nella stessa direzione oltre una soglia che scende da sola con le partite (0,30 ÷ √partite, minimo 5%). Linea proposta = la più alta (Over) con probabilità del modello ≥ 55%. Gli Under compaiono solo con soglia doppia e al massimo uno: i book li quotano poco e il modello li stima con più incertezza. Probabilità calcolate con binomiale negativa (alpha di squadra, per il totale partita è prudenziale).</div></div></div>`;
+    <div class="subtle" style="padding:10px 20px;">Regola: atteso da statistiche (produzione della squadra × concessione dell'avversario, nel venue scelto in alto a destra: con «Casa / trasferta» la squadra di casa conta con le partite in casa e l'ospite con quelle in trasferta; con «Tutte le partite» il campione è più grande e viene riportato al venue col rapporto casa/trasferta di lega) e proiezione del modello devono andare nella stessa direzione oltre una soglia che dipende dal mercato e scende da sola con le partite (0,7 × √((1 ÷ media + dispersione) ÷ partite), minimo 5%: i cartellini, pochi e variabili, hanno una soglia più alta dei tiri). Linea proposta = la più alta (Over) con probabilità del modello ≥ 55%. Gli Under compaiono solo con soglia doppia e al massimo uno: i book li quotano poco e il modello li stima con più incertezza. Probabilità calcolate con binomiale negativa (alpha di squadra, per il totale partita è prudenziale).</div></div></div>`;
 }
 
 // Con «Casa / trasferta» la shortlist usa solo le presenze del giocatore nel venue di questa gara, tirate verso la media del
@@ -2245,7 +2251,7 @@ function shortPlayersBlock(match) {
 function secSquadre(match) {
   const P = allTeamProj(match);
   const Pb = S.bench ? P : allTeamProj(match, true); // probabilita' e linee usano sempre il totale con panchina
-  return projBlock(match, P) + giocateBlock(match, Pb) + winnersBlock(match, Pb);
+  return projBlock(match, P, Pb) + lineFactsBlock(match, 10, 'Fatti salienti sulle linee') + giocateBlock(match, Pb) + winnersBlock(match, Pb);
 }
 
 function winnersBlock(match, P) {
@@ -2253,7 +2259,7 @@ function winnersBlock(match, P) {
   const dh = computeTeamDuelTotals(DB.matchLog, match.Home_ID, S.scope === 'venue' ? 'HOME' : 'TOTALE', DB.calendar), da = computeTeamDuelTotals(DB.matchLog, match.Away_ID, S.scope === 'venue' ? 'AWAY' : 'TOTALE', DB.calendar);
   const rows = D.map((x) => {
     const mean = (x.eh.projection + x.ea.projection) / 2, diff = x.eh.projection - x.ea.projection;
-    const rel = mean ? diff / mean : 0, thr = sigThr(x.nMin);
+    const rel = mean ? diff / mean : 0, thr = sigThrM(x.nMin, (x.lgH + x.lgA) / 2, x.tk);
     const wS = x.nMin < SL.duelMinN ? 'n' : rel >= thr ? 'h' : rel <= -thr ? 'a' : 'e';
     const wM = x.hm == null || x.am == null ? null : (x.hm - x.am) / ((x.hm + x.am) / 2 || 1) >= thr ? 'h' : (x.hm - x.am) / ((x.hm + x.am) / 2 || 1) <= -thr ? 'a' : 'e';
     const rH = teamDuelRecord(dh, x.tk), rA = teamDuelRecord(da, x.tk);
@@ -2271,20 +2277,191 @@ function winnersBlock(match, P) {
   return `
   <div class="card"><h3>Chi vince ogni metrica <span class="tag">confronto stagionale tra le due squadre · produzione contro concessione</span>${scopeToggle()}</h3>
     <div class="cb" style="padding:0;overflow-x:auto;"><table class="dt"><thead><tr><th>Metrica</th><th class="num">${esc(match.Home)} atteso</th><th class="num">${esc(match.Away)} atteso</th><th>Chi la vince</th><th class="num">Duelli storici</th><th>Modello</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="subtle" style="padding:10px 20px;">Atteso = media di lega × produzione della squadra × concessione dell'avversario (ciascuno tirato verso la media con n ÷ (n + 3); poi riportato al venue). "Chi la vince" = chi ha l'atteso più alto oltre la soglia 0,30 ÷ √partite (min 5%), altrimenti equilibrio. Duelli storici = partite (nel venue scelto) in cui la squadra ha superato l'avversario nella metrica. "Modello" confronta con la proiezione sulle formazioni (con panchina). Per i falli e i cartellini "vincere" vuol dire commetterne di più, non fare meglio.</div></div></div>`;
+    <div class="subtle" style="padding:10px 20px;">Atteso = media di lega × produzione della squadra × concessione dell'avversario (ciascuno tirato verso la media con n ÷ (n + 3); poi riportato al venue). "Chi la vince" = chi ha l'atteso più alto oltre la soglia del mercato (0,7 × √((1 ÷ media + dispersione) ÷ partite), min 5%), altrimenti equilibrio. Duelli storici = partite (nel venue scelto) in cui la squadra ha superato l'avversario nella metrica. "Modello" confronta con la proiezione sulle formazioni (con panchina). Per i falli e i cartellini "vincere" vuol dire commetterne di più, non fare meglio.</div></div></div>`;
 }
-function projBlock(match, P) {
-  const computed = TM.map(([mk, tk, label]) => {
-    const h = P.home[mk], a = P.away[mk];
-    const sigH = h.total != null ? computeSignalStrength(match.Home_ID, tk, 'HOME', h.total, a.total) : { confidence: 0 };
-    const sigA = a.total != null ? computeSignalStrength(match.Away_ID, tk, 'AWAY', a.total, h.total) : { confidence: 0 };
-    return { mk, tk, label, h, a, sigH, sigA };
-  });
-  let best = { confidence: -1 };
-  for (const r of computed) {
-    if (r.sigH.confidence > best.confidence) best = { confidence: r.sigH.confidence, label: r.label, side: 'home', teamName: match.Home, sig: r.sigH };
-    if (r.sigA.confidence > best.confidence) best = { confidence: r.sigA.confidence, label: r.label, side: 'away', teamName: match.Away, sig: r.sigA };
+// ---------------------------------------------------------------------------
+// CONVERGENZA DEI SEGNALI + FATTI SALIENTI SULLE LINEE
+// Un segnale e' forte solo se piu' fonti INDIPENDENTI vanno nella stessa direzione e nessuna la contraddice:
+//  1. Proiezione  — atteso da statistiche (produzione x concessione) e modello sulla formazione, contro la lega
+//  2. Classifica  — posizione della squadra che produce e di quella che concede tra tutte le squadre (stesso venue)
+//  3. Linea       — quante volte, nelle partite di entrambe, la linea proposta e' andata nella direzione scelta
+//  4. Duelli      — quante volte la squadra ha battuto/subito l'avversario sulla metrica nelle stesse partite
+// Pesi 2 / 1,5 / 1,5 / 1 (la proiezione conta di piu' perche' tiene insieme avversario e formazione).
+// Tutte le soglie dipendono dal campione: con piu' giornate si abbassano o si irrobustiscono da sole.
+// ---------------------------------------------------------------------------
+let _ta = {}, _rk = {};
+function teamAvgs(teamId, venue) {
+  const k = teamId + '|' + venue;
+  if (k in _ta) return _ta[k];
+  const duels = computeTeamDuelTotals(DB.matchLog, teamId, venue, DB.calendar);
+  const out = {};
+  for (const [, tk] of TM) {
+    const own = duels.map((d) => d.own[tk]).filter((v) => v != null), opp = duels.map((d) => d.opp[tk]).filter((v) => v != null);
+    out[tk] = { own: { avg: avgOf(own), n: own.length }, opp: { avg: avgOf(opp), n: opp.length } };
   }
+  return (_ta[k] = out);
+}
+// posizione (1 = valore piu' alto) tra le squadre con campione sufficiente; kind: own | opp
+function rankOfTeam(tk, kind, teamId, ownVenue) {
+  const venue = S.scope === 'venue' ? ownVenue : 'TOTALE';
+  const k = [tk, kind, venue].join('|');
+  if (!(k in _rk)) {
+    const list = teamsAllIds().map((t) => { const a = teamAvgs(t, venue)[tk][kind]; return { key: t, value: a.avg, partite: a.n }; });
+    _rk[k] = rankProvisional(list, venue === 'TOTALE' ? 3 : 2);
+  }
+  const r = _rk[k][teamId];
+  return r && r.rank !== 'N/D' ? { rank: r.rank, eligible: r.eligible } : null;
+}
+const RK_MIN_ELIG = 8;
+// voto della classifica per una direzione: +1 estremo giusto (1°-2° o ultime due), +0,5 terzo/terzultimo, -1 estremo opposto
+function rankVote(r, dir) {
+  if (!r || r.eligible < RK_MIN_ELIG) return null;
+  const hi = r.rank, lo = r.eligible - r.rank + 1; // posizione dal basso
+  const top = dir === 'over' ? hi : lo, bot = dir === 'over' ? lo : hi;
+  if (top <= 2) return 1; if (top === 3) return 0.5; if (bot <= 2) return -1; return 0;
+}
+const rankWords = (r, kind, tkLabel, who, venueW) => {
+  const pos = `${r.rank}° su ${r.eligible}`;
+  if (r.rank === 1) return `${kind === 'own' ? who + ' ' + tkLabel + ' più di ogni altra squadra' : who + ' ne concede più di ogni altra squadra'}${venueW} (${pos})`;
+  if (r.rank === r.eligible) return `${kind === 'own' ? who + ' ' + tkLabel + ' meno di ogni altra squadra' : who + ' ne concede meno di ogni altra squadra'}${venueW} (${pos})`;
+  return `${kind === 'own' ? who + ': ' + tkLabel + ', ' : who + ' concede, '}${pos}${venueW}`;
+};
+function convPicks(match, P) {
+  const D = duelMetrics(match, P);
+  const H = { id: match.Home_ID, v: 'HOME', name: match.Home }, A = { id: match.Away_ID, v: 'AWAY', name: match.Away };
+  const vW = (T) => (S.scope === 'venue' ? (T.v === 'HOME' ? ' in casa' : ' in trasferta') : '');
+  const out = [];
+  for (const x of D) {
+    const alpha = MODEL_PARAMS.TEAM_ALPHA[x.tk] || 0;
+    const defs = [
+      { who: H.name, T: H, O: A, st: x.eh.projection, md: x.hm, lg: x.lgH, n: x.nH, side: 'home' },
+      { who: A.name, T: A, O: H, st: x.ea.projection, md: x.am, lg: x.lgA, n: x.nA, side: 'away' },
+      { who: 'Totale partita', total: true, st: x.eh.projection + x.ea.projection, md: x.hm != null && x.am != null ? x.hm + x.am : null, lg: x.lgH + x.lgA, n: x.nMin },
+    ];
+    for (const df of defs) {
+      if (df.md == null || !df.lg || df.n < SL.duelMinN) continue;
+      const ds = df.st / df.lg - 1, dm = df.md / df.lg - 1, thr = sigThrM(df.n, df.lg, x.tk);
+      for (const dir of ['over', 'under']) {
+        const sg = dir === 'over' ? 1 : -1;
+        // 1) proiezione
+        let pv = 0;
+        if (sg * ds >= thr && sg * dm >= thr / 2) pv = 1; else if (sg * ds > 0 && sg * dm > 0) pv = 0.5; else if (sg * ds < -thr / 2 || sg * dm < -thr / 2) pv = -1;
+        if (pv < 1) continue; // la proiezione deve indicare la direzione
+        const pl = pickLine(df.md, df.total ? alpha * 0.7 : alpha, dir); if (!pl) continue;
+        const L = pl.line, srcs = [{ k: 'proj', w: 2, v: pv, txt: `${df.total ? esc(H.name) + ' ' + fmt(x.eh.projection, 1) + ' + ' + esc(A.name) + ' ' + fmt(x.ea.projection, 1) + ' = ' + fmt(df.st, 1) : esc(df.who) + ' produce ' + fmt(x.eh.ownAvgA != null && df.side === 'home' ? x.eh.ownAvgA : x.ea.ownAvgA, 1) + ', ' + esc(df.side === 'home' ? A.name : H.name) + ' concede ' + fmt(df.side === 'home' ? x.eh.concedeAvgB : x.ea.concedeAvgB, 1) + ' → ' + fmt(df.st, 1)} atteso da statistiche, ${fmt(df.md, 1)} dal modello, contro ${fmt(df.lg, 1)} di lega (${ds >= 0 ? '+' : ''}${Math.round(ds * 100)}%)` }];
+        // 2) classifica (solo squadre)
+        if (!df.total) {
+          const rO = rankOfTeam(x.tk, 'own', df.T.id, df.T.v), rC = rankOfTeam(x.tk, 'opp', df.O.id, df.O.v);
+          const vo = rankVote(rO, dir), vc = rankVote(rC, dir);
+          const vs = [vo, vc].filter((q) => q != null);
+          if (vs.length) {
+            const v = vs.reduce((a, b) => a + b, 0) / vs.length;
+            const bits = [];
+            if (rO && rO.eligible >= RK_MIN_ELIG) bits.push(rankWords(rO, 'own', x.tk === 'Tiri' ? 'produce tiri' : x.tk === 'SOT' ? 'tira in porta' : x.tk === 'Falli' ? 'commette falli' : x.tk === 'Cart' ? 'prende cartellini' : 'ottiene corner', esc(df.T.name), vW(df.T)));
+            if (rC && rC.eligible >= RK_MIN_ELIG) bits.push(rankWords(rC, 'opp', '', esc(df.O.name), vW(df.O)));
+            srcs.push({ k: 'rank', w: 1.5, v, txt: bits.join(' · ') });
+          }
+        }
+        // 3) linea
+        const sets = df.total ? [scopeSet(H.id, H.v, x.tk, 'tot'), scopeSet(A.id, A.v, x.tk, 'tot')] : [scopeSet(df.T.id, df.T.v, x.tk, 'own'), scopeSet(df.O.id, df.O.v, x.tk, 'opp')];
+        const rate = (arr) => (arr.length ? arr.filter((q) => (dir === 'over' ? q.v > L : q.v < L)).length / arr.length : null);
+        const r1 = rate(sets[0]), r2 = rate(sets[1]);
+        if (sets[0].length >= 4 && sets[1].length >= 4) {
+          const avg = (r1 + r2) / 2;
+          const v = r1 >= 0.6 && r2 >= 0.6 ? 1 : avg >= 0.6 ? 0.5 : avg <= 0.4 ? -1 : 0;
+          const cnt = (arr) => `${arr.filter((q) => (dir === 'over' ? q.v > L : q.v < L)).length}/${arr.length}`;
+          const lab = dir === 'over' ? 'sopra' : 'sotto';
+          srcs.push({ k: 'line', w: 1.5, v, txt: `${dir === 'over' ? 'Over' : 'Under'} ${String(L).replace('.', ',')}: ${lab} in ${cnt(sets[0])} partite ${df.total ? 'di ' + esc(H.name) : 'di ' + esc(df.T.name)} e in ${cnt(sets[1])} ${df.total ? 'di ' + esc(A.name) : 'di ' + esc(df.O.name) + ' (valore concesso)'}` });
+        }
+        // 4) duelli
+        if (!df.total) {
+          const rec = teamDuelRecord(computeTeamDuelTotals(DB.matchLog, df.T.id, S.scope === 'venue' ? df.T.v : 'TOTALE', DB.calendar), x.tk);
+          if (rec.n >= 4) {
+            const winR = rec.rate, v = dir === 'over' ? (winR >= 0.6 ? 1 : winR <= 0.4 ? -1 : 0) : (winR <= 0.4 ? 1 : winR >= 0.6 ? -1 : 0);
+            srcs.push({ k: 'duel', w: 1, v, txt: `${esc(df.T.name)}${vW(df.T)} ha ${winR >= 0.5 ? 'vinto' : 'perso'} il duello su ${esc(x.label.toLowerCase())} in ${winR >= 0.5 ? rec.wins : rec.n - rec.wins}/${rec.n} partite` });
+          }
+        }
+        if (srcs.some((q) => q.v <= -1)) continue; // nessuna fonte deve contraddire
+        const agree = srcs.filter((q) => q.v >= 0.5).length, maxW = srcs.reduce((a, q) => a + q.w, 0);
+        const score = srcs.reduce((a, q) => a + q.w * Math.max(q.v, 0), 0), strength = score / maxW;
+        if (agree < (df.total ? 2 : 3) || strength < 0.55) continue;
+        out.push({ x, df, dir, over: dir === 'over', pl, L, srcs, agree, nSrc: srcs.length, strength, score });
+      }
+    }
+  }
+  out.sort((a, b) => (b.strength - a.strength) || (b.agree - a.agree) || (b.score - a.score));
+  const res = [], per = {};
+  for (const c of out) { if ((per[c.x.mk] || 0) >= 2) continue; per[c.x.mk] = (per[c.x.mk] || 0) + 1; res.push(c); if (res.length >= 4) break; }
+  return res;
+}
+function convBox(match, Pb) {
+  const picks = convPicks(match, Pb);
+  if (!picks.length) return `<div class="infobox" style="border-color:#5BA8E8;"><b style="color:#5BA8E8;">Segnale più forte:</b> nessuna convergenza sufficiente. Servono almeno tre fonti d'accordo (proiezione, classifica, linea, duelli) e nessuna in contrasto${S.scope === 'venue' ? '; con il solo venue il campione è piccolo: prova «Tutte le partite»' : ''}.</div>`;
+  const row = (c, big) => {
+    const ico = { proj: 'Proiezione', rank: 'Classifica', line: 'Linea', duel: 'Duelli' };
+    const items = c.srcs.map((q) => `<div style="display:flex;gap:8px;margin:3px 0;"><span style="min-width:84px;color:var(--muted);font-weight:600;">${q.v >= 1 ? '✓' : q.v >= 0.5 ? '◐' : '–'} ${ico[q.k]}</span><span>${q.txt}</span></div>`).join('');
+    return `<div style="${big ? '' : 'margin-top:12px;padding-top:10px;border-top:1px solid var(--line);'}"><div style="font-size:${big ? 16 : 13}px;color:#fff;font-weight:700;">${big ? 'Segnale più forte: ' : ''}${c.over ? 'Over' : 'Under'} ${String(c.L).replace('.', ',')} ${esc(c.x.label)} · ${esc(c.df.who)} <span class="pill">${c.agree}/${c.nSrc} fonti concordi</span></div>
+      <div style="margin-top:6px;">${items}</div>
+      <div style="margin-top:6px;">Modello (sempre con panchina): probabilità <b>${pc(c.pl.p)}</b> · quota minima <b>${qm(c.pl.p)}</b>${c.over ? '' : ' · giocata Under: verifica che il book la quoti'}</div></div>`;
+  };
+  return `<div class="infobox" style="border-color:#5BA8E8;">${row(picks[0], true)}${picks.length > 1 ? `<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--opp);">Altre convergenze (${picks.length - 1})</summary>${picks.slice(1).map((c) => row(c, false)).join('')}</details>` : ''}
+    <div class="subtle" style="margin-top:8px;">✓ fonte pienamente d'accordo · ◐ d'accordo in parte · –  nessuna indicazione (campione insufficiente). Un segnale compare solo con almeno 3 fonti d'accordo (2 per il totale partita) e nessuna in contrasto; la forza è la quota di peso d'accordo. Probabilità e linea usano sempre il totale con panchina, quindi la spunta panchina non cambia la scelta. Confronta la quota minima con il prezzo del book.</div></div>`;
+}
+
+// ---- Fatti salienti sulle linee (stessi dati e stesso campione dell'interruttore) ----
+function lineFacts(match) {
+  const out = [];
+  const sides = [{ T: { id: match.Home_ID, v: 'HOME', name: match.Home }, O: { id: match.Away_ID, v: 'AWAY', name: match.Away } }, { T: { id: match.Away_ID, v: 'AWAY', name: match.Away }, O: { id: match.Home_ID, v: 'HOME', name: match.Home } }];
+  const vW = (T) => (S.scope === 'venue' ? (T.v === 'HOME' ? ' in casa' : ' in trasferta') : ' in stagione');
+  const lab = (tk) => TM.find((t) => t[1] === tk)[2].toLowerCase();
+  for (const { T, O } of sides) {
+    const duels = computeTeamDuelTotals(DB.matchLog, T.id, S.scope === 'venue' ? T.v : 'TOTALE', DB.calendar);
+    for (const [, tk, label] of TM) {
+      // duelli
+      const rec = teamDuelRecord(duels, tk);
+      if (rec.n >= 4 && (rec.wins === 0 || rec.wins === rec.n || Math.max(rec.wins, rec.n - rec.wins) / rec.n >= 0.8 && rec.n >= 5)) {
+        const won = rec.wins >= rec.n - rec.wins, k = won ? rec.wins : rec.n - rec.wins;
+        out.push({ type: 'duel', tk, team: T.name, strength: (k / rec.n) * Math.min(1, rec.n / 5) + 0.3, n: rec.n, txt: `<b>${esc(T.name)}</b>${vW(T)} ha ${won ? 'vinto' : 'perso'} il duello su ${esc(label.toLowerCase())} in <b>${k}/${rec.n}</b> partite${k === rec.n ? ' (sempre)' : ''}` });
+      }
+      // classifiche
+      for (const [kind, who, sub] of [['own', T, 'produce'], ['opp', T, 'concede']]) {
+        const r = rankOfTeam(tk, kind, T.id, T.v);
+        if (!r || r.eligible < RK_MIN_ELIG) continue;
+        const top = r.rank <= 2, bot = r.rank >= r.eligible - 1;
+        if (!top && !bot) continue;
+        const extreme = r.rank === 1 || r.rank === r.eligible;
+        const verb = kind === 'own' ? (top ? 'produce più' : 'produce meno') : (top ? 'concede più' : 'concede meno');
+        out.push({ type: 'rank', tk, team: T.name, strength: (extreme ? 1 : 0.8) * Math.min(1, r.eligible / 12) + 0.2, n: r.eligible, txt: `<b>${esc(T.name)}</b>${vW(T)} ${verb} ${esc(label.toLowerCase())}${extreme ? ' di ogni altra squadra' : ' (tra le due ' + (top ? 'più' : 'meno') + ' della lega)'}: <b>${r.rank}° su ${r.eligible}</b>` });
+      }
+      // linee ricorrenti vicino alla media (valore proprio e concesso)
+      for (const [kind, who, nm] of [['own', T, 'ha'], ['opp', O, 'concede']]) {
+        const vs = (kind === 'own' ? scopeSet(T.id, T.v, tk, 'own') : scopeSet(O.id, O.v, tk, 'opp')).map((q) => q.v);
+        if (vs.length < 5) continue;
+        const mn = Math.min(...vs), mx = Math.max(...vs), avg = avgOf(vs);
+        const lgv = leagueAvgVenue('TOTALE', tk) || avg;
+        // linea di controllo: la x,5 appena sotto il minimo (sempre sopra) o appena sopra il massimo (sempre sotto)
+        const lowL = Math.ceil(mn) - 0.5, highL = Math.floor(mx) + 0.5;
+        const near = Math.abs(lowL - lgv) <= 0.35 * lgv ? 'over' : Math.abs(highL - lgv) <= 0.35 * lgv ? 'under' : null;
+        if (near === 'over') out.push({ type: 'line', tk, team: kind === 'own' ? T.name : O.name, strength: 0.6 * Math.min(1, vs.length / 6), n: vs.length, txt: `<b>${esc(kind === 'own' ? T.name : O.name)}</b>${vW(kind === 'own' ? T : O)} ${kind === 'own' ? 'ha fatto' : 'ha concesso'} sempre <b>più di ${String(lowL).replace('.', ',')}</b> ${esc(label.toLowerCase())} (<b>${vs.length}/${vs.length}</b> partite, minimo ${mn})` });
+        else if (near === 'under') out.push({ type: 'line', tk, team: kind === 'own' ? T.name : O.name, strength: 0.6 * Math.min(1, vs.length / 6), n: vs.length, txt: `<b>${esc(kind === 'own' ? T.name : O.name)}</b>${vW(kind === 'own' ? T : O)} ${kind === 'own' ? 'ha fatto' : 'ha concesso'} sempre <b>meno di ${String(highL).replace('.', ',')}</b> ${esc(label.toLowerCase())} (<b>${vs.length}/${vs.length}</b> partite, massimo ${mx})` });
+      }
+    }
+  }
+  out.sort((a, b) => b.strength - a.strength);
+  const seen = new Set(), res = [];
+  for (const f of out) { const k = f.txt; if (seen.has(k)) continue; seen.add(k); res.push(f); }
+  return res;
+}
+function lineFactsBlock(match, limit, title) {
+  const facts = lineFacts(match).slice(0, limit);
+  const body = facts.length ? facts.map((f) => `<li><span class="pill" style="margin-right:6px;">${f.type === 'duel' ? 'DUELLO' : f.type === 'rank' ? 'CLASSIFICA' : 'LINEA'}</span>${f.txt} <span class="subtle">· campione ${f.n}</span></li>`).join('') : '<li class="subtle">Nessun fatto netto con il campione attuale (servono almeno 4-5 partite, o 8 squadre confrontabili per le classifiche).</li>';
+  return `<div class="card"><h3>${title} <span class="tag">duelli, classifiche e linee ricorrenti · stesso campione dell'interruttore</span>${scopeToggle()}</h3><div class="cb"><ul class="lf">${body}</ul>
+    <div class="subtle" style="margin-top:8px;">Duello vinto = la squadra ha fatto più dell'avversario nella stessa partita (per falli e cartellini vuol dire commetterne di più). Classifica = posizione tra le squadre con campione sufficiente nello stesso venue. Linea ricorrente = soglia mai superata o sempre superata in tutte le partite del campione, scelta vicino alla media di lega.</div></div></div>`;
+}
+
+function projBlock(match, P, Pb) {
+  const computed = TM.map(([mk, tk, label]) => ({ mk, tk, label, h: P.home[mk], a: P.away[mk] }));
+  const best = { label: null, side: null };
   const cell = (x, isBest, left, sd, tk) => {
     const al = `style="text-align:${left ? 'left' : 'right'};"`;
     if (x.total == null) return `<td class="num" ${al}>—</td>`;
@@ -2299,7 +2476,7 @@ function projBlock(match, P) {
   };
   const rows = computed.map((r) => `<tr><td class="num">${cell(r.h, best.label === r.label && best.side === 'home')[0] ? '' : ''}</td></tr>`); // placeholder (sostituito sotto)
   const body = computed.map((r) => `<tr>${cell(r.h, best.label === r.label && best.side === 'home', false, 'home', r.tk)}<td style="text-align:center;font-weight:600;color:var(--text);">${r.mk === 'FC' ? ic('falli') : ic(r.tk === 'SOT' ? 'tiri in porta' : r.tk === 'Cart' ? 'cartellini' : r.tk === 'Corner' ? 'corner' : 'tiri')} ${r.label}</td>${cell(r.a, best.label === r.label && best.side === 'away', true, 'away', r.tk)}</tr>`).join('');
-  const bestBox = best.confidence > 0 ? `<div class="infobox" style="border-color:#5BA8E8;"><b style="color:#5BA8E8;">Segnale più forte del blocco:</b> ${esc(best.teamName)} — ${esc(best.label)}${best.sig.hitBest && best.sig.hitBest.n >= 5 ? ` · ${esc(best.sig.hitBest.label)} nel ${Math.round(best.sig.hitBest.rate * 100)}% delle partite (${best.sig.hitBest.n})` : ''}${best.sig.duelInfo && best.sig.duelInfo.n >= 5 ? ` · duello vinto ${Math.round(best.sig.duelInfo.rate * 100)}% (${best.sig.duelInfo.n})` : ''}<br><span class="subtle">Frequenza storica osservata, non una previsione — pesata dal campione.</span></div>` : '';
+  const bestBox = convBox(match, Pb || P);
   const anyIncomplete = ['home', 'away'].some((s) => TM.some(([mk]) => P[s][mk].counted != null && !P[s][mk].complete));
   return `
   <div class="card"><h3>Proiezione partita <span class="tag">somma dei titolari scelti (ciascuno con minuti attesi)${S.bench ? ' + stima panchina' : ''} · Corner a livello squadra · sotto ogni valore: cosa produce la squadra e cosa concede l'altra</span>${benchToggle()}${scopeToggle()}</h3>
