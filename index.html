@@ -1583,6 +1583,13 @@ try { if (localStorage.getItem('mx_bench') === '0') S.bench = false; } catch (e)
 S.scope = 'all'; // 'venue' = casa della squadra di casa e trasferta di quella ospite; 'all' = tutte le partite
 try { if (localStorage.getItem('mx_scope') === 'venue') S.scope = 'venue'; } catch (e) {}
 function setScope(v) { S.scope = v; try { localStorage.setItem('mx_scope', v); } catch (e) {} renderAll(); }
+// venue del GIOCATORE per il modello: in modalita' Casa/trasferta solo le partite nello stesso venue di questa
+const scopePv = (info) => (S.scope === 'venue' ? (info.venue === 'HOME' ? 'H' : 'A') : null);
+function pVenueStat(pid, teamId, m, pv) {
+  const rows = DB.matchLog.filter((r) => r.Player_ID === pid && r.Team_ID === teamId && r.Venue === pv);
+  const mn = rows.reduce((a, r) => a + (Number(r.Minuti) || 0), 0);
+  return { n: rows.length, min: mn, r90: mn ? rows.reduce((a, r) => a + metricValue(r, m), 0) / mn * 90 : null };
+}
 function scopeToggle() {
   return `<span class="seg" style="margin-left:auto;font-family:Inter,sans-serif;font-weight:500;" title="Solo venue: per la squadra di casa contano le partite giocate in casa, per quella ospite le partite giocate in trasferta (campione più piccolo, più specifico). Tutte le partite: campione più grande, ma mescola casa e trasferta."><button class="${S.scope === 'venue' ? 'on' : ''}" onclick="setScope('venue')">Casa / trasferta</button><button class="${S.scope === 'all' ? 'on' : ''}" onclick="setScope('all')">Tutte le partite</button></span>`;
 }
@@ -1784,7 +1791,7 @@ function luSummary(match, side) {
 // ---------------------------------------------------------------------------
 function pData(match, side, p, m, titolare) {
   const info = sideInfo(match, side);
-  const pr = projectPlayer(MODEL, DB.matchLog, { id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }, info.oppId, titolare, m);
+  const pr = projectPlayer(MODEL, DB.matchLog, { id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }, info.oppId, titolare, m, scopePv(info));
   const af = (m === 'FC' || m === 'Cart') ? arbFactor(match, side, m).fattore : 1;
   return { ...pr, fattoreArbitro: af, rate90Fin: pr.rate90 == null ? null : pr.rate90 * af, muFin: pr.mu == null ? null : pr.mu * af };
 }
@@ -1805,7 +1812,7 @@ function teamProj(match, side, key, ids, forceBench) {
   }
   const players = lineupPlayers(match, side, ids).map((p) => ({ id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }));
   const af = (key === 'FC' || key === 'Cart') ? arbFactor(match, side, key).fattore : 1;
-  const R = projectLineupTotal(MODEL, DB.matchLog, players, info.oppId, key, af);
+  const R = projectLineupTotal(MODEL, DB.matchLog, players, info.oppId, key, af, scopePv(info));
   const useBench = forceBench || S.bench;
   return { total: useBench ? R.withBench : R.startersTotal, withBench: R.withBench, benchOn: useBench, starters: R.startersTotal, own, nVenue: vals.length, counted: R.counted, expected: players.length, complete: R.complete, af, lowRel: R.lowReliability, kind: 'formazione' };
 }
@@ -2340,8 +2347,8 @@ function secMatchup(match) {
     const farr = d.fattoreAvversario >= 1.005 ? '▲' : d.fattoreAvversario <= 0.995 ? '▼' : '=';
     return `<tr class="prow" onclick="openPlayer('${r.p.Player_ID}')">
       <td><span class="pname">${esc(r.p.Nome_completo)}</span><span class="psub">${esc(r.p.Posizione_Analitica)}${r.starter ? '' : ' · panchina'}</span></td>
-      <td class="num"><span class="big">${fmt(d.baseline90)}</span><span class="sm">/90 · ${fmt(d.baseline90 == null ? null : d.baseline90 * d.minutiAttesi / 90)} a partita</span></td>
-      <td class="num c-opp"><span class="fac ${fcls}" title="Fattore totale = squadra × ruolo. Squadra: ${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× grezzo'} su ${d.partiteAvversario} partite (peso ${Math.round((d.pesoSquadra || 0) * 100)}%). Ruolo: ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× grezzo'} (peso ${Math.round((d.pesoRuolo || 0) * 100)}%)">${farr} ${fmt(d.fattoreAvversario, 2)}×</span><span class="sm">squadra ${fmt(d.fattoreSquadra, 2)}× · ruolo ${fmt(d.fattoreRuolo, 2)}×${d.fattoreArbitro !== 1 ? ' · arb. ' + fmt(d.fattoreArbitro, 2) + '×' : ''}</span></td>
+      <td class="num"><span class="big">${fmt(d.baseline90)}</span><span class="sm">/90 · ${fmt(d.baseline90 == null ? null : d.baseline90 * d.minutiAttesi / 90)} a partita</span>${(() => { const pv = info.venue === 'HOME' ? 'H' : 'A', v = pVenueStat(r.p.Player_ID, info.teamId, m, pv); return `<span class="sm" style="opacity:.8;" title="Solo informativo: la baseline del modello usa tutta la stagione del giocatore (nei test il venue personale non migliora la previsione)">${pv === 'H' ? 'in casa' : 'in trasf.'} ${v.n ? fmt(v.r90) + '/90 · ' + v.n + ' pres.' : '—'}</span>`; })()}</td>
+      <td class="num c-opp"><span class="fac ${fcls}" title="Fattore totale = squadra × ruolo. Squadra: ${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× grezzo'} su ${d.partiteAvversario} partite${S.scope === 'venue' ? ' (' + (info.oppVenue === 'HOME' ? 'in casa' : 'in trasferta') + ' dell\'avversario)' : ''} (peso ${Math.round((d.pesoSquadra || 0) * 100)}%). Ruolo: ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× grezzo'} (peso ${Math.round((d.pesoRuolo || 0) * 100)}%)">${farr} ${fmt(d.fattoreAvversario, 2)}×</span><span class="sm">squadra ${fmt(d.fattoreSquadra, 2)}× · ruolo ${fmt(d.fattoreRuolo, 2)}×${d.fattoreArbitro !== 1 ? ' · arb. ' + fmt(d.fattoreArbitro, 2) + '×' : ''}</span></td>
       <td class="num"><span class="res">${fmt(d.muFin)}</span><span class="sm">a partita · ${fmt(d.rate90Fin)}/90 · ${Math.round(d.minutiAttesi)}'</span></td>
       <td class="num">${relHtml(d.affidabilita)}<span class="sm">${Math.round(d.minutiStagione)}' · ${d.presenze} pres.</span></td>
       <td><button class="btn" onclick="event.stopPropagation();openPlayer('${r.p.Player_ID}')">Scheda</button></td></tr>`;
@@ -2355,14 +2362,14 @@ function secMatchup(match) {
   const totRow = m === 'FD' ? '' : `<div class="subtle" style="margin:8px 4px 0;">Somma dei ${st.length} titolari: <b style="color:var(--text);">${fmt(sumMu, 1)}</b>${st.length !== 11 ? ' <span class="tagwarn">⚠ ' + st.length + '/11</span>' : ''} → ${S.bench ? 'con panchina' : 'totale (solo titolari)'} <b style="color:var(--text);">${fmt(tp.total, 1)}</b> (stesso valore di Proiezione partita)</div>`;
   const warnCart = m === 'Cart' ? '<div class="infobox">Cartellini: eventi rari, campione molto piccolo — leggi la proiezione come probabilità, non come media.</div>' : '';
   return `
-  <div class="card"><h3>${ic(MK_ICON[m])} ${MK_LABEL[m]} <span class="tag" style="background:var(--accent);color:var(--accent-ink);padding:1px 8px;border-radius:6px;font-weight:700;">UN MERCATO ALLA VOLTA</span><span class="tag">giocatore → avversario → risultato · clic su una riga o su "Scheda" per i dettagli, senza lasciare la tabella</span></h3>
+  <div class="card"><h3>${ic(MK_ICON[m])} ${MK_LABEL[m]} <span class="tag" style="background:var(--accent);color:var(--accent-ink);padding:1px 8px;border-radius:6px;font-weight:700;">UN MERCATO ALLA VOLTA</span><span class="tag">giocatore → avversario → risultato · clic su una riga o su "Scheda" per i dettagli, senza lasciare la tabella</span>${scopeToggle()}</h3>
     <div class="cb">
       <div class="toolbar"><span>Mercato</span><span class="seg">${tabs}</span><span>Squadra</span><span class="seg">${sideTabs}</span></div>
       ${roleLine}${warnCart}
       <div style="overflow-x:auto;"><table class="dt">${head}<tbody>${st.map(rowHtml).join('') || '<tr><td colspan="6" style="color:var(--muted);">Nessun titolare selezionato: scegli la formazione in Formazioni.</td></tr>'}</tbody></table></div>
       ${totRow}
       ${bn.length ? `<details class="bench"><summary>Panchina e altri giocatori della rosa (${bn.length}) — calcolati come subentranti</summary><div style="overflow-x:auto;"><table class="dt">${head}<tbody>${bn.map(rowHtml).join('')}</tbody></table></div></details>` : ''}
-      <div class="subtle" style="margin-top:12px;">Baseline: stima per 90 minuti tirata verso la media del ruolo (peso del ruolo = ${MODEL_PARAMS.K_MIN}' pseudo-minuti), con forza d'attacco della squadra. Nei test su giornate già giocate questo metodo sbaglia circa 4 volte meno del vecchio e non esclude nessun giocatore. Fattore avversario a due livelli: squadra (concessione totale, peso = partite ÷ (partite + ${MODEL_PARAMS.K_OPP_TEAM})) × ruolo (molto più smorzato, ${MODEL_PARAMS.K_OPP}' pseudo-minuti). Entrambi i pesi crescono da soli con le giornate.</div>
+      <div class="subtle" style="margin-top:12px;">Baseline: stima per 90 minuti tirata verso la media del ruolo (peso del ruolo = ${MODEL_PARAMS.K_MIN}' pseudo-minuti), con forza d'attacco della squadra. Nei test su giornate già giocate questo metodo sbaglia circa 4 volte meno del vecchio e non esclude nessun giocatore. Fattore avversario a due livelli: squadra (concessione totale, peso = partite ÷ (partite + ${MODEL_PARAMS.K_OPP_TEAM})) × ruolo (molto più smorzato, ${MODEL_PARAMS.K_OPP}' pseudo-minuti). Entrambi i pesi crescono da soli con le giornate. Con «Casa / trasferta» il fattore avversario usa solo le partite in cui l'avversario ha giocato nello stesso venue di questa (${esc(info.oppName)} ${info.oppVenue === 'HOME' ? 'in casa' : 'in trasferta'}), confrontate con la lega nello stesso venue: campione più piccolo, peso più basso. La baseline del giocatore resta su tutta la stagione; sotto trovi comunque il suo dato in casa/trasferta.</div>
     </div></div>`;
 }
 

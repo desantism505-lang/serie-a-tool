@@ -773,6 +773,7 @@ function metricValue(r, m) {
 // subentrati e rapporto totale-squadra / solo-titolari (per stimare la panchina).
 function buildLeagueModel(matchLog) {
   const role = {}, opp = {}, teamTot = {}, teamMatches = {}, oppT = {}, oppMatches = {}, lgAll = { min: 0 };
+  const roleV = {}, oppRV = {}, oppTV = {}, oppMatchesV = {}, lgAllV = {}; // stessi aggregati divisi per venue del GIOCATORE (H casa, A trasferta)
   let stMin = 0, stN = 0, sbMin = 0, sbN = 0;
   const shareAll = {}, shareSt = {};
   for (const m of MODEL_METRICS) { shareAll[m] = 0; shareSt[m] = 0; }
@@ -785,6 +786,11 @@ function buildLeagueModel(matchLog) {
     add(role, r.Posizione_Analitica, r);
     add(opp, r.Opp_ID + '|' + r.Posizione_Analitica, r);
     add(oppT, r.Opp_ID, r);
+    add(roleV, r.Posizione_Analitica + '|' + r.Venue, r);
+    add(oppRV, r.Opp_ID + '|' + r.Posizione_Analitica + '|' + r.Venue, r);
+    add(oppTV, r.Opp_ID + '|' + r.Venue, r);
+    add(lgAllV, r.Venue, r);
+    (oppMatchesV[r.Opp_ID + '|' + r.Venue] || (oppMatchesV[r.Opp_ID + '|' + r.Venue] = new Set())).add(r.Match_ID);
     add({ L: lgAll }, 'L', r);
     (oppMatches[r.Opp_ID] || (oppMatches[r.Opp_ID] = new Set())).add(r.Match_ID);
     const tt = teamTot[r.Team_ID] || (teamTot[r.Team_ID] = {});
@@ -803,6 +809,7 @@ function buildLeagueModel(matchLog) {
     lgPerTeamMatch[m] = nTM ? t / nTM : null;
   }
   return {
+    roleV, oppRV, oppTV, lgAllV, oppNV: Object.fromEntries(Object.entries(oppMatchesV).map(([k, v]) => [k, v.size])),
     role, opp, oppT, lgAll, oppN: Object.fromEntries(Object.entries(oppMatches).map(([k, v]) => [k, v.size])),
     teamTot, teamN: Object.fromEntries(Object.entries(teamMatches).map(([k, v]) => [k, v.size])), lgPerTeamMatch,
     startMinMean: stN ? stMin / stN : 88,
@@ -840,16 +847,19 @@ function shrunkRate90(model, rows, ruolo, m, teamId) {
 // Fattore avversario a due livelli. Squadra: quanto l'avversario concede in totale
 // (tutti i ruoli) rispetto alla lega. Ruolo: scostamento ulteriore dello stesso ruolo,
 // molto piu' smorzato. Pesi crescenti col campione (nessuna taratura periodica).
-function opponentFactor(model, oppId, ruolo, m) {
+function opponentFactor(model, oppId, ruolo, m, pv) {
+  // pv ('H' | 'A'): se presente usa solo le partite in cui i giocatori affrontavano l'avversario nello stesso venue
+  // di questa partita, confrontate con la lega nello stesso venue. Il campione e' piu' piccolo e i pesi
+  // (n/(n+K)) si abbassano da soli.
   let fTeam = 1, rTeam = null, wTeam = 0;
-  const n = model.oppN[oppId], at = model.oppT[oppId], lg = rate90Of(model.lgAll, m);
+  const n = pv ? model.oppNV[oppId + '|' + pv] : model.oppN[oppId], at = pv ? model.oppTV[oppId + '|' + pv] : model.oppT[oppId], lg = rate90Of(pv ? model.lgAllV[pv] : model.lgAll, m);
   if (MODEL_PARAMS.OPP_TEAM_METRICS.includes(m) && n && at && at.min && lg) {
     rTeam = rate90Of(at, m) / lg;
     wTeam = n / (n + MODEL_PARAMS.K_OPP_TEAM);
     fTeam = 1 + (rTeam - 1) * wTeam;
   }
   let fRole = 1, rRole = null, wRole = 0, minutes = 0;
-  const a = model.opp[oppId + '|' + ruolo], prior = rate90Of(model.role[ruolo], m);
+  const a = pv ? model.oppRV[oppId + '|' + ruolo + '|' + pv] : model.opp[oppId + '|' + ruolo], prior = rate90Of(pv ? model.roleV[ruolo + '|' + pv] : model.role[ruolo], m);
   if (a && a.min && prior) {
     rRole = rate90Of(a, m) / prior;
     wRole = a.min / (a.min + MODEL_PARAMS.K_OPP);
@@ -880,10 +890,10 @@ function reliabilityOf(minutes) {
 
 // Proiezione completa di un giocatore su una metrica, PER QUESTA PARTITA.
 // player = { id, team, ruolo }; opp = Team_ID avversario; titolare = bool.
-function projectPlayer(model, matchLog, player, oppId, titolare, m) {
+function projectPlayer(model, matchLog, player, oppId, titolare, m, pv) {
   const rows = playerRows(matchLog, player.id, player.team);
   const base = shrunkRate90(model, rows, player.ruolo, m, player.team);
-  const of = opponentFactor(model, oppId, player.ruolo, m);
+  const of = opponentFactor(model, oppId, player.ruolo, m, pv);
   const expMin = expectedMinutes(model, rows, titolare);
   const rate90 = base.rate90 == null ? null : base.rate90 * of.factor;
   return {
@@ -958,12 +968,12 @@ function probCardFromFouls(expFouls, cardsPerFoul) {
 // Totale squadra da una formazione. players: [{id, team, ruolo}]. Restituisce
 // somma sui titolari, stima con panchina e il CONTEGGIO dei giocatori contati,
 // cosi' un totale incompleto non passa mai inosservato.
-function projectLineupTotal(model, matchLog, players, oppId, m, extraFactor) {
+function projectLineupTotal(model, matchLog, players, oppId, m, extraFactor, pv) {
   const ef = extraFactor == null ? 1 : extraFactor; // es. fattore arbitro per Falli/Cartellini
   let sumStarters = 0, counted = 0, lowRel = 0;
   const rows = [];
   for (const p of players) {
-    const pr = projectPlayer(model, matchLog, p, oppId, true, m);
+    const pr = projectPlayer(model, matchLog, p, oppId, true, m, pv);
     rows.push({ player: p, proj: pr });
     if (pr.mu != null) { sumStarters += pr.mu * ef; counted++; if (pr.affidabilita === 'bassa') lowRel++; }
   }
