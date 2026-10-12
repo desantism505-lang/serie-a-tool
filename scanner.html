@@ -509,6 +509,12 @@
             <label><input type="radio" name="scnFVenue" class="scnFVenueRad" value="AWAY" /> Trasferta (solo squadra ospite)</label>
           </div>
         </div>
+        <select id="scnFTit" title="Usa le formazioni salvate in Matchup Engine" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
+          <option value="">Titolare: tutti</option>
+          <option value="tit">Solo titolari (✓)</option>
+          <option value="conf">Solo titolari confermati</option>
+          <option value="notN">Nascondi esclusi (✗), tieni senza formazione</option>
+        </select>
         <select id="scnFCV" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
           <option value="">Consistenza: tutte</option>
           <option value="stabile">stabile</option>
@@ -563,6 +569,7 @@
           <tr>
             <th class="sortable" data-key="giocatore" title="Nome del giocatore e squadra">Giocatore<span class="arrow"></span></th>
             <th title="La partita e se il giocatore gioca in casa o trasferta in quella gara">Partita / venue</th>
+            <th class="sortable" data-key="titolare" title="Dalla formazione salvata in Matchup Engine. ✓ titolare confermato · ✓⚠ titolare in formazione ipotetica · ✗ non in formazione · – nessuna formazione salvata per quella partita">Titolare<span class="arrow"></span></th>
             <th class="sortable" data-key="mercato" title="La statistica su cui si basa la linea (tiri, tiri in porta, falli, cartellini)">Mercato<span class="arrow"></span></th>
             <th class="num sortable" data-key="linea" title="La soglia Over da valutare (es. Over 1.5 = almeno 2)">Linea<span class="arrow"></span></th>
             <th class="num sortable" data-key="mediaVenue" title="Media a partita in quel venue (casa o trasferta), nelle partite reali giocate lì">Media venue /90 (N)<span class="arrow"></span></th>
@@ -898,6 +905,63 @@ function getCheckedValues(selector){
   return [...document.querySelectorAll(selector)].filter(c => c.checked).map(c => c.value);
 }
 
+// ---------------------------------------------------------------------------
+// FORMAZIONI da Matchup Engine: stessa tabella Supabase "formazioni" e stessa
+// chiave locale "lineup_v2_<partita>" (stessa origine, quindi condivisa).
+// Vince la versione piu' recente (campo ts / updated_at), come nel Matchup Engine.
+// Stati riga: Y titolare in formazione confermata · Yh titolare in formazione
+// ipotetica · N non in formazione · U nessuna formazione salvata per la partita.
+// Non uso mai la "stima" automatica: se non hai salvato nulla resta U (–).
+// ---------------------------------------------------------------------------
+let LUMAP = {}; // matchId -> { teamId: { ids:Set, confirmed, ts } }
+function luReadLocal(matchId){
+  const out = {};
+  try {
+    const o = JSON.parse(localStorage.getItem('lineup_v2_' + matchId) || '{}') || {};
+    for (const t of Object.keys(o)) {
+      const x = o[t];
+      if (x && Array.isArray(x.ids) && x.ids.length) out[t] = { ids: new Set(x.ids), confirmed: !!x.confirmed, ts: x.ts || 0 };
+    }
+  } catch (e) { /* storage non disponibile */ }
+  return out;
+}
+async function loadLineups(matchIds){
+  const map = {};
+  for (const id of matchIds) map[id] = luReadLocal(id);
+  if (sb && matchIds.length) {
+    try {
+      const { data, error } = await sb.from('formazioni').select('match_id, team_id, starters, confirmed, updated_at').in('match_id', matchIds);
+      if (error) throw error;
+      for (const row of data || []) {
+        if (!map[row.match_id] || !Array.isArray(row.starters) || !row.starters.length) continue;
+        const ts = Date.parse(row.updated_at) || 0;
+        const cur = map[row.match_id][row.team_id];
+        if (!cur || ts > cur.ts) map[row.match_id][row.team_id] = { ids: new Set(row.starters), confirmed: !!row.confirmed, ts };
+      }
+    } catch (e) { console.warn('Supabase: formazioni non lette, uso solo quelle locali.', e); }
+  }
+  LUMAP = map;
+}
+function lineupState(r){
+  const t = (LUMAP[r.match.Match_ID] || {})[r.player.Team_ID_Rif];
+  if (!t) return 'U';
+  if (!t.ids.has(r.player.Player_ID)) return 'N';
+  return t.confirmed ? 'Y' : 'Yh';
+}
+function lineupBadge(r){
+  const st = lineupState(r);
+  if (st === 'Y') return '<span class="verdict-fav" title="Titolare in formazione confermata">✓</span>';
+  if (st === 'Yh') return '<span class="verdict-fav" title="Titolare in formazione ipotetica (non ancora confermata)">✓<span style="color:var(--warn,#d9a441)">⚠</span></span>';
+  if (st === 'N') return '<span class="verdict-nofav" title="Non è tra i titolari della formazione salvata">✗</span>';
+  return '<span class="subtle" title="Nessuna formazione salvata in Matchup Engine per questa partita">–</span>';
+}
+async function refreshLineups(){
+  if (!scanResults.length) return;
+  await loadLineups([...new Set(scanResults.map(r => r.match.Match_ID))]);
+  renderScan();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshLineups(); });
+
 function runScanGiornata(){
   if (!DB) return;
   const giornata = Number(document.getElementById('scnGiornata').value);
@@ -944,6 +1008,7 @@ function runScanGiornata(){
   scanResults = results;
   sortState = { key: 'hitVenue', dir: -1 };
   applySortAndRender();
+  refreshLineups(); // formazioni salvate in Matchup Engine: aggiorna colonna Titolare
 }
 document.getElementById('scnRun').addEventListener('click', runScanGiornata);
 
@@ -970,6 +1035,7 @@ function derived(r){
 
 const SORT_ACCESSORS = {
   giocatore: r => r.player.Nome_completo,
+  titolare: r => ({ Y: 3, Yh: 2, U: 1, N: 0 })[lineupState(r)],
   mercato: r => MARKET_LABELS[r.mercato],
   linea: r => r.linea,
   mediaVenue: r => r.mediaVenue ?? -Infinity,
@@ -1059,12 +1125,19 @@ function scnFilters(){
     evBuckets: bucketsFromChecked('.scnFEvChk'),
     quotaBuckets: bucketsFromChecked('.scnFQuotaChk'),
     venue: getScnVenue(),
+    tit: document.getElementById('scnFTit').value,
   };
 }
 function applyScnFilters(rows){
   const f = scnFilters();
   return rows.filter(r => {
     if (f.venue && r.venue !== f.venue) return false;
+    if (f.tit) {
+      const st = lineupState(r);
+      if (f.tit === 'tit' && st !== 'Y' && st !== 'Yh') return false;
+      if (f.tit === 'conf' && st !== 'Y') return false;
+      if (f.tit === 'notN' && st === 'N') return false;
+    }
     if (f.text) {
       const hay = `${r.player.Nome_completo} ${r.match.Home} ${r.match.Away}`.toLowerCase();
       if (!hay.includes(f.text)) return false;
@@ -1095,6 +1168,7 @@ function updateScnVenueLabel(){
 document.querySelectorAll('.scnFVenueRad').forEach(r => r.addEventListener('change', () => { updateScnVenueLabel(); renderScan(); }));
 document.getElementById('scnFText').addEventListener('input', renderScan);
 document.getElementById('scnFCV').addEventListener('change', renderScan);
+document.getElementById('scnFTit').addEventListener('change', renderScan);
 document.querySelectorAll('.scnFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk'); renderScan(); }));
 document.querySelectorAll('.scnFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk'); renderScan(); }));
 document.querySelectorAll('.scnFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk'); renderScan(); }));
@@ -1102,6 +1176,7 @@ document.querySelectorAll('.scnFQuotaChk').forEach(chk => chk.addEventListener('
 document.getElementById('scnFClear').addEventListener('click', () => {
   document.getElementById('scnFText').value = '';
   document.getElementById('scnFCV').value = '';
+  document.getElementById('scnFTit').value = '';
   document.querySelector('.scnFVenueRad[value=""]').checked = true;
   updateScnVenueLabel();
   document.querySelectorAll('.scnFHitChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => { chk.checked = false; });
@@ -1172,6 +1247,7 @@ function renderScan(){
     return `<tr>
     <td class="metricname">${r.player.Nome_completo}<div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
+    <td class="num">${lineupBadge(r)}</td>
     <td>${MARKET_LABELS[r.mercato]}</td>
     <td class="num">${fmt(r.linea,1)}</td>
     <td class="num nw">${fmt(r.mediaVenue)} <span class="subtle">(N=${r.nVenue})</span></td>
@@ -1236,6 +1312,7 @@ document.getElementById('scnExport').addEventListener('click', () => {
       Partita: `${r.match.Home} - ${r.match.Away}`,
       Giornata: r.match.Giornata,
       Venue: r.venue,
+      Titolare: ({ Y: 'confermato', Yh: 'ipotetico', N: 'no', U: 'n/d' })[lineupState(r)],
       Mercato: MARKET_LABELS[r.mercato],
       Linea: r.linea,
       'Media venue /90': r.mediaVenue,
