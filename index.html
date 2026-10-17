@@ -1028,6 +1028,11 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
   }
 
   for (const role of ALL_ROLES) {
+    // Portieri esclusi dai Fatti salienti (richiesta Marco, 17/10): le
+    // concessioni "al ruolo portiere" sono quasi sempre un pareggio di massa
+    // a zero (vedi ARCHITECTURE.md) e comunque non un dato utile per questo
+    // pannello — restano visibili altrove (Role matchup, Confronto partita).
+    if (role === 'Portiere') continue;
     // Punto 1: salta il ruolo se l'avversario reale di questa partita non
     // ha giocatori attivi in quel ruolo — nessuno scenderà in campo a
     // generare quella statistica in questa gara specifica.
@@ -1108,6 +1113,7 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
   const oppVenueWord = oppVenue === 'HOME' ? 'in casa' : 'in trasferta';
   for (const player of players) {
     const role = player.Posizione_Analitica;
+    if (role === 'Portiere') continue; // portieri esclusi dai Fatti salienti (richiesta Marco, 17/10)
     if (rolesSeen.has(role)) continue; // un fatto per ruolo (elenca TUTTI i giocatori di quel ruolo, non uno a caso)
     rolesSeen.add(role);
     const sameRole = players.filter(p => p.Posizione_Analitica === role).map(p => p.Nome_completo);
@@ -1169,7 +1175,7 @@ function computeAbsoluteRank(playerId, venue, col90key){
 }
 
 function computePlayerAbsoluteFacts(teamId, venue, venueLabel){
-  const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
+  const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId && p.Posizione_Analitica !== 'Portiere');
   const facts = [];
   for (const player of players) {
     for (const [col, label] of PLAYER_METRICS) {
@@ -1200,7 +1206,7 @@ function computePlayerAbsoluteFacts(teamId, venue, venueLabel){
 // "primo" (top3 del ruolo), mai "ultimo" — stessa regola di cui sopra.
 function computePlayerStandoutFacts(teamId, venue, venueLabel){
   const minSample = venue === 'TOTALE' ? 3 : 2;
-  const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
+  const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId && p.Posizione_Analitica !== 'Portiere');
   const facts = [];
   for (const player of players) {
     for (const [col, label] of PLAYER_METRICS) {
