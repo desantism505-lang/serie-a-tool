@@ -1012,14 +1012,54 @@ function runScanGiornata(){
 }
 document.getElementById('scnRun').addEventListener('click', runScanGiornata);
 
+// Bug corretto (18/10): prima qui si chiamava renderScan(), che ricostruisce
+// TUTTA la tabella (body.innerHTML = ...) e quindi distrugge e ricrea ogni
+// singolo campo quota — incluso quello su cui stavi scrivendo in un'altra
+// riga nello stesso istante. Inserendo due quote di fila rapidamente, la
+// seconda poteva perdersi perché il suo campo veniva rimpiazzato da uno
+// vuoto proprio mentre ci si stava scrivendo dentro (prima che scattasse il
+// suo "onchange"). Ora si aggiornano SOLO le 3 celle derivate (probabilità,
+// edge, valore atteso) della riga appena modificata — tutte le altre righe,
+// e i loro campi quota eventualmente in corso di digitazione, restano intatte.
 function scnSetQuota(i, val){
   const r = scanResults[i];
+  // Se un filtro su quota/edge/valore atteso è attivo, inserire una quota può
+  // far entrare o uscire questa riga dall'elenco filtrato — in quel caso solo
+  // patchare le celle non basta, serve il ridisegno completo (vecchio
+  // comportamento, usato però solo quando serve davvero).
+  const eraFiltrataPrima = applyScnFilters([r]).length > 0;
+
   const q = Number(val.replace(',', '.'));
   const key = scanRowKey(r);
   scanQuotes[key] = (val === '' || Number.isNaN(q) || q <= 1) ? null : q;
   saveScanQuotes();
   quoteCloudSave(key, scanQuotes[key]);
-  renderScan();
+
+  const eFiltrataDopo = applyScnFilters([r]).length > 0;
+  if (eraFiltrataPrima !== eFiltrataDopo) {
+    renderScan(); // la riga deve apparire/scomparire: serve il ridisegno pieno
+    return;
+  }
+
+  // Caso comune: la riga resta visibile esattamente dov'era — aggiorno solo
+  // le 3 celle derivate di QUESTA riga. Non tocco il resto della tabella, così
+  // un campo quota su cui si sta scrivendo in un'altra riga non viene distrutto
+  // (bug corretto il 18/10: prima qui si chiamava sempre renderScan(), che
+  // ricostruisce l'intero corpo tabella con body.innerHTML = ... e quindi
+  // cancellava anche quote digitate in altre righe nello stesso istante).
+  const { prob, edge, ev } = derived(r);
+  const probEl = document.getElementById('scnProb-' + i);
+  const edgeEl = document.getElementById('scnEdge-' + i);
+  const evEl = document.getElementById('scnEv-' + i);
+  if (probEl) probEl.textContent = prob != null ? pct(prob) : '—';
+  if (edgeEl) {
+    edgeEl.textContent = edge != null ? (edge > 0 ? '+' : '') + (edge * 100).toFixed(1) + 'pp' : '—';
+    edgeEl.className = 'num' + (edge != null && edge > 0 ? ' verdict-fav' : (edge != null ? ' verdict-nofav' : ''));
+  }
+  if (evEl) {
+    evEl.textContent = ev != null ? (ev > 0 ? '+' : '') + ev.toFixed(2) + '€' : '—';
+    evEl.className = 'num' + (ev != null && ev > 0 ? ' verdict-fav' : (ev != null ? ' verdict-nofav' : ''));
+  }
 }
 
 // Valori derivati (prob/edge) dipendono dalla quota inserita, che può cambiare
@@ -1255,10 +1295,10 @@ function renderScan(){
     <td>${cvBadge(r.cv)}</td>
     <td class="num"><div class="hitcell">${hitChip(r.hitVenue)}${ciTxt}</div></td>
     <td class="num">${pctColored(r.hitStag)}</td>
-    <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${quota ?? ''}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" /></td>
-    <td class="num">${prob != null ? pct(prob) : '—'}</td>
-    <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
-    <td class="num ${ev != null && ev > 0 ? 'verdict-fav' : (ev != null ? 'verdict-nofav' : '')}">${ev != null ? (ev>0?'+':'') + ev.toFixed(2)+'€' : '—'}</td>
+    <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" id="scnQuotaInput-${i}" value="${quota ?? ''}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" /></td>
+    <td class="num" id="scnProb-${i}">${prob != null ? pct(prob) : '—'}</td>
+    <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}" id="scnEdge-${i}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
+    <td class="num ${ev != null && ev > 0 ? 'verdict-fav' : (ev != null ? 'verdict-nofav' : '')}" id="scnEv-${i}">${ev != null ? (ev>0?'+':'') + ev.toFixed(2)+'€' : '—'}</td>
     <td><button class="rowdel" style="color:var(--accent);font-size:16px;" title="${fav ? 'Rimuovi dai preferiti' : 'Salva tra i preferiti'}" onclick="toggleFavorite(${i})">${fav ? '★' : '☆'}</button></td>
   </tr>`;
   }).join('');
