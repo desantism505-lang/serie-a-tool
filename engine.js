@@ -999,6 +999,54 @@ function projectLineupTotal(model, matchLog, players, oppId, m, extraFactor, pv)
 // =============================================================================
 const NARRATIVE_ROLES = ['Punta centrale', 'Trequartista', 'Esterno/Quinto', 'Centrocampista centrale', 'Terzino', 'Centrale difensivo'];
 
+// Articolo corretto per ogni squadra di Serie A — in italiano calcistico ogni nome di
+// squadra richiede l'articolo ("il Bologna", "l'Inter", "la Juventus"), mai il nome nudo
+// come soggetto di frase né con "di" semplice ("di Bologna" è sbagliato, "del Bologna" è giusto).
+const NARR_TEAM_ART = {
+  Atalanta: 'f_v', Bologna: 'm_c', Cagliari: 'm_c', Como: 'm_c', Fiorentina: 'f_c', Frosinone: 'm_c',
+  Genoa: 'm_c', Inter: 'f_v', Juventus: 'f_c', Lazio: 'f_c', Lecce: 'm_c', Milan: 'm_c', Monza: 'm_c',
+  Napoli: 'm_c', Parma: 'm_c', Roma: 'f_c', Sassuolo: 'm_c', Torino: 'm_c', Udinese: 'f_v', Venezia: 'm_c',
+};
+function narrArtKind(teamName) { return NARR_TEAM_ART[teamName] || 'm_c'; }
+// Articolo determinativo isolato ("il"/"la"/"l'"), con maiuscola se richiesta (inizio frase).
+function narrArt(teamName, cap) {
+  const k = narrArtKind(teamName);
+  const a = k === 'f_v' ? "l'" : k === 'f_c' ? 'la ' : 'il ';
+  return cap ? a.charAt(0).toUpperCase() + a.slice(1) : a;
+}
+// Squadra come soggetto/oggetto con articolo: "il Bologna", "l'Inter", "la Juventus".
+function narrTeam(teamName, cap) { return narrArt(teamName, cap) + teamName; }
+// Forma possessiva "del/dell'/della X", per sostituire ogni "di X" errato.
+function narrTeamOf(teamName) {
+  const k = narrArtKind(teamName);
+  const p = k === 'f_v' ? "dell'" : k === 'f_c' ? 'della ' : 'del ';
+  return p + teamName;
+}
+// Forma "dal/dall'/dalla X" (complemento d'agente), per sostituire ogni "da X" errato.
+function narrTeamDa(teamName) {
+  const k = narrArtKind(teamName);
+  const p = k === 'f_v' ? "dall'" : k === 'f_c' ? 'dalla ' : 'dal ';
+  return p + teamName;
+}
+
+// Media di lega di quanto un RUOLO specifico concede quando una squadra gioca nel venue V —
+// stesso identico calcolo di narrWeakestRoleExtra ma mediato su tutte le squadre col campione
+// minimo, per poter distinguere una VERA debolezza (sopra media) da un dato solo "il meno buono
+// tra i propri ruoli" ma comunque nella norma.
+function narrLeagueRoleAvg(matchLog, ruolo, venueLetter, metricKey) {
+  const key = metricKey || 'Tiri_Concessi_90';
+  const teamIds = [...new Set(matchLog.map((r) => r.Team_ID))];
+  const segmento = venueLetter === 'H' ? 'AWAY' : 'HOME';
+  let s = 0, n = 0;
+  for (const t of teamIds) {
+    const partite = narrPartiteInVenue(matchLog, t, venueLetter);
+    if (!partite) continue;
+    const row = computeRoleConcessions(matchLog, t, segmento, ruolo, partite);
+    if (row.N_Prestazioni_Ruolo >= 3 && row[key] != null) { s += row[key]; n++; }
+  }
+  return n ? s / n : null;
+}
+
 function narrStandingsTable(calendar) {
   const played = calendar.filter((c) => c.Stato === 'CONCLUSA' && c.Home_Score !== '' && c.Home_Score != null);
   const t = {};
@@ -1034,12 +1082,66 @@ function narrVenueRecord(calendar, teamId, venue) {
 // computeRoleConcessions è l'OPPOSTO del venue reale (stessa inversione di
 // ARCHITECTURE.md: per "cosa concede X mentre gioca in V" serve segmento = not(V)).
 function narrWeakestRole(matchLog, teamId, venue, teamPartiteInVenue) {
+  const r = narrWeakestRoleMulti(matchLog, teamId, venue, teamPartiteInVenue).primary;
+  return r ? r.row : null;
+}
+
+// Versione multi-metrica: la "vera falla" di una squadra in un venue non è sempre sui
+// tiri concessi — può emergere altrettanto (o più) nettamente sui falli SUBITI da un
+// ruolo avversario (FalliSubiti_Ruolo_90, la vera debolezza disciplinare della squadra).
+// Si valutano entrambe le metriche su tutti i ruoli e si tiene quella con lo scarto
+// relativo (ratio sulla media di lega stesso ruolo/venue) più marcato: così la Chiave
+// di lettura non è forzata sui tiri in ogni partita. candidate = {row, metric, value, avg, ratio}.
+function narrWeakestRoleMulti(matchLog, teamId, venue, teamPartiteInVenue) {
   const segmento = venue === 'H' ? 'AWAY' : 'HOME';
   const rows = NARRATIVE_ROLES.map((r) => computeRoleConcessions(matchLog, teamId, segmento, r, teamPartiteInVenue))
-    .filter((x) => x.N_Prestazioni_Ruolo >= 3 && x.Tiri_Concessi_90 != null);
-  if (!rows.length) return null;
-  rows.sort((a, b) => b.Tiri_Concessi_90 - a.Tiri_Concessi_90);
-  return rows[0];
+    .filter((x) => x.N_Prestazioni_Ruolo >= 3);
+  if (!rows.length) return { primary: null, secondary: null, sotWeak: null };
+  const cands = [];
+  for (const row of rows) {
+    if (row.Tiri_Concessi_90 != null) {
+      const avg = narrLeagueRoleAvg(matchLog, row.Posizione_Analitica, venue, 'Tiri_Concessi_90');
+      cands.push({ row, metric: 'Tiri', value: row.Tiri_Concessi_90, avg, ratio: avg ? row.Tiri_Concessi_90 / avg : null });
+    }
+    if (row.FalliSubiti_Ruolo_90 != null) {
+      const avg = narrLeagueRoleAvg(matchLog, row.Posizione_Analitica, venue, 'FalliSubiti_Ruolo_90');
+      cands.push({ row, metric: 'Falli', value: row.FalliSubiti_Ruolo_90, avg, ratio: avg ? row.FalliSubiti_Ruolo_90 / avg : null });
+    }
+  }
+  // I falli subiti per ruolo hanno varianza di lega più bassa dei tiri: anche uno scarto modesto
+  // produce un ratio enorme, che altrimenti farebbe vincere i falli quasi sempre invece di "variare"
+  // davvero la chiave come richiesto. Si passa ai falli solo se il loro scarto è CHIARAMENTE più
+  // marcato (almeno il 20% in più) di quello sui tiri dello stesso venue — altrimenti i tiri restano
+  // il riferimento di default, e i falli emergono solo quando sono davvero il segnale più forte.
+  const bestTiri = cands.filter((c) => c.metric === 'Tiri' && c.ratio != null).sort((a, b) => b.ratio - a.ratio)[0] || null;
+  const bestFalli = cands.filter((c) => c.metric === 'Falli' && c.ratio != null).sort((a, b) => b.ratio - a.ratio)[0] || null;
+  let primary;
+  if (bestFalli && (!bestTiri || bestFalli.ratio >= bestTiri.ratio * 1.5)) {
+    primary = bestFalli;
+  } else if (bestTiri) {
+    primary = bestTiri;
+  } else {
+    const byTiri = rows.filter((r) => r.Tiri_Concessi_90 != null).sort((a, b) => b.Tiri_Concessi_90 - a.Tiri_Concessi_90);
+    primary = byTiri[0] ? { row: byTiri[0], metric: 'Tiri', value: byTiri[0].Tiri_Concessi_90, avg: null, ratio: null } : null;
+  }
+  if (!primary) return { primary: null, secondary: null, sotWeak: null };
+  // seconda debolezza: altro ruolo, STESSA metrica del primario, valore vicino (>=75%) — non marginale.
+  const sameMetric = cands.filter((c) => c.metric === primary.metric && c.row.Posizione_Analitica !== primary.row.Posizione_Analitica);
+  const secondCand = sameMetric.sort((a, b) => b.value - a.value)[0];
+  const secondary = secondCand && secondCand.value >= primary.value * 0.75 ? secondCand : null;
+  // la lettura specifica sui tiri IN PORTA ha senso solo quando la falla principale è sui tiri.
+  let sotWeak = null;
+  if (primary.metric === 'Tiri') {
+    const bySot = rows.filter((x) => x.SOT_Concessi_90 != null).sort((a, b) => b.SOT_Concessi_90 - a.SOT_Concessi_90);
+    sotWeak = bySot[0] && bySot[0].Posizione_Analitica !== primary.row.Posizione_Analitica ? bySot[0] : null;
+  }
+  return { primary, secondary, sotWeak };
+}
+
+// Media di una metrica (Corner/Cart/...) sui totali-partita di una squadra in un venue.
+function narrAvgOf(totals, key) {
+  const vs = totals.map((t) => t[key]).filter((v) => v != null);
+  return vs.length ? { avg: vs.reduce((a, b) => a + b, 0) / vs.length, n: vs.length } : null;
 }
 
 function narrPartiteInVenue(matchLog, teamId, venueLetter) {
@@ -1105,6 +1207,92 @@ function narrStreaksFor(calendar, teamId, venue) {
   return keys.map((k) => ({ key: k, ...computeTeamStreak(calendar, teamId, venue, k) })).filter((s) => s.partite >= 2);
 }
 
+// Ruolo difensivo/di centrocampo che tipicamente incontra ciascun ruolo offensivo (approssimazione
+// posizionale, non un dato di marcatura reale — usata solo per proporre incroci individuali
+// plausibili). Comprende anche le coppie speculari (il terzino che si propone trova l'esterno
+// avversario, i due centrocampisti centrali si incontrano direttamente) per avere più candidati.
+const NARR_ROLE_MARCATURA = {
+  'Esterno/Quinto': 'Terzino',
+  'Punta centrale': 'Centrale difensivo',
+  'Trequartista': 'Centrocampista centrale',
+  'Terzino': 'Esterno/Quinto',
+  'Centrocampista centrale': 'Centrocampista centrale',
+};
+
+// Incrocio individuale sui falli: cerca, tra i ruoli offensivi con una controparte difensiva
+// definita, i giocatori che SUBISCONO più falli (FD, atteso in questa partita) il cui marcatore
+// naturale è chi NE COMMETTE più (FC) — tipo "Zaccagni subisce 2,5 falli a partita e gioca vs
+// Celik che ne commette 1". Richiede entrambe le proiezioni sopra una soglia minima per non
+// forzare l'incrocio quando i numeri non dicono nulla. Restituisce FINO A 2 coppie (ruoli
+// diversi, nessun giocatore ripetuto), non solo la migliore, per dare più carne individuale.
+function narrFoulMatchup(model, matchLog, rosters, attackTeamId, attackPv, defendTeamId, defendPv) {
+  const cands = [];
+  for (const role in NARR_ROLE_MARCATURA) {
+    const defRole = NARR_ROLE_MARCATURA[role];
+    const attackers = narrPlayersInRole(rosters, matchLog, attackTeamId, role, 300).slice(0, 3);
+    const defenders = narrPlayersInRole(rosters, matchLog, defendTeamId, defRole, 300).slice(0, 2);
+    if (!attackers.length || !defenders.length) continue;
+    for (const a of attackers) {
+      const fd = projectPlayer(model, matchLog, { id: a.id, team: attackTeamId, ruolo: role }, defendTeamId, true, 'FD', attackPv);
+      if (fd.mu == null || fd.mu < 1.5) continue;
+      for (const def of defenders) {
+        const fc = projectPlayer(model, matchLog, { id: def.id, team: defendTeamId, ruolo: defRole }, attackTeamId, true, 'FC', defendPv);
+        if (fc.mu == null || fc.mu < 1.0) continue;
+        cands.push({ attacker: a, defender: def, role, defRole, fdMu: fd.mu, fcMu: fc.mu, score: fd.mu + fc.mu });
+      }
+    }
+  }
+  cands.sort((a, b) => b.score - a.score);
+  const picked = [];
+  const usedRoles = new Set();
+  for (const c of cands) {
+    if (usedRoles.has(c.role)) continue; // niente due coppie sullo stesso ruolo offensivo
+    picked.push(c);
+    usedRoles.add(c.role);
+    if (picked.length >= 2) break;
+  }
+  return picked;
+}
+
+// Incrocio individuale sui cartellini: un attaccante che subisce molti falli (FD) — quindi
+// spesso al centro di contatti/proteste — contro un difensore già nervoso sui cartellini
+// (ammonito con frequenza, da narrFoulCardWatch.hotCard): due profili che insieme aumentano
+// il rischio di un'ammonizione, non solo una somma statistica scollegata.
+function narrCardMatchup(model, matchLog, rosters, attackTeamId, attackPv, defendTeamId, defendPv, defendFoulWatch) {
+  const hotCard = defendFoulWatch && defendFoulWatch.hotCard;
+  if (!hotCard || hotCard.partite < 2) return null;
+  let best = null;
+  for (const role in NARR_ROLE_MARCATURA) {
+    const defRole = NARR_ROLE_MARCATURA[role];
+    const defenders = narrPlayersInRole(rosters, matchLog, defendTeamId, defRole, 300);
+    if (!defenders.some((p) => p.nome === hotCard.nome)) continue; // il giocatore a rischio deve essere proprio in quel ruolo di marcatura
+    const attackers = narrPlayersInRole(rosters, matchLog, attackTeamId, role, 300).slice(0, 3);
+    for (const a of attackers) {
+      const fd = projectPlayer(model, matchLog, { id: a.id, team: attackTeamId, ruolo: role }, defendTeamId, true, 'FD', attackPv);
+      if (fd.mu == null || fd.mu < 1.5) continue;
+      if (!best || fd.mu > best.fdMu) best = { attacker: a, defender: { nome: hotCard.nome }, role, defRole, fdMu: fd.mu, cardRate: hotCard.gialli / hotCard.partite };
+    }
+  }
+  return best;
+}
+
+// Forma recente (ultime N gare, qualunque venue) — punti a partita e record, per intercettare
+// una squadra in slancio o in calo che il solo dato sul venue di oggi non racconta.
+function narrRecentForm(calendar, teamId, n) {
+  const rows = calendar.filter((r) => (r.Home_ID === teamId || r.Away_ID === teamId) &&
+    r.Stato === 'CONCLUSA' && r.Home_Score !== '' && r.Home_Score != null);
+  rows.sort((a, b) => b.Data.localeCompare(a.Data));
+  const last = rows.slice(0, n);
+  let w = 0, d = 0, l = 0, pts = 0, gf = 0, ga = 0;
+  for (const r of last) {
+    const isHome = r.Home_ID === teamId;
+    const f = Number(isHome ? r.Home_Score : r.Away_Score), a = Number(isHome ? r.Away_Score : r.Home_Score);
+    gf += f; ga += a;
+    if (f > a) { w++; pts += 3; } else if (f < a) { l++; } else { d++; pts += 1; }
+  }
+  return { n: last.length, w, d, l, pts, gf, ga, ppg: last.length ? pts / last.length : null };
+}
+
 function generateMatchNarrative(matchLog, calendar, rosters, match) {
   const homeId = match.Home_ID, awayId = match.Away_ID;
   const homeName = match.Home, awayName = match.Away;
@@ -1118,37 +1306,118 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
   const homeAtAway = narrVenueRecord(calendar, homeId, 'A');
   const awayAtHome = narrVenueRecord(calendar, awayId, 'H');
 
-  // --- Chiave di lettura: ruolo più bucato di ciascuna squadra nel proprio venue ---
+  // Corner e cartellini medi per venue (stesso schema dei gol, nessun nuovo calcolo:
+  // riusa computeTeamMatchTotals già testato per il Matchup Engine).
+  const homeTotalsHome = computeTeamMatchTotals(matchLog, homeId, 'HOME', calendar);
+  const awayTotalsAway = computeTeamMatchTotals(matchLog, awayId, 'AWAY', calendar);
+  const homeCornerCart = { corner: narrAvgOf(homeTotalsHome, 'Corner'), cart: narrAvgOf(homeTotalsHome, 'Cart') };
+  const awayCornerCart = { corner: narrAvgOf(awayTotalsAway, 'Corner'), cart: narrAvgOf(awayTotalsAway, 'Cart') };
+
+  // "Dominanza fragile": il record di risultato nel venue (V/N/P) confrontato col record del
+  // duello sui tiri partita-su-partita (chi dei due ha tirato di più, stessa gara) — una squadra
+  // può vincere le partite e perdere comunque il duello sui tiri più spesso di quanto vinca.
+  const homeDuelsHome = computeTeamDuelTotals(matchLog, homeId, 'HOME', calendar);
+  const awayDuelsAway = computeTeamDuelTotals(matchLog, awayId, 'AWAY', calendar);
+  const homeShotDuel = teamDuelRecord(homeDuelsHome, 'Tiri');
+  const awayShotDuel = teamDuelRecord(awayDuelsAway, 'Tiri');
+
+  // Mismatch volume/qualità dei tiri: volume = tiri a partita, qualità = quota che arriva in
+  // porta (SOT/Tiri) — confrontato direttamente tra i due venue reali di oggi.
+  const sumVals = (totals, key) => { const vs = totals.map((t) => t[key]).filter((v) => v != null); return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null; };
+  const homeShotProfile = { volume: sumVals(homeTotalsHome, 'Tiri'), sot: sumVals(homeTotalsHome, 'SOT'), n: homeTotalsHome.length };
+  const awayShotProfile = { volume: sumVals(awayTotalsAway, 'Tiri'), sot: sumVals(awayTotalsAway, 'SOT'), n: awayTotalsAway.length };
+  homeShotProfile.qualita = homeShotProfile.volume ? homeShotProfile.sot / homeShotProfile.volume : null;
+  awayShotProfile.qualita = awayShotProfile.volume ? awayShotProfile.sot / awayShotProfile.volume : null;
+
+  // Trend recente: ultime 5 gare giocate, qualunque venue — la forma del momento, non solo il venue di oggi.
+  const homeRecentForm = narrRecentForm(calendar, homeId, 5);
+  const awayRecentForm = narrRecentForm(calendar, awayId, 5);
+
+  // --- Chiave di lettura: ruolo più bucato di ciascuna squadra nel proprio venue (su Tiri
+  // O su Falli subiti dal ruolo, qualunque dei due scarti rispetto alla media di lega sia più
+  // marcato), più un'eventuale seconda debolezza vicina e una debolezza specifica sui tiri in porta ---
   const homePartiteHome = narrPartiteInVenue(matchLog, homeId, 'H');
   const awayPartiteAway = narrPartiteInVenue(matchLog, awayId, 'A');
-  const homeWeak = homePartiteHome ? narrWeakestRole(matchLog, homeId, 'H', homePartiteHome) : null;
-  const awayWeak = awayPartiteAway ? narrWeakestRole(matchLog, awayId, 'A', awayPartiteAway) : null;
+  const homeWeakX = homePartiteHome ? narrWeakestRoleMulti(matchLog, homeId, 'H', homePartiteHome) : { primary: null, secondary: null, sotWeak: null };
+  const awayWeakX = awayPartiteAway ? narrWeakestRoleMulti(matchLog, awayId, 'A', awayPartiteAway) : { primary: null, secondary: null, sotWeak: null };
+  const homeWeak = homeWeakX.primary ? homeWeakX.primary.row : null;
+  const awayWeak = awayWeakX.primary ? awayWeakX.primary.row : null;
+  const homeWeakMetric = homeWeakX.primary ? homeWeakX.primary.metric : null;
+  const awayWeakMetric = awayWeakX.primary ? awayWeakX.primary.metric : null;
+  // Quanto quel ruolo è DAVVERO sopra la media di lega per lo stesso ruolo/metrica/venue —
+  // distingue una vera falla (ratio alto) dal "meno buono tra i propri ruoli" ma comunque nella norma.
+  const homeWeakRatio = homeWeakX.primary ? homeWeakX.primary.ratio : null;
+  const awayWeakRatio = awayWeakX.primary ? awayWeakX.primary.ratio : null;
 
-  // interprete della squadra ospite che sfrutta il ruolo debole di casa, e viceversa
-  const awayExploiters = homeWeak ? narrPlayersInRole(rosters, matchLog, awayId, homeWeak.Posizione_Analitica, 300) : [];
-  const homeExploiters = awayWeak ? narrPlayersInRole(rosters, matchLog, homeId, awayWeak.Posizione_Analitica, 300) : [];
+  // interprete della squadra ospite che sfrutta il ruolo debole di casa, e viceversa — con numeri
+  // individuali (mu Tiri attesi in questa partita, metrica coerente con la falla sui tiri) invece
+  // del solo nome, così l'incrocio dice qualcosa in più di "gioca in quel ruolo".
+  const modelEarly = buildLeagueModel(matchLog);
+  function withMuTiri(list, teamId, oppId, pv) {
+    return list.map((p) => {
+      const pr = projectPlayer(modelEarly, matchLog, { id: p.id, team: teamId, ruolo: p.ruolo }, oppId, true, 'Tiri', pv);
+      return { ...p, mu: pr.mu };
+    }).sort((a, b) => (b.mu || 0) - (a.mu || 0));
+  }
+  const awayExploiters = homeWeak ? withMuTiri(narrPlayersInRole(rosters, matchLog, awayId, homeWeak.Posizione_Analitica, 300), awayId, homeId, 'A') : [];
+  const homeExploiters = awayWeak ? withMuTiri(narrPlayersInRole(rosters, matchLog, homeId, awayWeak.Posizione_Analitica, 300), homeId, awayId, 'H') : [];
 
   const shootEff = narrShootingEfficiency(matchLog, calendar, awayId, 'A');
 
-  // --- Nomi che contano ---
-  const model = buildLeagueModel(matchLog);
+  // --- Nomi che contano: per ogni giocatore si valutano Tiri/SOT/Falli commessi/Falli subiti e si
+  // tiene la metrica dove il giocatore è davvero sopra il proprio ruolo (baseline90/prior90 più alto),
+  // non sempre i tiri. La soglia mostrata è proporzionale al valore atteso (mu): soglia intera =
+  // floor(mu) [minimo 1], riga comunicata = soglia - 0,5 (es. mu=4,14 -> "almeno 3,5"; mu=3,19 -> "almeno 2,5"). ---
+  const model = modelEarly; // stesso modello già costruito sopra per gli exploiters, non ricalcolato
   function topNames(teamId, oppId, pv, excludeGK) {
     const roster = rosters.filter((r) => r.Team_ID_Rif === teamId && r.Attivo_SerieA === 'SI' && (!excludeGK || r.Posizione_Analitica !== 'Portiere'));
     return roster.map((r) => {
       const rows = matchLog.filter((x) => x.Player_ID === r.Player_ID);
       const min = rows.reduce((a, x) => a + (Number(x.Minuti) || 0), 0);
       if (min < 150) return null;
-      const p = projectPlayer(model, matchLog, { id: r.Player_ID, team: teamId, ruolo: r.Posizione_Analitica }, oppId, true, 'Tiri', pv);
-      const pSOT = projectPlayer(model, matchLog, { id: r.Player_ID, team: teamId, ruolo: r.Posizione_Analitica }, oppId, true, 'SOT', pv);
+      const player = { id: r.Player_ID, team: teamId, ruolo: r.Posizione_Analitica };
+      const metricsAll = ['Tiri', 'SOT', 'FC', 'FD'].map((m) => {
+        const p = projectPlayer(model, matchLog, player, oppId, true, m, pv);
+        const ratio = p.baseline90 != null && p.prior90 ? p.baseline90 / p.prior90 : null;
+        return { metric: m, p, ratio };
+      }).filter((x) => x.p.mu != null && x.p.mu > 0);
+      if (!metricsAll.length) return null;
+      const withRatio = metricsAll.filter((x) => x.ratio != null);
+      const standout = withRatio.length
+        ? withRatio.sort((a, b) => b.ratio - a.ratio)[0]
+        : metricsAll.sort((a, b) => b.p.mu - a.p.mu)[0];
+      const tiriEntry = metricsAll.find((x) => x.metric === 'Tiri');
+      const muTiri = tiriEntry ? tiriEntry.p.mu : null;
+      // Arrotondamento alla soglia PIÙ VICINA (non sempre verso il basso): mu=1,99 deve dare
+      // soglia 2 (riga 1,5), non soglia 1 (riga 0,5) come farebbe un floor puro.
+      const soglia = Math.max(1, Math.round(standout.p.mu));
       return {
-        nome: r.Nome_completo, ruolo: r.Posizione_Analitica, min, mu: p.mu, muSOT: pSOT.mu,
-        affidabilita: p.affidabilita,
-        pOver05: p.mu != null ? probAtLeastAlpha(p.mu, 1, 0.18) : null,
+        nome: r.Nome_completo, ruolo: r.Posizione_Analitica, min,
+        mu: muTiri, // resta sui Tiri: usato per ordinamento e per l'incrocio col ruolo debole (volume di tiro)
+        affidabilita: (tiriEntry || standout).p.affidabilita,
+        metric: standout.metric, metricMu: standout.p.mu, metricRatio: standout.ratio,
+        soglia, sogliaLine: soglia - 0.5,
+        pSoglia: probAtLeastAlpha(standout.p.mu, soglia, MODEL_PARAMS.ALPHA[standout.metric] || 0),
       };
     }).filter(Boolean).sort((a, b) => (b.mu || 0) - (a.mu || 0));
   }
   const homeNames = topNames(homeId, awayId, 'H', true);
   const awayNames = topNames(awayId, homeId, 'A', true);
+
+  // --- Radar disciplinare (anticipato: serve anche ai matchup individuali qui sotto) ---
+  const foulHome = narrFoulCardWatch(matchLog, rosters, homeId);
+  const foulAway = narrFoulCardWatch(matchLog, rosters, awayId);
+
+  // --- Matchup individuali: più stat, più giocatori, non solo il migliore in assoluto ---
+  // 1) Falli: un attaccante che SUBISCE molti falli (FD) contro il difensore del ruolo che
+  //    tipicamente lo marca, se quel difensore NE COMMETTE molti (FC) — es. Zaccagni/Celik.
+  //    Fino a 2 coppie per lato (ruoli diversi). Soglie: FD atteso >= 1,5, FC atteso >= 1,0.
+  const foulMatchupHome = narrFoulMatchup(model, matchLog, rosters, homeId, 'H', awayId, 'A');
+  const foulMatchupAway = narrFoulMatchup(model, matchLog, rosters, awayId, 'A', homeId, 'H');
+  // 2) Cartellini: lo stesso tipo di attaccante (FD alto) contro un difensore già nervoso sui
+  //    cartellini (ammonito spesso, narrFoulCardWatch.hotCard) nel ruolo che lo marcherebbe.
+  const cardMatchupHome = narrCardMatchup(model, matchLog, rosters, homeId, 'H', awayId, 'A', foulAway);
+  const cardMatchupAway = narrCardMatchup(model, matchLog, rosters, awayId, 'A', homeId, 'H', foulHome);
 
   // nome principale per squadra: il migliore per mu
   const homeLead = homeNames[0] || null;
@@ -1187,20 +1456,307 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
   const seqHome = narrStreaksFor(calendar, homeId, 'HOME');
   const seqAway = narrStreaksFor(calendar, awayId, 'AWAY');
 
-  // --- Radar disciplinare ---
-  const foulHome = narrFoulCardWatch(matchLog, rosters, homeId);
-  const foulAway = narrFoulCardWatch(matchLog, rosters, awayId);
-
-  return {
+  const result = {
     homeId, awayId, homeName, awayName,
     standings: { home: sHome, away: sAway },
-    venue: { homeAtHome, awayAtAway, homeAtAway, awayAtHome },
-    chiaveLettura: { homeWeak, awayWeak, awayExploiters, homeExploiters, shootEff },
-    nomi: { homeLead, awayLead, cautelaHome, cautelaAway, sfavoritoHome, sfavoritoAway, homeNames, awayNames },
+    venue: {
+      homeAtHome, awayAtAway, homeAtAway, awayAtHome, homeCornerCart, awayCornerCart,
+      homeShotDuel, awayShotDuel, homeShotProfile, awayShotProfile, homeRecentForm, awayRecentForm,
+    },
+    chiaveLettura: {
+      homeWeak, awayWeak, homeWeakMetric, awayWeakMetric, homeWeakRatio, awayWeakRatio,
+      homeWeak2: homeWeakX.secondary ? homeWeakX.secondary.row : null,
+      awayWeak2: awayWeakX.secondary ? awayWeakX.secondary.row : null,
+      homeWeakSOT: homeWeakX.sotWeak, awayWeakSOT: awayWeakX.sotWeak,
+      awayExploiters, homeExploiters, shootEff,
+    },
+    nomi: {
+      homeLead, awayLead, cautelaHome, cautelaAway, sfavoritoHome, sfavoritoAway, homeNames, awayNames,
+      foulMatchupHome, foulMatchupAway, cardMatchupHome, cardMatchupAway,
+    },
     multigol: goals,
     sequenze: { home: seqHome, away: seqAway },
     disciplina: { home: foulHome, away: foulAway },
   };
+  result.preview = narrPreview(result);
+  result.chiaveHtml = narrChiaveHtml(result);
+  return result;
+}
+
+const NARR_ROLE_PLURAL = {
+  'Punta centrale': 'punte centrali', 'Trequartista': 'trequartisti', 'Esterno/Quinto': 'esterni',
+  'Centrocampista centrale': 'centrocampisti centrali', 'Terzino': 'terzini', 'Centrale difensivo': 'centrali difensivi',
+};
+// Forme con articolo (anche contratto con preposizione) per ogni ruolo — "punta centrale" è
+// femminile ("le punte centrali"), gli altri sono maschili; servono le tre forme perché "a"/"su"
+// si contraggono con l'articolo ("ai trequartisti", non "a i trequartisti").
+const NARR_ROLE_BARE_ART = {
+  'Punta centrale': 'le punte centrali', 'Trequartista': 'i trequartisti', 'Esterno/Quinto': 'gli esterni',
+  'Centrocampista centrale': 'i centrocampisti centrali', 'Terzino': 'i terzini', 'Centrale difensivo': 'i centrali difensivi',
+};
+const NARR_ROLE_A = {
+  'Punta centrale': 'alle punte centrali', 'Trequartista': 'ai trequartisti', 'Esterno/Quinto': 'agli esterni',
+  'Centrocampista centrale': 'ai centrocampisti centrali', 'Terzino': 'ai terzini', 'Centrale difensivo': 'ai centrali difensivi',
+};
+const NARR_ROLE_SU = {
+  'Punta centrale': 'sulle punte centrali', 'Trequartista': 'sui trequartisti', 'Esterno/Quinto': 'sugli esterni',
+  'Centrocampista centrale': 'sui centrocampisti centrali', 'Terzino': 'sui terzini', 'Centrale difensivo': 'sui centrali difensivi',
+};
+
+// Confronta, per UNA squadra, il rendimento nel venue di oggi con quello nell'ALTRO suo venue
+// (non con l'avversario) — è questo lo scarto che racconta se la squadra sta sopra o sotto la
+// sua stessa media abituale, il cuore della "vera analisi": non solo i numeri, ma cosa dicono
+// confrontati con l'altra faccia della stessa squadra.
+function narrVenueSplitClause(teamName, ownRec, otherRec, ownWord, otherWord) {
+  const ppg = (r) => (r && r.n ? (r.w * 3 + r.d) / r.n : null);
+  if (!ownRec || !otherRec || ownRec.n < 2 || otherRec.n < 2) return null;
+  const ownPPG = ppg(ownRec), otherPPG = ppg(otherRec);
+  if (ownPPG == null || otherPPG == null) return null;
+  const gap = ownPPG - otherPPG;
+  if (Math.abs(gap) < 0.6) return null;
+  const recTxt = (r) => `${r.w}V ${r.d}N ${r.l}P in ${r.n} gare (${r.gf}-${r.ga})`;
+  if (gap > 0) {
+    const totLosses = ownRec.l + otherRec.l;
+    const lossNote = (totLosses >= 3 && otherRec.l / totLosses >= 0.6)
+      ? ` ${otherRec.l} delle ${totLosses} sconfitte stagionali pesano proprio ${otherWord}, non ${ownWord}.`
+      : '';
+    return { dir: 'up', gap, text: `<b>${narrTeam(teamName, true)}</b> ${ownWord} ${recTxt(ownRec)} (${(ownPPG).toFixed(2).replace('.', ',')} punti a partita) — meglio di quanto renda persino ${otherWord} (${recTxt(otherRec)}).${lossNote}` };
+  }
+  return { dir: 'down', gap, text: `<b>${narrTeam(teamName, true)}</b> ${ownWord} non è la squadra che vediamo ${otherWord}: lì fa ${recTxt(otherRec)}, ma ${ownWord} scende a ${recTxt(ownRec)} (${(ownPPG).toFixed(2).replace('.', ',')} punti a partita) — un calo netto, non un dettaglio.` };
+}
+
+// "Vera analisi": quando la classifica generale racconta una storia (es. 17ª contro 4ª) ma lo
+// spacchettamento per venue ne racconta un'altra — ogni squadra confrontata con SE STESSA
+// nell'altro venue, non solo le due squadre tra loro — si scrive il paragrafo lungo in stile
+// analista, non la semplice frase di verdetto. Richiede un vero scarto di classifica (>=6
+// posizioni) E almeno una delle due squadre con un salto di rendimento reale tra i suoi venue:
+// altrimenti resta la versione sobria più sotto, per non forzare questo arco narrativo ovunque.
+function narrAnalisiVera(d) {
+  const posH = d.standings.home && d.standings.home.pos, posA = d.standings.away && d.standings.away.pos;
+  if (posH == null || posA == null || Math.abs(posH - posA) < 6) return null;
+  const homeClause = narrVenueSplitClause(d.homeName, d.venue.homeAtHome, d.venue.homeAtAway, 'in casa', 'in trasferta');
+  const awayClause = narrVenueSplitClause(d.awayName, d.venue.awayAtAway, d.venue.awayAtHome, 'in trasferta', 'in casa');
+  if (!homeClause && !awayClause) return null;
+  const hi = Math.max(posH, posA), lo = Math.min(posH, posA);
+  // Lessico variegato: lo stesso identico incipit su 190 partite su 380 sarebbe più stucchevole
+  // del problema che risolve. La scelta è deterministica (stessa gara → stesso testo se richiamata
+  // due volte) ma varia da partita a partita, pescando dal contenuto reale (posizioni, direzione
+  // dei due scarti), non da un indice casuale scollegato dal match.
+  const dir = (homeClause ? (homeClause.dir === 'up' ? 1 : -1) : 0) + (awayClause ? (awayClause.dir === 'up' ? 1 : -1) : 0);
+  const leads = [
+    `Il dato che ribalta la lettura prima ancora di entrare nei dettagli: presa per intero, è una sfida tra ${hi}ª e ${lo}ª della classe. Scomposta per venue, è tutt'altra storia.`,
+    `Sulla carta è ${hi}ª contro ${lo}ª, un verdetto che parrebbe già scritto. Scomposta per venue, la gara cambia faccia.`,
+    `Tra le due c'è lo scarto netto di una ${hi}ª contro una ${lo}ª in classifica generale — ma è un quadro che il dettaglio dei venue smentisce quasi subito.`,
+    `${hi}ª contro ${lo}ª: la classifica generale indicherebbe una gara senza storia. I numeri scomposti per venue raccontano una partita diversa.`,
+    `Il piazzamento (${hi}ª contro ${lo}ª) suggerisce un copione già scritto. Il rendimento reale nei rispettivi venue lo riscrive.`,
+  ];
+  const idx = Math.abs(hi * 7 + lo * 3 + dir * 11) % leads.length;
+  const parts = [leads[idx]];
+  if (awayClause) parts.push(awayClause.text);
+  if (homeClause) parts.push(homeClause.text);
+  return parts.join(' ');
+}
+
+// --- PREVIEW: verdetto sul reale favorito stasera (confronto diretto dei venue, non ciascuno
+// contro la propria media stagionale) + eventuale sorpresa classifica/rendimento. Niente debolezze
+// di ruolo qui — quelle sono materia della Chiave di lettura, per non ripetersi tra le due sezioni.
+function narrPreview(d) {
+  const out = [];
+  const ppgGen = (s) => (s && s.pg ? s.pts / s.pg : null);
+  const ppgVenue = (rec) => (rec && rec.n ? (rec.w * 3 + rec.d) / rec.n : null);
+  const hOwn = d.venue.homeAtHome, aOwn = d.venue.awayAtAway;
+  const ppgH = ppgVenue(hOwn), ppgA = ppgVenue(aOwn);
+
+  const analisiVera = narrAnalisiVera(d);
+  if (analisiVera) {
+    out.push(analisiVera);
+    if (ppgH != null && ppgA != null) {
+      const diff = ppgH - ppgA;
+      out.push(Math.abs(diff) <= 0.3
+        ? `Tradotto in termini da campo: più equilibrio di quanto suggerisca la sola classifica, senza un favorito netto imposto dal rendimento reale nei rispettivi venue.`
+        : `Tradotto in termini da campo: oggi non si affrontano una corazzata e una squadra allo sbando, ma il rendimento reale nei rispettivi venue — il favore del pronostico resta dalla parte ${narrTeamOf(diff > 0 ? d.homeName : d.awayName)} — su una cornice tattica più equilibrata di quanto il piazzamento in classifica suggerisca.`);
+    }
+  } else if (hOwn && aOwn && hOwn.n >= 2 && aOwn.n >= 2 && ppgH != null && ppgA != null) {
+    const diff = ppgH - ppgA;
+    const recTxt = (name, rec) => `${rec.w}V ${rec.d}N ${rec.l}P in ${rec.n} gare (${rec.gf}-${rec.ga})`;
+    if (Math.abs(diff) <= 0.3) {
+      out.push(`Nei rispettivi venue il rendimento reale è quasi identico — <b>${narrTeam(d.homeName)}</b> in casa ${recTxt(d.homeName, hOwn)}, <b>${narrTeam(d.awayName)}</b> in trasferta ${recTxt(d.awayName, aOwn)} — più equilibrio di quanto suggerisca il solo piazzamento in classifica.`);
+    } else if (diff >= 0.8) {
+      out.push(`Chi arriva meglio stasera non è deciso dalla classifica ma dal venue: <b>${narrTeam(d.homeName)}</b> vale <b>${ppgH.toFixed(2)}</b> punti a partita in casa (${recTxt(d.homeName, hOwn)}) contro i <b>${ppgA.toFixed(2)}</b> <b>${narrTeamOf(d.awayName)}</b> in trasferta (${recTxt(d.awayName, aOwn)}): sulla forma reale è ${narrTeam(d.homeName)} la favorita.`);
+    } else if (diff <= -0.8) {
+      out.push(`Chi arriva meglio stasera non è deciso dalla classifica ma dal venue: <b>${narrTeam(d.awayName)}</b> vale <b>${ppgA.toFixed(2)}</b> punti a partita in trasferta (${recTxt(d.awayName, aOwn)}) contro i <b>${ppgH.toFixed(2)}</b> <b>${narrTeamOf(d.homeName)}</b> in casa (${recTxt(d.homeName, hOwn)}): sulla forma reale è ${narrTeam(d.awayName)} la favorita, nonostante giochi fuori casa.`);
+    } else {
+      out.push(`Nei rispettivi venue <b>${narrTeam(d.homeName)}</b> fa <b>${ppgH.toFixed(2)}</b> punti a partita in casa (${recTxt(d.homeName, hOwn)}) e <b>${narrTeam(d.awayName)}</b> <b>${ppgA.toFixed(2)}</b> in trasferta (${recTxt(d.awayName, aOwn)}): un margine leggero, non una gara già scritta.`);
+    }
+  } else {
+    out.push(`Campione ancora minimo nel venue di oggi: servono più partite prima che il rendimento reale casa/trasferta diventi un indizio affidabile.`);
+  }
+
+  // Sorpresa classifica vs rendimento venue — solo se il gap è marcato, con frase completa (niente
+  // ellissi tipo "X vale N": si spiega SEMPRE punti-a-partita generale vs punti-a-partita nel venue.
+  // Saltata se è già scattata la "vera analisi" sopra: direbbe la stessa cosa due volte.
+  const cands = analisiVera ? [] : [
+    { team: d.homeName, gen: ppgGen(d.standings.home), ven: ppgH, side: 'in casa', pos: d.standings.home && d.standings.home.pos },
+    { team: d.awayName, gen: ppgGen(d.standings.away), ven: ppgA, side: 'in trasferta', pos: d.standings.away && d.standings.away.pos },
+  ].filter((x) => x.gen != null && x.ven != null).map((x) => ({ ...x, gap: x.ven - x.gen }));
+  if (cands.length) {
+    cands.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
+    const g = cands[0];
+    if (Math.abs(g.gap) >= 0.6) {
+      out.push(g.gap > 0
+        ? `Da segnalare: <b>${narrTeam(g.team)}</b> è ${g.pos}ª in classifica generale con una media di <b>${g.gen.toFixed(2)}</b> punti a partita, ma ${g.side} rende molto di più — <b>${g.ven.toFixed(2)}</b> punti a partita — un dato migliore di quanto il piazzamento lasci intuire.`
+        : `Da segnalare: <b>${narrTeam(g.team)}</b> è ${g.pos}ª in classifica generale con una media di <b>${g.gen.toFixed(2)}</b> punti a partita, ma ${g.side} scende a <b>${g.ven.toFixed(2)}</b> — un rendimento inferiore a quanto il piazzamento lasci intuire.`);
+    }
+  }
+
+  // --- Dominanza fragile: vince le partite ma perde il duello sui tiri più spesso di quanto
+  // vinca — un vantaggio che sulla carta dei tiri non si vede, e che può non ripetersi stasera.
+  function dominanzaFragile(teamName, venRec, duel, side) {
+    if (!venRec || venRec.n < 3 || !duel || duel.n < 3 || duel.rate == null) return null;
+    const winRate = venRec.n ? venRec.w / venRec.n : null;
+    if (winRate == null) return null;
+    const gap = winRate - duel.rate;
+    if (gap < 0.3 || winRate < 0.45) return null; // serve un vero scarto, e che la squadra vinca davvero spesso
+    return `<b>Dominanza fragile</b>: ${narrTeam(teamName)} ${side} ha vinto <b>${Math.round(winRate * 100)}%</b> delle gare (${venRec.w}/${venRec.n}), ma ha tirato di più dell'avversario solo nel <b>${Math.round(duel.rate * 100)}%</b> dei casi (${duel.wins}/${duel.n}) — un rendimento che sul piano dei tiri è meno solido di quanto dica il risultato, e che un episodio può ribaltare.`;
+  }
+  const domHome = dominanzaFragile(d.homeName, hOwn, d.venue.homeShotDuel, 'in casa');
+  const domAway = dominanzaFragile(d.awayName, aOwn, d.venue.awayShotDuel, 'in trasferta');
+  if (domHome) out.push(domHome);
+  if (domAway) out.push(domAway);
+
+  // --- Mismatch volume/qualità dei tiri: chi tira più spesso contro chi è più preciso —
+  // due profili diversi (molto volume, poca precisione / poco volume, molto cinismo) dicono
+  // più cose di un confronto puro sulla media tiri.
+  const hp = d.venue.homeShotProfile, ap = d.venue.awayShotProfile;
+  if (hp && ap && hp.n >= 3 && ap.n >= 3 && hp.volume != null && ap.volume != null && hp.qualita != null && ap.qualita != null) {
+    const volDiff = hp.volume - ap.volume, qualDiff = hp.qualita - ap.qualita;
+    if (Math.abs(volDiff) >= 2.5 && (volDiff > 0) !== (qualDiff > 0) && Math.abs(qualDiff) >= 0.05) {
+      const volTeam = volDiff > 0 ? d.homeName : d.awayName, volSide = volDiff > 0 ? 'in casa' : 'in trasferta';
+      const qualTeam = qualDiff > 0 ? d.homeName : d.awayName, qualSide = qualDiff > 0 ? 'in casa' : 'in trasferta';
+      const volVal = volDiff > 0 ? hp.volume : ap.volume, qualVal = qualDiff > 0 ? hp.qualita : ap.qualita;
+      out.push(`<b>Mismatch volume/qualità dei tiri</b>: ${narrTeam(volTeam)} ${volSide} è la squadra che tira più spesso (<b>${volVal.toFixed(1).replace('.', ',')}</b> tiri a partita), ma è ${narrTeam(qualTeam)} ${qualSide} quella più precisa, con il <b>${Math.round(qualVal * 100)}%</b> dei tiri che arriva in porta — due modi opposti di proporsi in avanti, non lo stesso tipo di minaccia.`);
+    }
+  }
+
+  // --- Trend recente: ultime 5 gare, qualunque venue — la forma del momento può contraddire
+  // il quadro del solo venue di oggi (una squadra in crisi o in striscia positiva a prescindere da dove gioca).
+  function trendText(teamName, form) {
+    if (!form || form.n < 4) return null;
+    return `${narrTeam(teamName)} nelle ultime <b>${form.n}</b> gare (qualunque venue) fa <b>${form.w}V ${form.d}N ${form.l}P</b> (${form.gf}-${form.ga}, <b>${form.ppg.toFixed(2).replace('.', ',')}</b> punti a partita)`;
+  }
+  const trH = trendText(d.homeName, d.venue.homeRecentForm), trA = trendText(d.awayName, d.venue.awayRecentForm);
+  if (trH || trA) {
+    const parts = [trH, trA].filter(Boolean);
+    out.push(`<b>Trend recente</b>: ${parts.join('; ')}.`);
+  }
+
+  return out;
+}
+
+// --- CHIAVE DI LETTURA: non sempre "debolezza" — solo se il ruolo individuato concede/subisce
+// davvero più della media di lega (ratio >= 1.15); altrimenti si dice esplicitamente che non c'è
+// una vera falla. La metrica può essere Tiri concessi O Falli subiti dal ruolo avversario (quella
+// con lo scarto più marcato), non è più forzata sempre sui tiri.
+const NARR_WEAK_FIELD = { Tiri: 'Tiri_Concessi_90', Falli: 'FalliSubiti_Ruolo_90' };
+function narrWeakSentence(teamName, venueWord, weak, ratio, metric) {
+  if (!weak) return `<b>${narrTeam(teamName, true)}</b> ${venueWord} non ha un campione sufficiente, in nessun ruolo, per isolare un punto debole affidabile.`;
+  const field = NARR_WEAK_FIELD[metric] || 'Tiri_Concessi_90';
+  const val = weak[field];
+  const unit = metric === 'Falli' ? 'falli a partita' : 'tiri a partita';
+  const roleA = NARR_ROLE_A[weak.Posizione_Analitica];
+  const roleSu = NARR_ROLE_SU[weak.Posizione_Analitica];
+  const roleBare = NARR_ROLE_BARE_ART[weak.Posizione_Analitica];
+  if (ratio == null) {
+    const verbo = metric === 'Falli' ? 'commette più falli contro' : 'concede più tiri';
+    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${verbo} a partita ${roleA} (<span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span>) che a chiunque altro — non basta ancora il campione di lega per dire se è una vera falla o solo il meno solido dei suoi reparti.`;
+  }
+  if (ratio >= 1.3) {
+    const extreme = ratio >= 2.0 ? ' — scarto così ampio da trattare con cautela: a questo punto della stagione la media di lega su quel ruolo/venue si basa ancora su poche squadre con campione sufficiente.' : '';
+    const desc = metric === 'Falli'
+      ? `ha una falla vera sulla disciplina ${roleSu}: commette <span class="narr-hl-bad">${val.toFixed(1).replace('.', ',')} falli a partita</span> su quel ruolo avversario`
+      : `ha una falla vera ${roleSu}: concede <span class="narr-hl-bad">${val.toFixed(1).replace('.', ',')} tiri a partita</span>`;
+    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc}, il <b>${Math.round((ratio - 1) * 100)}%</b> in più della media di lega per quel ruolo in questo venue.${extreme}`;
+  }
+  if (ratio >= 1.15) {
+    const desc = metric === 'Falli'
+      ? `commette sopra media falli ${roleA} (<span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> falli a partita, circa il <b>${Math.round((ratio - 1) * 100)}%</b> sopra la media di lega)`
+      : `concede sopra media ${roleA} (<span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> tiri a partita, circa il <b>${Math.round((ratio - 1) * 100)}%</b> sopra la media di lega)`;
+    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc} — un punto da sfruttare, non ancora una voragine.`;
+  }
+  return `<b>${narrTeam(teamName, true)}</b> ${venueWord} non ha in realtà una vera debolezza di reparto: anche il suo dato più esposto (${roleBare}, <span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> ${unit}) resta in linea con la media di lega per quel ruolo in questo venue.`;
+}
+function narrChiaveHtml(d) {
+  const c = d.chiaveLettura;
+  const hw = c.homeWeak, aw = c.awayWeak;
+  if (!hw && !aw) return '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
+  const sentences = [
+    narrWeakSentence(d.homeName, 'in casa', hw, c.homeWeakRatio, c.homeWeakMetric),
+    narrWeakSentence(d.awayName, 'in trasferta', aw, c.awayWeakRatio, c.awayWeakMetric),
+  ];
+  const homeGenuine = hw && c.homeWeakRatio != null && c.homeWeakRatio >= 1.15;
+  const awayGenuine = aw && c.awayWeakRatio != null && c.awayWeakRatio >= 1.15;
+  if (homeGenuine && c.homeWeak2) {
+    const field = NARR_WEAK_FIELD[c.homeWeakMetric] || 'Tiri_Concessi_90';
+    const unit = c.homeWeakMetric === 'Falli' ? 'falli a partita' : 'tiri a partita';
+    sentences.push(`Per ${narrTeam(d.homeName)} non è un buco isolato: il dato resta alto (<span class="narr-hl">${c.homeWeak2[field].toFixed(1).replace('.', ',')}</span> ${unit}) anche ${NARR_ROLE_A[c.homeWeak2.Posizione_Analitica]}.`);
+  }
+  if (awayGenuine && c.awayWeak2) {
+    const field = NARR_WEAK_FIELD[c.awayWeakMetric] || 'Tiri_Concessi_90';
+    const unit = c.awayWeakMetric === 'Falli' ? 'falli a partita' : 'tiri a partita';
+    sentences.push(`Anche per ${narrTeam(d.awayName)} non è un buco isolato: il dato resta alto (<span class="narr-hl">${c.awayWeak2[field].toFixed(1).replace('.', ',')}</span> ${unit}) anche ${NARR_ROLE_A[c.awayWeak2.Posizione_Analitica]}.`);
+  }
+  if (homeGenuine && c.homeWeakSOT) sentences.push(`Sui tiri <b>in porta</b> concessi la falla ${narrTeamOf(d.homeName)} in casa è diversa: pesa soprattutto ${NARR_ROLE_SU[c.homeWeakSOT.Posizione_Analitica]} (<span class="narr-hl">${c.homeWeakSOT.SOT_Concessi_90.toFixed(1).replace('.', ',')} SOT a partita</span>).`);
+  if (awayGenuine && c.awayWeakSOT) sentences.push(`Sui tiri <b>in porta</b> concessi ${narrTeam(d.awayName)} in trasferta sconta soprattutto ${NARR_ROLE_BARE_ART[c.awayWeakSOT.Posizione_Analitica]} (<span class="narr-hl">${c.awayWeakSOT.SOT_Concessi_90.toFixed(1).replace('.', ',')} SOT a partita</span>).`);
+
+  // Exploiter con numero individuale (mu Tiri attesi in questa partita), non solo il nome: dice
+  // quanto quel giocatore specifico è messo per sfruttare la falla, non solo che gioca lì.
+  function exploiterText(teamName, list) {
+    const withMu = list.filter((p) => p.mu != null).slice(0, 2);
+    if (!withMu.length) return `${narrTeam(teamName, true)} ha in rosa ${list.slice(0, 2).map((p) => p.nome).join(' e ')}, proprio nel ruolo che sfrutta quel buco.`;
+    const names = withMu.map((p) => `<b>${p.nome}</b> (${fmtNum(p.mu)} tiri attesi)`).join(' e ');
+    return `${narrTeam(teamName, true)} risponde con ${names}, proprio nel ruolo che sfrutta quel buco.`;
+  }
+  function fmtNum(n) { return n.toFixed(1).replace('.', ','); }
+  const exploiters = [];
+  if (homeGenuine && c.awayExploiters.length) exploiters.push(exploiterText(d.awayName, c.awayExploiters));
+  if (awayGenuine && c.homeExploiters.length) exploiters.push(exploiterText(d.homeName, c.homeExploiters));
+
+  // Incrocio col nome più atteso: si dice qualcosa SOLO quando coincide davvero col ruolo debole
+  // genuino — citare un nome solo per dire che non è lui a sfruttare il buco non aggiunge nulla.
+  const crosses = [];
+  if (awayGenuine && d.nomi.homeLead && d.nomi.homeLead.ruolo === aw.Posizione_Analitica) {
+    crosses.push(`Non è un caso che il nome più atteso ${narrTeamOf(d.homeName)} sia <b>${d.nomi.homeLead.nome}</b>: gioca esattamente nel ruolo dove ${narrTeam(d.awayName)} concede più spazio in trasferta.`);
+  }
+  if (homeGenuine && d.nomi.awayLead && d.nomi.awayLead.ruolo === hw.Posizione_Analitica) {
+    crosses.push(`Stesso discorso per ${narrTeam(d.awayName)}: <b>${d.nomi.awayLead.nome}</b> gioca esattamente nel ruolo dove ${narrTeam(d.homeName)} concede più spazio in casa.`);
+  }
+
+  // Conferma indipendente: campione minimo 3 gare, e il verbo segue il dato reale invece di
+  // affermare sempre la stessa cosa a prescindere dal risultato (bug corretto).
+  let confText = '';
+  if (c.shootEff && c.shootEff.n >= 3) {
+    const rate = c.shootEff.clinical / c.shootEff.n;
+    confText = rate >= 0.5
+      ? `Conferma indipendente: ${narrTeam(d.awayName)} in trasferta ha messo in porta almeno metà dei tiri tentati in ${c.shootEff.clinical} gare su ${c.shootEff.n} — non spreca quando trova lo spazio.`
+      : `Da tenere d'occhio: ${narrTeam(d.awayName)} in trasferta ha messo in porta almeno metà dei tiri tentati solo in ${c.shootEff.clinical} gare su ${c.shootEff.n} — anche trovando spazio, fatica a essere clinico.`;
+  }
+
+  const lead = homeGenuine || awayGenuine
+    ? (homeGenuine && awayGenuine ? 'Due falle di reparto vere, non solo la peggiore tra le proprie.' : 'Una sola vera falla di reparto tra le due squadre — l\'altra difesa tiene meglio di quanto sembri.')
+    : 'Nessuna vera falla di reparto da nessuna delle due parti in questo venue: differenze minime, nella norma di lega.';
+
+  // Matchup individuali sui falli e sui cartellini (calcolati a parte, in d.nomi): qui diventano
+  // frasi con nomi e numeri, non solo l'elenco di ruoli deboli.
+  const matchupSentences = [];
+  for (const fm of [...(d.nomi.foulMatchupHome || []), ...(d.nomi.foulMatchupAway || [])]) {
+    matchupSentences.push(`<b>Match-up individuale sui falli</b>: <b>${fm.attacker.nome}</b> (${fm.role.toLowerCase()}) subisce in media <span class="narr-hl">${fm.fdMu.toFixed(1).replace('.', ',')} falli</span> a partita, e trova di fronte <b>${fm.defender.nome}</b> (${fm.defRole.toLowerCase()}), che ne commette <span class="narr-hl">${fm.fcMu.toFixed(1).replace('.', ',')}</span>.`);
+  }
+  for (const cm of [d.nomi.cardMatchupHome, d.nomi.cardMatchupAway]) {
+    if (!cm) continue;
+    matchupSentences.push(`<b>Match-up sui cartellini</b>: <b>${cm.attacker.nome}</b> (${cm.role.toLowerCase()}) subisce in media <span class="narr-hl">${cm.fdMu.toFixed(1).replace('.', ',')} falli</span> a partita e incontra <b>${cm.defender.nome}</b>, già ammonito in <span class="narr-hl-warn">${Math.round(cm.cardRate * 100)}%</span> delle sue gare — un contatto che può pesare su un cartellino già in bilico.`);
+  }
+
+  return `<p class="narr-lead">${lead}</p><p>${sentences.join(' ')}</p>${exploiters.length ? `<p>${exploiters.join(' ')}</p>` : ''}${crosses.length ? `<p>${crosses.join(' ')}</p>` : ''}${confText ? `<p>${confText}</p>` : ''}${matchupSentences.length ? `<p>${matchupSentences.join(' ')}</p>` : ''}`;
 }
 
 if (typeof module !== 'undefined') {

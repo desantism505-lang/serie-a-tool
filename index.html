@@ -2024,56 +2024,39 @@ function narrativeBlock(match) {
   catch (e) { console.error(e); return ''; }
 
   const homeName = match.Home, awayName = match.Away;
+  const hw = N.chiaveLettura.homeWeak, aw = N.chiaveLettura.awayWeak;
 
-  // --- Preview ---
-  const previewParts = [];
-  if (N.standings.home && N.standings.away) {
-    previewParts.push(`Sulla carta è <b>${N.standings.home.pos}ª</b> contro <b>${N.standings.away.pos}ª</b> in classifica generale.`);
-  }
-  const vHome = narrVenueSentence(homeName, N.venue.homeAtHome, N.venue.homeAtAway, 'in casa', 'in trasferta');
-  const vAway = narrVenueSentence(awayName, N.venue.awayAtAway, N.venue.awayAtHome, 'in trasferta', 'in casa');
-  if (vHome) previewParts.push(vHome);
-  if (vAway) previewParts.push(vAway);
-  const previewText = previewParts.length
-    ? previewParts.join(' ')
-    : 'Classifica e record per venue non ancora abbastanza consistenti (troppe poche partite giocate) per una lettura affidabile.';
+  // --- Preview e Chiave di lettura: testo interamente generato in engine.js
+  // (narrPreview/narrChiaveHtml), per avere un'unica fonte di lessico corretto
+  // (articoli di squadra, soglie, framing condizionale al match) invece di
+  // ricostruirlo qui con regole duplicate.
+  const previewText = N.preview && N.preview.length ? N.preview.join(' ') : '';
   const previewLead = (N.standings.home && N.standings.away)
     ? `${esc(homeName)} in casa, ${esc(awayName)} in trasferta: il quadro reale della gara, non solo la classifica.`
     : null;
+  const chiaveHtml = N.chiaveHtml || '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
 
-  // --- Chiave di lettura ---
-  let chiaveHtml = '';
-  const hw = N.chiaveLettura.homeWeak, aw = N.chiaveLettura.awayWeak;
-  if (hw || aw) {
-    const sentences = [];
-    if (hw) sentences.push(`<b>${esc(homeName)} in casa</b> concede <span class="narr-hl">${fmt1(hw.Tiri_Concessi_90)} tiri a partita ${narrRoleLabel(hw.Posizione_Analitica)}</span> — il ruolo più sfruttato contro la sua difesa casalinga.`);
-    if (aw) sentences.push(`<b>${esc(awayName)} in trasferta</b> concede <span class="narr-hl">${fmt1(aw.Tiri_Concessi_90)} tiri a partita ${narrRoleLabel(aw.Posizione_Analitica)}</span> — il suo punto debole lontano da casa.`);
-    const exploiters = [];
-    if (hw && N.chiaveLettura.awayExploiters.length) exploiters.push(`${esc(awayName)} ha in rosa ${N.chiaveLettura.awayExploiters.slice(0, 2).map((p) => esc(p.nome)).join(' e ')}, proprio nel ruolo che sfrutta quel buco.`);
-    if (aw && N.chiaveLettura.homeExploiters.length) exploiters.push(`${esc(homeName)} ha in rosa ${N.chiaveLettura.homeExploiters.slice(0, 2).map((p) => esc(p.nome)).join(' e ')} nello stesso ruolo.`);
-    const confText = N.chiaveLettura.shootEff && N.chiaveLettura.shootEff.n >= 2
-      ? `Conferma indipendente: ${esc(awayName)} in trasferta ha messo in porta almeno metà dei tiri tentati in ${N.chiaveLettura.shootEff.clinical} gare su ${N.chiaveLettura.shootEff.n} — non spreca quando trova lo spazio.`
-      : '';
-    chiaveHtml = `<p class="narr-lead">Due debolezze specifiche di ruolo, non solo di squadra.</p><p>${sentences.join(' ')} ${exploiters.join(' ')}</p>${confText ? `<p>${confText}</p>` : ''}`;
-  } else {
-    chiaveHtml = '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
-  }
-
-  // --- Nomi che contano ---
+  // --- Nomi che contano: ogni giocatore è citato sulla metrica dove è davvero sopra il proprio
+  // ruolo (tiri, tiri in porta, falli commessi o falli subiti), con soglia proporzionale al suo
+  // valore atteso (mu): soglia intera = floor(mu), riga comunicata = soglia - 0,5. ---
+  const NARR_METRIC_LABEL = { Tiri: 'tiri attesi', SOT: 'tiri in porta attesi', FC: 'falli commessi attesi', FD: 'falli subiti attesi' };
+  const NARR_METRIC_PLURAL = { Tiri: 'tiri', SOT: 'tiri in porta', FC: 'falli commessi', FD: 'falli subiti' };
   function nameCard(player, teamLabel, extra) {
     if (!player) return '';
     const parts = [`<b>${esc(player.nome)}</b> (${esc(teamLabel)})`];
-    if (player.mu != null) parts.push(`<span class="narr-hl">${fmt2(player.mu)} tiri attesi</span>`);
-    if (player.pOver05 != null) parts.push(`${fmtPct(player.pOver05)} di tirare almeno una volta`);
+    if (player.metricMu != null) parts.push(`<span class="narr-hl">${fmt2(player.metricMu)} ${NARR_METRIC_LABEL[player.metric] || 'tiri attesi'}</span>`);
+    if (player.pSoglia != null) parts.push(`${fmtPct(player.pSoglia)} di arrivare ad almeno <b>${fmt1(player.sogliaLine)}</b> ${NARR_METRIC_PLURAL[player.metric] || 'tiri'}`);
     return `<p>${parts.join(', ')}${player.affidabilita === 'media' || player.affidabilita === 'bassa' ? `, affidabilità <span class="narr-hl-warn">${player.affidabilita}</span> (${player.min}')` : ` (${player.min}', affidabilità alta)`}. ${extra || ''}</p>`;
   }
   const nameCards = [];
   if (N.nomi.homeLead) nameCards.push(nameCard(N.nomi.homeLead, homeName, hw ? `Gioca nel ruolo più concesso dalla difesa ospite.` : ''));
   if (N.nomi.awayLead) nameCards.push(nameCard(N.nomi.awayLead, awayName, aw ? `Gioca nel ruolo più concesso dalla difesa di casa.` : ''));
-  if (N.nomi.cautelaAway && N.nomi.cautelaAway !== N.nomi.awayLead) nameCards.push(nameCard(N.nomi.cautelaAway, awayName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${esc(homeName)} in casa.`));
-  if (N.nomi.cautelaHome && N.nomi.cautelaHome !== N.nomi.homeLead) nameCards.push(nameCard(N.nomi.cautelaHome, homeName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${esc(awayName)} in trasferta.`));
-  if (N.nomi.sfavoritoHome) nameCards.push(nameCard(N.nomi.sfavoritoHome, homeName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso da ${esc(awayName)} in trasferta.`));
-  if (N.nomi.sfavoritoAway) nameCards.push(nameCard(N.nomi.sfavoritoAway, awayName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso da ${esc(homeName)} in casa.`));
+  if (N.nomi.cautelaAway && N.nomi.cautelaAway !== N.nomi.awayLead) nameCards.push(nameCard(N.nomi.cautelaAway, awayName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(homeName)} in casa.`));
+  if (N.nomi.cautelaHome && N.nomi.cautelaHome !== N.nomi.homeLead) nameCards.push(nameCard(N.nomi.cautelaHome, homeName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(awayName)} in trasferta.`));
+  if (N.nomi.sfavoritoHome) nameCards.push(nameCard(N.nomi.sfavoritoHome, homeName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso ${narrTeamDa(awayName)} in trasferta.`));
+  if (N.nomi.sfavoritoAway) nameCards.push(nameCard(N.nomi.sfavoritoAway, awayName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso ${narrTeamDa(homeName)} in casa.`));
+  // I match-up individuali su falli e cartellini sono nel testo di N.chiaveHtml (Chiave di lettura),
+  // per non duplicarli qui con lo stesso contenuto in due sezioni diverse.
   const nomiHtml = nameCards.length
     ? `<div class="narr-names-grid">${nameCards.slice(0, 6).join('')}</div>`
     : '<p>Nessun giocatore con minutaggio sufficiente per una proiezione individuale affidabile.</p>';
@@ -2127,7 +2110,7 @@ function narrativeBlock(match) {
   const dueDil = [[N.disciplina.home.dueDiligence, homeName], [N.disciplina.away.dueDiligence, awayName]]
     .filter(([p]) => p).sort((a, b) => b[0].falli90 - a[0].falli90).slice(0, 2);
   if (dueDil.length) {
-    discParts.push('Chi fallisce molto senza ancora aver preso nulla: ' + dueDil.map(([p, team]) => `<b>${esc(p.nome)}</b> (${esc(team)}, <span class="narr-hl-warn">${fmt2(p.falli90)} falli/90, 0 cartellini</span>)`).join(' e ') + '.');
+    discParts.push('Chi commette molti falli senza ancora aver preso nulla: ' + dueDil.map(([p, team]) => `<b>${esc(p.nome)}</b> (${esc(team)}, <span class="narr-hl-warn">${fmt2(p.falli90)} falli/90, 0 cartellini</span>)`).join(' e ') + '.');
   }
   const disciplinaHtml = discParts.length ? `<p>${discParts.join(' ')}</p>` : '<p>Nessun nome con dati sufficienti per il radar disciplinare.</p>';
 
