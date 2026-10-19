@@ -352,7 +352,7 @@
     text-transform:uppercase;font-size:13px;letter-spacing:.04em;margin-bottom:10px;
   }
   .narr-lead{font-size:16px;font-weight:600;color:var(--accent);line-height:1.45;margin:0 0 10px;}
-  .narr-sec p{margin:0 0 10px;font-size:14px;color:var(--text-2);text-align:justify;text-justify:inter-word;}
+  .narr-sec p{margin:0 0 10px;font-size:12px;line-height:1.6;color:var(--text-2);text-align:justify;text-justify:inter-word;}
   .narr-sec p:last-child{margin-bottom:0;}
   .narr-sec b{color:var(--text);font-weight:700;}
   .narr-hl{color:var(--accent);font-weight:700;}
@@ -2654,17 +2654,19 @@ function lineFacts(match) {
         const verb = kind === 'own' ? (top ? 'produce più' : 'produce meno') : (top ? 'concede più' : 'concede meno');
         out.push({ type: 'rank', tk, team: T.name, strength: (extreme ? 1 : 0.8) * Math.min(1, r.eligible / 12) + 0.2, n: r.eligible, txt: `<b>${esc(T.name)}</b>${vW(T)} ${verb} ${esc(label.toLowerCase())}${extreme ? ' di ogni altra squadra' : ' (tra le due ' + (top ? 'più' : 'meno') + ' della lega)'}: <b>${r.rank}° su ${r.eligible}</b>` });
       }
-      // linee ricorrenti vicino alla media (valore proprio e concesso)
+      // linee ricorrenti vicino alla media (valore proprio e concesso) — sempre rapportate al venue di
+      // giornata per entrambe le squadre, indipendentemente dall'interruttore casa/trasferta - tutte
+      const vWv = (TT) => (TT.v === 'HOME' ? ' in casa' : ' in trasferta');
       for (const [kind, who, nm] of [['own', T, 'ha'], ['opp', O, 'concede']]) {
-        const vs = (kind === 'own' ? scopeSet(T.id, T.v, tk, 'own') : scopeSet(O.id, O.v, tk, 'opp')).map((q) => q.v);
+        const vs = (kind === 'own' ? gmVals(T.id, T.v, tk, 'own', true) : gmVals(O.id, O.v, tk, 'opp', true)).map((q) => q.v);
         if (vs.length < 5) continue;
         const mn = Math.min(...vs), mx = Math.max(...vs), avg = avgOf(vs);
         const lgv = leagueAvgVenue('TOTALE', tk) || avg;
         // linea di controllo: la x,5 appena sotto il minimo (sempre sopra) o appena sopra il massimo (sempre sotto)
         const lowL = Math.ceil(mn) - 0.5, highL = Math.floor(mx) + 0.5;
         const near = Math.abs(lowL - lgv) <= 0.35 * lgv ? 'over' : Math.abs(highL - lgv) <= 0.35 * lgv ? 'under' : null;
-        if (near === 'over') out.push({ type: 'line', tk, team: kind === 'own' ? T.name : O.name, strength: 0.6 * Math.min(1, vs.length / 6), n: vs.length, txt: `<b>${esc(kind === 'own' ? T.name : O.name)}</b>${vW(kind === 'own' ? T : O)} ${kind === 'own' ? 'ha fatto' : 'ha concesso'} sempre <b>più di ${String(lowL).replace('.', ',')}</b> ${esc(label.toLowerCase())} (<b>${vs.length}/${vs.length}</b> partite, minimo ${mn})` });
-        else if (near === 'under') out.push({ type: 'line', tk, team: kind === 'own' ? T.name : O.name, strength: 0.6 * Math.min(1, vs.length / 6), n: vs.length, txt: `<b>${esc(kind === 'own' ? T.name : O.name)}</b>${vW(kind === 'own' ? T : O)} ${kind === 'own' ? 'ha fatto' : 'ha concesso'} sempre <b>meno di ${String(highL).replace('.', ',')}</b> ${esc(label.toLowerCase())} (<b>${vs.length}/${vs.length}</b> partite, massimo ${mx})` });
+        if (near === 'over') out.push({ type: 'line', tk, team: kind === 'own' ? T.name : O.name, strength: 0.6 * Math.min(1, vs.length / 6), n: vs.length, txt: `<b>${esc(kind === 'own' ? T.name : O.name)}</b>${vWv(kind === 'own' ? T : O)} ${kind === 'own' ? 'ha fatto' : 'ha concesso'} sempre <b>più di ${String(lowL).replace('.', ',')}</b> ${esc(label.toLowerCase())} (<b>${vs.length}/${vs.length}</b> partite, minimo ${mn})` });
+        else if (near === 'under') out.push({ type: 'line', tk, team: kind === 'own' ? T.name : O.name, strength: 0.6 * Math.min(1, vs.length / 6), n: vs.length, txt: `<b>${esc(kind === 'own' ? T.name : O.name)}</b>${vWv(kind === 'own' ? T : O)} ${kind === 'own' ? 'ha fatto' : 'ha concesso'} sempre <b>meno di ${String(highL).replace('.', ',')}</b> ${esc(label.toLowerCase())} (<b>${vs.length}/${vs.length}</b> partite, massimo ${mx})` });
       }
     }
   }
@@ -2675,14 +2677,27 @@ function lineFacts(match) {
 }
 function lineFactsBlock(match, limit, title) {
   const all = lineFacts(match);
-  const col = (name, role, fs) => {
-    const li = fs.slice(0, limit).map((f) => `<li style="margin-bottom:5px;"><span class="tag-inline">[${f.type === 'duel' ? 'duello' : f.type === 'rank' ? 'classifica' : 'linea'}]</span> ${f.txt}${f.type === 'rank' ? '' : ' <span class="tag-inline">· ' + f.n + ' partite</span>'}</li>`).join('');
-    return `<div><div style="margin-bottom:6px;font-weight:600;"><span style="color:var(--accent);">${esc(name)}</span> <span class="subtle">— ${role}</span></div>${li ? `<ul class="facts-list" style="margin:0;padding-left:0;list-style:none;">${li}</ul>` : '<div class="subtle">Nessun fatto netto con il campione attuale.</div>'}</div>`;
-  };
-  const hf = all.filter((f) => f.team === match.Home), af = all.filter((f) => f.team === match.Away);
+  const hf = all.filter((f) => f.team === match.Home).slice(0, limit);
+  const af = all.filter((f) => f.team === match.Away).slice(0, limit);
+  // Allinea sulla stessa riga i fatti dello stesso tipo e della stessa metrica (es. duello falli di
+  // entrambe le squadre), per rendere immediato il confronto; i fatti senza controparte restano da soli.
+  const usedA = new Set();
+  const rows = [];
+  for (const h of hf) {
+    const j = af.findIndex((a, idx) => !usedA.has(idx) && a.type === h.type && a.tk === h.tk);
+    if (j >= 0) { rows.push([h, af[j]]); usedA.add(j); }
+    else rows.push([h, null]);
+  }
+  af.forEach((a, idx) => { if (!usedA.has(idx)) rows.push([null, a]); });
+  const cell = (f) => f
+    ? `<li style="margin-bottom:5px;"><span class="tag-inline">[${f.type === 'duel' ? 'duello' : f.type === 'rank' ? 'classifica' : 'linea'}]</span> ${f.txt}${f.type === 'rank' ? '' : ' <span class="tag-inline">· ' + f.n + ' partite</span>'}</li>`
+    : '<li style="margin-bottom:5px;visibility:hidden;">—</li>';
+  const header = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:6px;"><div style="font-weight:600;"><span style="color:var(--accent);">${esc(match.Home)}</span> <span class="subtle">— Casa</span></div><div style="font-weight:600;"><span style="color:var(--accent);">${esc(match.Away)}</span> <span class="subtle">— Trasferta</span></div></div>`;
+  const rowsHtml = rows.map(([h, a]) => `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;"><ul class="facts-list" style="margin:0;padding-left:0;list-style:none;">${cell(h)}</ul><ul class="facts-list" style="margin:0;padding-left:0;list-style:none;">${cell(a)}</ul></div>`).join('');
+  const body = rows.length ? header + rowsHtml : '<div class="subtle">Nessun fatto netto con il campione attuale.</div>';
   return `<div class="panel" style="margin-bottom:22px;"><h2>${title} <span class="tag" style="flex:1;">duelli, classifiche e linee ricorrenti · ${S.scope === 'venue' ? 'solo casa / trasferta' : 'tutte le partite'}</span>${scopeToggle()}</h2>
-    <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">${col(match.Home, 'Casa', hf)}${col(match.Away, 'Trasferta', af)}</div>
-    <div class="body" style="padding-top:0;"><div class="subtle">Duello vinto = la squadra ha fatto più dell'avversario nella stessa partita (per falli e cartellini: commetterne di più). Classifica = posizione tra le squadre con campione sufficiente. Linea ricorrente = soglia mai superata o sempre superata in tutto il campione, scelta vicino alla media di lega. Servono almeno 4-5 partite o 8 squadre confrontabili.</div></div></div>`;
+    <div class="body">${body}</div>
+    <div class="body" style="padding-top:0;"><div class="subtle">Duello vinto = la squadra ha fatto più dell'avversario nella stessa partita (per falli e cartellini: commetterne di più). Classifica = posizione tra le squadre con campione sufficiente. Linea ricorrente = soglia mai superata o sempre superata nel venue di giornata (casa per la squadra di casa, trasferta per l'ospite), scelta vicino alla media di lega. Servono almeno 4-5 partite o 8 squadre confrontabili.</div></div></div>`;
 }
 
 function projBlock(match, P, Pb) {
