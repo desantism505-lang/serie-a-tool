@@ -987,6 +987,222 @@ function projectLineupTotal(model, matchLog, players, oppId, m, extraFactor, pv)
   };
 }
 
+// =============================================================================
+// GENERATORE NARRATIVO — pannello "Analisi partita" nel Matchup Engine.
+// Usa solo funzioni già testate sopra (computeRoleConcessions, projectPlayer,
+// computeTeamStreak, ecc.); qui si limita a orchestrare e a scegliere COSA
+// mostrare (ruolo più bucato, nomi con matchup migliore/peggiore, sequenze
+// per venue). Non introduce nuova logica di calcolo statistico oltre al
+// modello Poisson con shrinkage per i gol (projectGoals), che NON è lo
+// stesso motore testato dei tiri/SOT/falli/cartellini — va trattato con una
+// cautela in più, come dichiarato nel testo generato.
+// =============================================================================
+const NARRATIVE_ROLES = ['Punta centrale', 'Trequartista', 'Esterno/Quinto', 'Centrocampista centrale', 'Terzino', 'Centrale difensivo'];
+
+function narrStandingsTable(calendar) {
+  const played = calendar.filter((c) => c.Stato === 'CONCLUSA' && c.Home_Score !== '' && c.Home_Score != null);
+  const t = {};
+  const ensure = (id, name) => { if (!t[id]) t[id] = { id, name, pts: 0, gf: 0, ga: 0, w: 0, d: 0, l: 0, pg: 0 }; };
+  for (const m of played) {
+    ensure(m.Home_ID, m.Home); ensure(m.Away_ID, m.Away);
+    const hs = Number(m.Home_Score), as = Number(m.Away_Score);
+    t[m.Home_ID].gf += hs; t[m.Home_ID].ga += as; t[m.Home_ID].pg++;
+    t[m.Away_ID].gf += as; t[m.Away_ID].ga += hs; t[m.Away_ID].pg++;
+    if (hs > as) { t[m.Home_ID].pts += 3; t[m.Home_ID].w++; t[m.Away_ID].l++; }
+    else if (hs < as) { t[m.Away_ID].pts += 3; t[m.Away_ID].w++; t[m.Home_ID].l++; }
+    else { t[m.Home_ID].pts += 1; t[m.Away_ID].pts += 1; t[m.Home_ID].d++; t[m.Away_ID].d++; }
+  }
+  const arr = Object.values(t).sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga));
+  arr.forEach((x, i) => (x.pos = i + 1));
+  return arr;
+}
+
+function narrVenueRecord(calendar, teamId, venue) {
+  const rows = calendar.filter((c) => c.Stato === 'CONCLUSA' && c.Home_Score !== '' && c.Home_Score != null &&
+    (venue === 'H' ? c.Home_ID === teamId : c.Away_ID === teamId));
+  let w = 0, d = 0, l = 0, gf = 0, ga = 0;
+  for (const r of rows) {
+    const isHome = r.Home_ID === teamId;
+    const f = Number(isHome ? r.Home_Score : r.Away_Score), a = Number(isHome ? r.Away_Score : r.Home_Score);
+    gf += f; ga += a;
+    if (f > a) w++; else if (f < a) l++; else d++;
+  }
+  return { n: rows.length, w, d, l, gf, ga };
+}
+
+// Ruolo più "bucato" di una squadra nel proprio venue di oggi. segmento passato a
+// computeRoleConcessions è l'OPPOSTO del venue reale (stessa inversione di
+// ARCHITECTURE.md: per "cosa concede X mentre gioca in V" serve segmento = not(V)).
+function narrWeakestRole(matchLog, teamId, venue, teamPartiteInVenue) {
+  const segmento = venue === 'H' ? 'AWAY' : 'HOME';
+  const rows = NARRATIVE_ROLES.map((r) => computeRoleConcessions(matchLog, teamId, segmento, r, teamPartiteInVenue))
+    .filter((x) => x.N_Prestazioni_Ruolo >= 3 && x.Tiri_Concessi_90 != null);
+  if (!rows.length) return null;
+  rows.sort((a, b) => b.Tiri_Concessi_90 - a.Tiri_Concessi_90);
+  return rows[0];
+}
+
+function narrPartiteInVenue(matchLog, teamId, venueLetter) {
+  return new Set(matchLog.filter((r) => r.Team_ID === teamId && r.Venue === venueLetter).map((r) => r.Match_ID)).size;
+}
+
+function narrPlayersInRole(rosters, matchLog, teamId, ruolo, minMin) {
+  const roster = rosters.filter((r) => r.Team_ID_Rif === teamId && r.Attivo_SerieA === 'SI' && r.Posizione_Analitica === ruolo);
+  return roster.map((r) => {
+    const min = matchLog.filter((x) => x.Player_ID === r.Player_ID).reduce((a, x) => a + (Number(x.Minuti) || 0), 0);
+    return { id: r.Player_ID, nome: r.Nome_completo, ruolo: r.Posizione_Analitica, min };
+  }).filter((p) => p.min >= minMin).sort((a, b) => b.min - a.min);
+}
+
+function narrShootingEfficiency(matchLog, calendar, teamId, venue) {
+  const totals = computeTeamMatchTotals(matchLog, teamId, venue === 'H' ? 'HOME' : 'AWAY', calendar).filter((m) => m.Tiri > 0);
+  if (!totals.length) return null;
+  const clinical = totals.filter((m) => m.SOT / m.Tiri >= 0.4).length;
+  return { n: totals.length, clinical, totals };
+}
+
+function narrShrink(avg, n, lg) { return avg == null || !lg ? 1 : 1 + (avg / lg - 1) * (n / (n + SHRINK_K)); }
+
+// Proiezione gol con shrinkage — stessa logica di multiplicativeProjection ma
+// su Home_Score/Away_Score di CALENDAR invece che su MATCH_LOG; NON è parte
+// del motore tiri/SOT/falli/cartellini testato, va dichiarato nel testo.
+function narrProjectGoals(calendar, homeId, awayId) {
+  const played = calendar.filter((c) => c.Stato === 'CONCLUSA' && c.Home_Score !== '' && c.Home_Score != null);
+  if (!played.length) return null;
+  const lgHome = played.reduce((a, c) => a + Number(c.Home_Score), 0) / played.length;
+  const lgAway = played.reduce((a, c) => a + Number(c.Away_Score), 0) / played.length;
+  const homeAtt = narrVenueRecord(calendar, homeId, 'H');
+  const awayDef = narrVenueRecord(calendar, awayId, 'A');
+  const awayAtt = narrVenueRecord(calendar, awayId, 'A');
+  const homeDef = narrVenueRecord(calendar, homeId, 'H');
+  const homeAttAvg = homeAtt.n ? homeAtt.gf / homeAtt.n : null;
+  const awayDefAvg = awayDef.n ? awayDef.ga / awayDef.n : null;
+  const awayAttAvg = awayAtt.n ? awayAtt.gf / awayAtt.n : null;
+  const homeDefAvg = homeDef.n ? homeDef.ga / homeDef.n : null;
+  const muHome = lgHome * narrShrink(homeAttAvg, homeAtt.n, lgHome) * narrShrink(awayDefAvg, awayDef.n, lgAway);
+  const muAway = lgAway * narrShrink(awayAttAvg, awayAtt.n, lgAway) * narrShrink(homeDefAvg, homeDef.n, lgHome);
+  return { muHome, muAway, homeAtt, awayAtt, homeDef, awayDef };
+}
+
+function narrFoulCardWatch(matchLog, rosters, teamId) {
+  const roster = rosters.filter((r) => r.Team_ID_Rif === teamId && r.Attivo_SerieA === 'SI');
+  const agg = roster.map((r) => {
+    const rows = matchLog.filter((x) => x.Player_ID === r.Player_ID);
+    const min = rows.reduce((a, x) => a + (Number(x.Minuti) || 0), 0);
+    const falli = rows.reduce((a, x) => a + (Number(x.Falli_commessi) || 0), 0);
+    const gialli = rows.reduce((a, x) => a + (Number(x.Gialli) || 0), 0);
+    const rossi = rows.reduce((a, x) => a + (Number(x.Rossi) || 0), 0);
+    const partite = new Set(rows.map((x) => x.Match_ID)).size;
+    return { nome: r.Nome_completo, min, falli, gialli, rossi, partite, falli90: min ? (falli / min) * 90 : null };
+  });
+  const hotCard = agg.filter((p) => p.min >= 200 && p.gialli >= 2).sort((a, b) => (b.gialli / b.partite) - (a.gialli / a.partite))[0] || null;
+  const dueDiligence = agg.filter((p) => p.min >= 150 && p.gialli === 0 && p.rossi === 0 && p.falli90 != null).sort((a, b) => b.falli90 - a.falli90)[0] || null;
+  return { hotCard, dueDiligence };
+}
+
+function narrStreaksFor(calendar, teamId, venue) {
+  const keys = ['segna', 'subisce', 'nonSubisce', 'nonPerde', 'nonVince', 'nonPareggia'];
+  return keys.map((k) => ({ key: k, ...computeTeamStreak(calendar, teamId, venue, k) })).filter((s) => s.partite >= 2);
+}
+
+function generateMatchNarrative(matchLog, calendar, rosters, match) {
+  const homeId = match.Home_ID, awayId = match.Away_ID;
+  const homeName = match.Home, awayName = match.Away;
+
+  // --- Preview: classifica generale vs venue reale ---
+  const standings = narrStandingsTable(calendar);
+  const sHome = standings.find((s) => s.id === homeId);
+  const sAway = standings.find((s) => s.id === awayId);
+  const homeAtHome = narrVenueRecord(calendar, homeId, 'H');
+  const awayAtAway = narrVenueRecord(calendar, awayId, 'A');
+  const homeAtAway = narrVenueRecord(calendar, homeId, 'A');
+  const awayAtHome = narrVenueRecord(calendar, awayId, 'H');
+
+  // --- Chiave di lettura: ruolo più bucato di ciascuna squadra nel proprio venue ---
+  const homePartiteHome = narrPartiteInVenue(matchLog, homeId, 'H');
+  const awayPartiteAway = narrPartiteInVenue(matchLog, awayId, 'A');
+  const homeWeak = homePartiteHome ? narrWeakestRole(matchLog, homeId, 'H', homePartiteHome) : null;
+  const awayWeak = awayPartiteAway ? narrWeakestRole(matchLog, awayId, 'A', awayPartiteAway) : null;
+
+  // interprete della squadra ospite che sfrutta il ruolo debole di casa, e viceversa
+  const awayExploiters = homeWeak ? narrPlayersInRole(rosters, matchLog, awayId, homeWeak.Posizione_Analitica, 300) : [];
+  const homeExploiters = awayWeak ? narrPlayersInRole(rosters, matchLog, homeId, awayWeak.Posizione_Analitica, 300) : [];
+
+  const shootEff = narrShootingEfficiency(matchLog, calendar, awayId, 'A');
+
+  // --- Nomi che contano ---
+  const model = buildLeagueModel(matchLog);
+  function topNames(teamId, oppId, pv, excludeGK) {
+    const roster = rosters.filter((r) => r.Team_ID_Rif === teamId && r.Attivo_SerieA === 'SI' && (!excludeGK || r.Posizione_Analitica !== 'Portiere'));
+    return roster.map((r) => {
+      const rows = matchLog.filter((x) => x.Player_ID === r.Player_ID);
+      const min = rows.reduce((a, x) => a + (Number(x.Minuti) || 0), 0);
+      if (min < 150) return null;
+      const p = projectPlayer(model, matchLog, { id: r.Player_ID, team: teamId, ruolo: r.Posizione_Analitica }, oppId, true, 'Tiri', pv);
+      const pSOT = projectPlayer(model, matchLog, { id: r.Player_ID, team: teamId, ruolo: r.Posizione_Analitica }, oppId, true, 'SOT', pv);
+      return {
+        nome: r.Nome_completo, ruolo: r.Posizione_Analitica, min, mu: p.mu, muSOT: pSOT.mu,
+        affidabilita: p.affidabilita,
+        pOver05: p.mu != null ? probAtLeastAlpha(p.mu, 1, 0.18) : null,
+      };
+    }).filter(Boolean).sort((a, b) => (b.mu || 0) - (a.mu || 0));
+  }
+  const homeNames = topNames(homeId, awayId, 'H', true);
+  const awayNames = topNames(awayId, homeId, 'A', true);
+
+  // nome principale per squadra: il migliore per mu
+  const homeLead = homeNames[0] || null;
+  const awayLead = awayNames[0] || null;
+  // nome "da cautela": miglior mu la cui concessione di ruolo (lato avversario, venue corretto) ha 0 precedenti
+  function zeroPrecedentPick(names, oppWeakRows) {
+    return names.find((n) => {
+      const row = oppWeakRows.find((r) => r.Posizione_Analitica === n.ruolo);
+      return row && row.N_Prestazioni_Ruolo === 0;
+    }) || null;
+  }
+  // per questo serve concessione per-ruolo completa (non solo la peggiore) di chi difende
+  function allRoleConcessions(teamId, venue, teamPartite) {
+    const segmento = venue === 'H' ? 'AWAY' : 'HOME';
+    return NARRATIVE_ROLES.map((r) => computeRoleConcessions(matchLog, teamId, segmento, r, teamPartite));
+  }
+  const homeDefRows = homePartiteHome ? allRoleConcessions(homeId, 'H', homePartiteHome) : [];
+  const awayDefRows = awayPartiteAway ? allRoleConcessions(awayId, 'A', awayPartiteAway) : [];
+  const cautelaAway = zeroPrecedentPick(awayNames, homeDefRows); // giocatore ospite in ruolo mai visto dalla difesa di casa
+  const cautelaHome = zeroPrecedentPick(homeNames, awayDefRows);
+
+  // nome "matchup sfavorevole": alta affidabilità ma il suo ruolo è il MENO concesso dall'avversario
+  function sfavoritoPick(names, defRows) {
+    const validDef = defRows.filter((r) => r.N_Prestazioni_Ruolo >= 3 && r.Tiri_Concessi_90 != null);
+    if (!validDef.length) return null;
+    const minRow = validDef.reduce((a, b) => (b.Tiri_Concessi_90 < a.Tiri_Concessi_90 ? b : a));
+    return names.find((n) => n.ruolo === minRow.Posizione_Analitica && n.affidabilita === 'alta') || null;
+  }
+  const sfavoritoHome = sfavoritoPick(homeNames, awayDefRows);
+  const sfavoritoAway = sfavoritoPick(awayNames, homeDefRows);
+
+  // --- Multigol ---
+  const goals = narrProjectGoals(calendar, homeId, awayId);
+
+  // --- Sequenze per venue ---
+  const seqHome = narrStreaksFor(calendar, homeId, 'HOME');
+  const seqAway = narrStreaksFor(calendar, awayId, 'AWAY');
+
+  // --- Radar disciplinare ---
+  const foulHome = narrFoulCardWatch(matchLog, rosters, homeId);
+  const foulAway = narrFoulCardWatch(matchLog, rosters, awayId);
+
+  return {
+    homeId, awayId, homeName, awayName,
+    standings: { home: sHome, away: sAway },
+    venue: { homeAtHome, awayAtAway, homeAtAway, awayAtHome },
+    chiaveLettura: { homeWeak, awayWeak, awayExploiters, homeExploiters, shootEff },
+    nomi: { homeLead, awayLead, cautelaHome, cautelaAway, sfavoritoHome, sfavoritoAway, homeNames, awayNames },
+    multigol: goals,
+    sequenze: { home: seqHome, away: seqAway },
+    disciplina: { home: foulHome, away: foulAway },
+  };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     buildIndexes,
@@ -1021,5 +1237,7 @@ if (typeof module !== 'undefined') {
     shrunkRate90, teamStrengthFactor, opponentFactor, expectedMinutes, reliabilityOf, projectPlayer,
     pmfNB, probAtLeast, probAtLeastAlpha, minOddsFromProb, playerHitRateK, cardsPerFoulLeague,
     probCardFromFouls, projectLineupTotal,
+    // --- narrativo
+    generateMatchNarrative,
   };
 }

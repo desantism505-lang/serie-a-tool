@@ -143,7 +143,7 @@
     font-family:'Inter',sans-serif;
   }
 
-  main{padding:32px 32px 60px;max-width:1180px;margin:0 auto;}
+  main{padding:32px 32px 60px;max-width:none;width:100%;margin:0 auto;}
 
   .empty{
     color:var(--muted);
@@ -343,6 +343,33 @@
   .panel-collapse-btn:hover{color:var(--text);border-color:var(--accent-dim);}
   .section-gap{margin-top:28px;}
 
+  /* ===================== Pannello "Analisi partita" — testo discorsivo ===================== */
+  .narr-body{padding:26px 28px;}
+  .narr-sec{padding:20px 0;border-top:1px solid var(--line);}
+  .narr-sec:first-child{border-top:none;padding-top:0;}
+  .narr-sec-title{
+    font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--accent);
+    text-transform:uppercase;font-size:13px;letter-spacing:.04em;margin-bottom:10px;
+  }
+  .narr-lead{font-size:16px;font-weight:600;color:var(--accent);line-height:1.45;margin:0 0 10px;}
+  .narr-sec p{margin:0 0 10px;font-size:14px;color:var(--text-2);text-align:justify;text-justify:inter-word;}
+  .narr-sec p:last-child{margin-bottom:0;}
+  .narr-sec b{color:var(--text);font-weight:700;}
+  .narr-hl{color:var(--accent);font-weight:700;}
+  .narr-hl-warn{color:var(--warn);font-weight:700;}
+  .narr-hl-bad{color:var(--bad);font-weight:700;}
+  .narr-names-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;}
+  @media (max-width:760px){.narr-names-grid{grid-template-columns:1fr;}}
+  .narr-names-grid p{margin:0;}
+  .narr-seq-row{display:flex;flex-wrap:wrap;gap:0;}
+  .narr-seq-item{flex:1 1 220px;padding-right:24px;}
+  .narr-seq-num{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:34px;color:var(--accent);line-height:1;}
+  .narr-seq-num .unit{font-size:13px;color:var(--muted);font-weight:500;margin-left:4px;}
+  .narr-seq-venue{display:inline-block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}
+  .narr-seq-label{font-size:12.5px;color:var(--text-2);margin-top:4px;}
+  .narr-seq-label b{color:var(--text);}
+  .narr-footnote{display:block;font-size:11.5px;color:var(--muted);margin-top:18px;font-style:italic;padding-top:14px;border-top:1px dashed var(--line);}
+
   .filter-group{
     display:flex;
     flex-wrap:wrap;
@@ -402,7 +429,7 @@
     padding:24px 32px 48px;
     color:var(--muted);
     font-size:11px;
-    max-width:1180px;
+    max-width:none;
     margin:0 auto;
   }
 
@@ -1296,7 +1323,7 @@ function computeStreakFacts(teamId, venue, venueLabel){
 // Minimizza/espandi per Fatti salienti e Statistiche squadra — stato semplice,
 // persiste finché non cambi partita (viene ricreato ad ogni render() ma lo
 // stato JS resta, quindi il pannello resta chiuso se lo era).
-const panelCollapseState = { facts: false, teamStats: false };
+const panelCollapseState = { facts: false, teamStats: false, narrative: false };
 function togglePanelCollapse(id){
   panelCollapseState[id] = !panelCollapseState[id];
   document.getElementById('panelBody-' + id).style.display = panelCollapseState[id] ? 'none' : '';
@@ -1954,13 +1981,201 @@ function renderAll() {
 // ---------------------------------------------------------------------------
 // SEZIONE 1 — Sintesi partita
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Pannello "Analisi partita" — lettura tattica discorsiva, generata dai dati
+// reali via generateMatchNarrative() in engine.js. Mostrato PRIMA di "Fatti
+// salienti": stessa logica di affidabilità (campione minimo, "N/D" dove i
+// dati non bastano), ma raccontata in prosa invece che in tabella.
+// ---------------------------------------------------------------------------
+function fmt1(n) { return n == null ? null : n.toFixed(1).replace('.', ','); }
+function fmt2(n) { return n == null ? null : n.toFixed(2).replace('.', ','); }
+function fmtPct(n) { return n == null ? null : Math.round(n * 100) + '%'; }
+
+function narrVenueSentence(teamName, recOwnVenue, recOtherVenue, venueWord, otherVenueWord) {
+  // confronta il rendimento nel venue di oggi con l'altro venue — solo se entrambi hanno campione
+  if (!recOwnVenue || recOwnVenue.n < 2) return null;
+  const ptsOwn = recOwnVenue.w * 3 + recOwnVenue.d;
+  const diffGoal = recOwnVenue.gf - recOwnVenue.ga;
+  const base = `<b>${esc(teamName)} ${venueWord}</b>: ${recOwnVenue.w}V ${recOwnVenue.d}N ${recOwnVenue.l}P in ${recOwnVenue.n} gare, ${recOwnVenue.gf} gol fatti e ${recOwnVenue.ga} subiti`;
+  if (!recOtherVenue || recOtherVenue.n < 2) return base + '.';
+  const ptsOther = recOtherVenue.w * 3 + recOtherVenue.d;
+  const ppgOwn = ptsOwn / recOwnVenue.n, ppgOther = ptsOther / recOtherVenue.n;
+  if (ppgOwn - ppgOther >= 0.7) {
+    return base + ` — un rendimento nettamente migliore di quello ${otherVenueWord} (${recOtherVenue.w}V ${recOtherVenue.d}N ${recOtherVenue.l}P).`;
+  }
+  if (ppgOther - ppgOwn >= 0.7) {
+    return base + ` — peggio di quanto fa ${otherVenueWord} (${recOtherVenue.w}V ${recOtherVenue.d}N ${recOtherVenue.l}P), dove rende di più.`;
+  }
+  return base + `, in linea con il rendimento ${otherVenueWord}.`;
+}
+
+function narrRoleLabel(ruolo) {
+  const map = {
+    'Punta centrale': 'alle prime punte centrali', 'Trequartista': 'ai trequartisti',
+    'Esterno/Quinto': 'agli esterni', 'Centrocampista centrale': 'ai centrocampisti centrali',
+    'Terzino': 'ai terzini', 'Centrale difensivo': 'ai centrali difensivi',
+  };
+  return map[ruolo] || ('al ruolo ' + ruolo.toLowerCase());
+}
+
+function narrativeBlock(match) {
+  let N;
+  try { N = generateMatchNarrative(DB.match_log, DB.calendar, DB.rosters, match); }
+  catch (e) { console.error(e); return ''; }
+
+  const homeName = match.Home, awayName = match.Away;
+
+  // --- Preview ---
+  const previewParts = [];
+  if (N.standings.home && N.standings.away) {
+    previewParts.push(`Sulla carta è <b>${N.standings.home.pos}ª</b> contro <b>${N.standings.away.pos}ª</b> in classifica generale.`);
+  }
+  const vHome = narrVenueSentence(homeName, N.venue.homeAtHome, N.venue.homeAtAway, 'in casa', 'in trasferta');
+  const vAway = narrVenueSentence(awayName, N.venue.awayAtAway, N.venue.awayAtHome, 'in trasferta', 'in casa');
+  if (vHome) previewParts.push(vHome);
+  if (vAway) previewParts.push(vAway);
+  const previewText = previewParts.length
+    ? previewParts.join(' ')
+    : 'Classifica e record per venue non ancora abbastanza consistenti (troppe poche partite giocate) per una lettura affidabile.';
+  const previewLead = (N.standings.home && N.standings.away)
+    ? `${esc(homeName)} in casa, ${esc(awayName)} in trasferta: il quadro reale della gara, non solo la classifica.`
+    : null;
+
+  // --- Chiave di lettura ---
+  let chiaveHtml = '';
+  const hw = N.chiaveLettura.homeWeak, aw = N.chiaveLettura.awayWeak;
+  if (hw || aw) {
+    const sentences = [];
+    if (hw) sentences.push(`<b>${esc(homeName)} in casa</b> concede <span class="narr-hl">${fmt1(hw.Tiri_Concessi_90)} tiri a partita ${narrRoleLabel(hw.Posizione_Analitica)}</span> — il ruolo più sfruttato contro la sua difesa casalinga.`);
+    if (aw) sentences.push(`<b>${esc(awayName)} in trasferta</b> concede <span class="narr-hl">${fmt1(aw.Tiri_Concessi_90)} tiri a partita ${narrRoleLabel(aw.Posizione_Analitica)}</span> — il suo punto debole lontano da casa.`);
+    const exploiters = [];
+    if (hw && N.chiaveLettura.awayExploiters.length) exploiters.push(`${esc(awayName)} ha in rosa ${N.chiaveLettura.awayExploiters.slice(0, 2).map((p) => esc(p.nome)).join(' e ')}, proprio nel ruolo che sfrutta quel buco.`);
+    if (aw && N.chiaveLettura.homeExploiters.length) exploiters.push(`${esc(homeName)} ha in rosa ${N.chiaveLettura.homeExploiters.slice(0, 2).map((p) => esc(p.nome)).join(' e ')} nello stesso ruolo.`);
+    const confText = N.chiaveLettura.shootEff && N.chiaveLettura.shootEff.n >= 2
+      ? `Conferma indipendente: ${esc(awayName)} in trasferta ha messo in porta almeno metà dei tiri tentati in ${N.chiaveLettura.shootEff.clinical} gare su ${N.chiaveLettura.shootEff.n} — non spreca quando trova lo spazio.`
+      : '';
+    chiaveHtml = `<p class="narr-lead">Due debolezze specifiche di ruolo, non solo di squadra.</p><p>${sentences.join(' ')} ${exploiters.join(' ')}</p>${confText ? `<p>${confText}</p>` : ''}`;
+  } else {
+    chiaveHtml = '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
+  }
+
+  // --- Nomi che contano ---
+  function nameCard(player, teamLabel, extra) {
+    if (!player) return '';
+    const parts = [`<b>${esc(player.nome)}</b> (${esc(teamLabel)})`];
+    if (player.mu != null) parts.push(`<span class="narr-hl">${fmt2(player.mu)} tiri attesi</span>`);
+    if (player.pOver05 != null) parts.push(`${fmtPct(player.pOver05)} di tirare almeno una volta`);
+    return `<p>${parts.join(', ')}${player.affidabilita === 'media' || player.affidabilita === 'bassa' ? `, affidabilità <span class="narr-hl-warn">${player.affidabilita}</span> (${player.min}')` : ` (${player.min}', affidabilità alta)`}. ${extra || ''}</p>`;
+  }
+  const nameCards = [];
+  if (N.nomi.homeLead) nameCards.push(nameCard(N.nomi.homeLead, homeName, hw ? `Gioca nel ruolo più concesso dalla difesa ospite.` : ''));
+  if (N.nomi.awayLead) nameCards.push(nameCard(N.nomi.awayLead, awayName, aw ? `Gioca nel ruolo più concesso dalla difesa di casa.` : ''));
+  if (N.nomi.cautelaAway && N.nomi.cautelaAway !== N.nomi.awayLead) nameCards.push(nameCard(N.nomi.cautelaAway, awayName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${esc(homeName)} in casa.`));
+  if (N.nomi.cautelaHome && N.nomi.cautelaHome !== N.nomi.homeLead) nameCards.push(nameCard(N.nomi.cautelaHome, homeName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${esc(awayName)} in trasferta.`));
+  if (N.nomi.sfavoritoHome) nameCards.push(nameCard(N.nomi.sfavoritoHome, homeName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso da ${esc(awayName)} in trasferta.`));
+  if (N.nomi.sfavoritoAway) nameCards.push(nameCard(N.nomi.sfavoritoAway, awayName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso da ${esc(homeName)} in casa.`));
+  const nomiHtml = nameCards.length
+    ? `<div class="narr-names-grid">${nameCards.slice(0, 6).join('')}</div>`
+    : '<p>Nessun giocatore con minutaggio sufficiente per una proiezione individuale affidabile.</p>';
+
+  // --- Multigol ---
+  let multigolHtml = '<p>Dati insufficienti per una lettura sui gol.</p>';
+  if (N.multigol) {
+    const tot = N.multigol.muHome + N.multigol.muAway;
+    let banda, giudizio;
+    if (tot >= 3.0) { banda = 'alto (3-5 gol complessivi)'; giudizio = 'una gara che, sulla carta dei numeri, produce occasioni da ambo i lati.'; }
+    else if (tot >= 2.1) { banda = 'centrale (2-4 gol complessivi)'; giudizio = 'il profilo più coerente con i dati, non una gara chiusa.'; }
+    else { banda = 'basso (0-2 gol complessivi)'; giudizio = 'uno scenario da match prudente, con poche occasioni da una parte o dall\'altra.'; }
+    multigolHtml = `<p>Proiezione gol (modello statistico separato, <b>non</b> il motore tiri/SOT testato — usarla con una cautela in più): <span class="narr-hl">${fmt2(N.multigol.muHome)}</span> per ${esc(homeName)}, <span class="narr-hl">${fmt2(N.multigol.muAway)}</span> per ${esc(awayName)}. La lettura più coerente è un <span class="narr-hl">Multigol ${banda}</span> — ${giudizio}</p>`;
+  }
+
+  // --- Statistiche e sequenze in evidenza (per venue) ---
+  function seqText(teamName, s) {
+    const labels = {
+      segna: 'ha segnato', subisce: 'ha subito gol', nonSubisce: 'non ha subito gol',
+      nonPerde: 'non ha perso', nonVince: 'non ha vinto', nonPareggia: 'non ha pareggiato',
+    };
+    const perfect = s.streak === s.partite;
+    return `<b>${esc(teamName)}</b> ${labels[s.key]} in ${perfect ? 'tutte le' : s.streak + ' delle ultime'} ${s.partite} gare`;
+  }
+  function pickSeq(teamName, venueLabel, streaks) {
+    const perfect = streaks.filter((s) => s.streak === s.partite && s.partite >= 2);
+    const chosen = (perfect.length ? perfect : streaks).sort((a, b) => b.streak - a.streak).slice(0, 2);
+    return chosen.map((s) => ({
+      venueLabel, num: s.streak, den: s.partite,
+      label: `${seqText(teamName, s)} ${venueLabel.toLowerCase()}.`,
+    }));
+  }
+  const seqItems = [
+    ...pickSeq(homeName, `${homeName} · Casa`, N.sequenze.home),
+    ...pickSeq(awayName, `${awayName} · Trasferta`, N.sequenze.away),
+  ].slice(0, 4);
+  const seqHtml = seqItems.length
+    ? `<div class="narr-seq-row">${seqItems.map((s) => `
+      <div class="narr-seq-item">
+        <span class="narr-seq-venue">${esc(s.venueLabel)}</span>
+        <div class="narr-seq-num">${s.num}<span class="unit">/${s.den}</span></div>
+        <div class="narr-seq-label">${s.label}</div>
+      </div>`).join('')}</div>`
+    : '<p>Campione troppo piccolo per sequenze affidabili nel venue di oggi.</p>';
+
+  // --- Radar disciplinare ---
+  const discParts = [];
+  [[N.disciplina.home.hotCard, homeName], [N.disciplina.away.hotCard, awayName]].forEach(([p, team]) => {
+    if (p) discParts.push(`<b>${esc(p.nome)}</b> (${esc(team)}): ${p.gialli} gialli in ${p.partite} gare, il ritmo più alto della rosa — prima scelta per un cartellino.`);
+  });
+  const dueDil = [[N.disciplina.home.dueDiligence, homeName], [N.disciplina.away.dueDiligence, awayName]]
+    .filter(([p]) => p).sort((a, b) => b[0].falli90 - a[0].falli90).slice(0, 2);
+  if (dueDil.length) {
+    discParts.push('Chi fallisce molto senza ancora aver preso nulla: ' + dueDil.map(([p, team]) => `<b>${esc(p.nome)}</b> (${esc(team)}, <span class="narr-hl-warn">${fmt2(p.falli90)} falli/90, 0 cartellini</span>)`).join(' e ') + '.');
+  }
+  const disciplinaHtml = discParts.length ? `<p>${discParts.join(' ')}</p>` : '<p>Nessun nome con dati sufficienti per il radar disciplinare.</p>';
+
+  return `
+    <div class="panel" style="margin-bottom:22px;">
+      <h2>Analisi partita <span class="tag" style="flex:1;">lettura tattica e statistica · venue reale della gara</span>
+        <button class="panel-collapse-btn" onclick="togglePanelCollapse('narrative')" id="panelBtn-narrative">${panelCollapseState.narrative ? 'espandi ▸' : 'minimizza ▾'}</button>
+      </h2>
+      <div id="panelBody-narrative" style="${panelCollapseState.narrative ? 'display:none;' : ''}">
+        <div class="narr-body">
+          <div class="narr-sec">
+            <div class="narr-sec-title">Preview</div>
+            ${previewLead ? `<p class="narr-lead">${previewLead}</p>` : ''}
+            <p>${previewText}</p>
+          </div>
+          <div class="narr-sec">
+            <div class="narr-sec-title">Chiave di lettura</div>
+            ${chiaveHtml}
+          </div>
+          <div class="narr-sec">
+            <div class="narr-sec-title">Nomi che contano</div>
+            ${nomiHtml}
+          </div>
+          <div class="narr-sec">
+            <div class="narr-sec-title">Multigol</div>
+            ${multigolHtml}
+          </div>
+          <div class="narr-sec">
+            <div class="narr-sec-title">Statistiche e sequenze in evidenza</div>
+            ${seqHtml}
+          </div>
+          <div class="narr-sec">
+            <div class="narr-sec-title">Radar disciplinare</div>
+            ${disciplinaHtml}
+          </div>
+          <narr-footnote class="narr-footnote">Lettura generata dai dati reali (campione per venue spesso 2-3 gare a questo punto della stagione) — da trattare come indizio, non come certezza, finché il campione non cresce.</narr-footnote>
+        </div>
+      </div>
+    </div>`;
+}
+
 function secSintesi(match) {
   const unconf = ['home', 'away'].map((s) => luSummary(match, s)).filter((u) => !u.ok);
   const note = unconf.length
     ? `<div class="infobox">Le stime di questa pagina usano formazioni <b>non ancora confermate</b> (${unconf.map((u) => esc(u.info.name) + ': ' + u.stato).join(' · ')}). <a href="#" onclick="go('formazioni');return false;">Controlla le formazioni →</a></div>` : '';
   const P = allTeamProj(match);
   const Pb = S.bench ? P : allTeamProj(match, true); // la shortlist confronta con la media di lega, che include la panchina
-  return note + factsBlock(match) + lineFactsBlock(match, 6, 'Fatti salienti sulle linee') + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, Pb) + shortPlayersBlock(match);
+  return note + narrativeBlock(match) + factsBlock(match) + lineFactsBlock(match, 6, 'Fatti salienti sulle linee') + cmpBlock(match, P) + matrixBlock(match) + shortStatsBlock(match, Pb) + shortPlayersBlock(match);
 }
 function factsBlock(match) {
   return renderNotableFactsPanel(match).replace('<div class="panel" style="margin-top:28px;">', '<div class="panel" style="margin-bottom:22px;">');
