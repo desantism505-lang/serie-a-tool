@@ -2020,7 +2020,7 @@ function narrRoleLabel(ruolo) {
 
 function narrativeBlock(match) {
   let N;
-  try { N = generateMatchNarrative(DB.match_log, DB.calendar, DB.rosters, match); }
+  try { N = generateMatchNarrative(DB.matchLog, DB.calendar, DB.rosters, match); }
   catch (e) { console.error(e); return ''; }
 
   const homeName = match.Home, awayName = match.Away;
