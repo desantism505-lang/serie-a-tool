@@ -882,11 +882,12 @@ const SCN_METRIC_TO_MERCATO = {
 };
 // Clic su una riga del pannello: isola quel mercato, filtra sulla squadra giusta
 // (casa/trasferta) e rilancia la scansione sulla partita già selezionata.
-function scnJumpToStat(metricKey, venueSide){
+function scnJumpToStat(metricKey, venueSide, ruolo){
   document.querySelectorAll('.scnMercatoChk').forEach(chk => { chk.checked = (chk.value === SCN_METRIC_TO_MERCATO[metricKey]); });
   document.querySelector(`.scnFVenueRad[value="${venueSide}"]`).checked = true;
   updateScnVenueLabel();
   document.getElementById('scnFText').value = '';
+  scnJumpRole = ruolo || null;
   runScanGiornata();
   document.getElementById('scnTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -911,7 +912,7 @@ function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdIn
     const ruoloPlur = SCN_ROLE_PLURAL[r.ruolo] || r.ruolo;
     const verbo = SCN_METRIC_VERBO[r.metricKey] || 'producono';
     const testo = `Contro ${escAttr(opponentName)}, <b>${ruoloPlur}</b> ${verbo} più che contro qualsiasi altra squadra affrontata da ${escAttr(opponentName)} quando gioca ${oppVenueWord} — <b>${r.rank}°</b> su ${r.totale} squadre idonee (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).`;
-    return `<a href="javascript:void(0)" onclick="scnJumpToStat('${r.metricKey}','${focusVenueSide}')" style="color:inherit;text-decoration:none;cursor:pointer;" title="Clic per filtrare la tabella su questa squadra e questa statistica">${testo} <span style="color:var(--accent);font-size:11px;">▸ filtra tabella</span></a>`;
+    return `<a href="javascript:void(0)" onclick="scnJumpToStat('${r.metricKey}','${focusVenueSide}','${r.ruolo}')" style="color:inherit;text-decoration:none;cursor:pointer;" title="Clic per filtrare la tabella su questa squadra, questo ruolo e questa statistica">${testo} <span style="color:var(--accent);">▸ filtra tabella</span></a>`;
   });
   return { teamName, venueWord, lines };
 }
@@ -932,16 +933,16 @@ function renderScnRolesPanel(){
   const blockAway = scnOppRankBlock(match.Away, 'trasferta', DB.matchLog, DB.rosters, teams, match.Away_ID, match.Home, match.Home_ID, 'H');
 
   function renderSide(block, sideKey){
-    if (!block.lines.length) return `<div style="font-weight:700;margin-bottom:4px;">${escAttr(block.teamName)} <span class="subtle" style="font-size:12px;">(${block.venueWord})</span></div><div style="font-size:13px;color:var(--text-2);">Nessun ruolo idoneo risulta scoperto dall'avversario in classifica.</div>`;
+    if (!block.lines.length) return `<div style="font-weight:700;margin-bottom:4px;font-size:12px;">${escAttr(block.teamName)} <span class="subtle">(${block.venueWord})</span></div><div class="subtle">Nessun ruolo idoneo risulta scoperto dall'avversario in classifica.</div>`;
     const visible = block.lines.slice(0, 2);
     const rest = block.lines.slice(2);
-    const visibleHtml = visible.map(l => `<div style="font-size:13px;line-height:1.55;margin-bottom:6px;">${l}</div>`).join('');
-    const restHtml = rest.map(l => `<div style="font-size:13px;line-height:1.55;margin-bottom:6px;">${l}</div>`).join('');
+    const visibleHtml = visible.map(l => `<div class="subtle" style="line-height:1.5;margin-bottom:5px;">${l}</div>`).join('');
+    const restHtml = rest.map(l => `<div class="subtle" style="line-height:1.5;margin-bottom:5px;">${l}</div>`).join('');
     const toggle = rest.length
       ? `<div id="scnRolesMore_${sideKey}" style="display:none;">${restHtml}</div>
-         <button type="button" onclick="scnToggleMore('${sideKey}')" id="scnRolesMoreBtn_${sideKey}" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">mostra altri ${rest.length} ▾</button>`
+         <button type="button" onclick="scnToggleMore('${sideKey}')" id="scnRolesMoreBtn_${sideKey}" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;">mostra altri ${rest.length} ▾</button>`
       : '';
-    return `<div style="font-weight:700;margin-bottom:6px;">${escAttr(block.teamName)} <span class="subtle" style="font-size:12px;">(${block.venueWord})</span></div>${visibleHtml}${toggle}`;
+    return `<div style="font-weight:700;margin-bottom:6px;font-size:12px;">${escAttr(block.teamName)} <span class="subtle">(${block.venueWord})</span></div>${visibleHtml}${toggle}`;
   }
 
   panel.innerHTML = `
@@ -1321,9 +1322,14 @@ function scnFilters(){
     tit: document.getElementById('scnFTit').value,
   };
 }
+// Filtro silenzioso (nessun controllo visibile): impostato dal clic su una riga del
+// pannello "Ruoli scoperti" per restringere anche al ruolo specifico, non solo al
+// mercato — altrimenti il clic su "punte centrali" mostrava anche gli altri ruoli.
+let scnJumpRole = null;
 function applyScnFilters(rows){
   const f = scnFilters();
   return rows.filter(r => {
+    if (scnJumpRole && r.player.Posizione_Analitica !== scnJumpRole) return false;
     if (f.venue && r.venue !== f.venue) return false;
     if (f.tit) {
       const st = lineupState(r);
@@ -1369,6 +1375,7 @@ document.querySelectorAll('.scnFEdgeChk').forEach(chk => chk.addEventListener('c
 document.querySelectorAll('.scnFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk'); renderScan(); }));
 document.querySelectorAll('.scnFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk'); renderScan(); }));
 document.getElementById('scnFClear').addEventListener('click', () => {
+  scnJumpRole = null;
   document.getElementById('scnFText').value = '';
   document.getElementById('scnFCV').value = '';
   document.getElementById('scnFTit').value = '';
