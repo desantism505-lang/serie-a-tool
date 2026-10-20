@@ -530,6 +530,15 @@
             <label><input type="checkbox" class="scnFHitChk" value="90-100" /> 90–100%</label>
           </div>
         </div>
+        <div class="msdrop" id="scnFHitStagDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFHitStagDrop')">Hit stag.: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scnFHitStagChk" value="0-59" /> sotto 60%</label>
+            <label><input type="checkbox" class="scnFHitStagChk" value="60-74" /> 60–74%</label>
+            <label><input type="checkbox" class="scnFHitStagChk" value="75-89" /> 75–89%</label>
+            <label><input type="checkbox" class="scnFHitStagChk" value="90-100" /> 90–100%</label>
+          </div>
+        </div>
         <div class="msdrop" id="scnFEdgeDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFEdgeDrop')">Edge: tutti ▾</button>
           <div class="msdrop-panel">
@@ -551,13 +560,13 @@
         <div class="msdrop" id="scnFQuotaDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFQuotaDrop')">Quota: tutte ▾</button>
           <div class="msdrop-panel">
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.00-1.20" /> 1.00–1.20</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.21-1.40" /> 1.21–1.40</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.41-1.60" /> 1.41–1.60</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.61-1.80" /> 1.61–1.80</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.81-2.00" /> 1.81–2.00</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="2.01-2.50" /> 2.01–2.50</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="2.51-999" /> 2.51+</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.00-1.20" /> sotto 1,20</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.21-1.49" /> 1,21–1,49</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.50-1.60" /> 1,50–1,60</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.61-1.80" /> 1,61–1,80</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="1.81-2.00" /> 1,81–2,00</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="2.01-2.40" /> 2,01–2,40</label>
+            <label><input type="checkbox" class="scnFQuotaChk" value="2.41-999" /> 2,40+</label>
           </div>
         </div>
         <button id="scnFClear" class="secondary">Pulisci filtri</button>
@@ -567,21 +576,21 @@
       <table class="stat" id="scnTable" style="margin-top:14px;width:100%;">
         <thead>
           <tr>
-            <th class="sortable" data-key="giocatore" title="Nome del giocatore e squadra">Giocatore<span class="arrow"></span></th>
-            <th title="La partita e se il giocatore gioca in casa o trasferta in quella gara">Partita / venue</th>
-            <th class="sortable" data-key="titolare" title="Dalla formazione salvata in Matchup Engine. ✓ titolare confermato · ✓⚠ titolare in formazione ipotetica · ✗ non in formazione · – nessuna formazione salvata per quella partita">Titolare<span class="arrow"></span></th>
-            <th class="sortable" data-key="mercato" title="La statistica su cui si basa la linea (tiri, tiri in porta, falli, cartellini)">Mercato<span class="arrow"></span></th>
-            <th class="num sortable" data-key="linea" title="La soglia Over da valutare (es. Over 1.5 = almeno 2)">Linea<span class="arrow"></span></th>
-            <th class="num sortable" data-key="mediaVenue" title="Media a partita in quel venue (casa o trasferta), nelle partite reali giocate lì">Media venue /90 (N)<span class="arrow"></span></th>
-            <th class="num sortable" data-key="mediaL3" title="Media nelle ultime 3 presenze giocate, qualunque venue — utile per vedere se il giocatore sta salendo o scendendo rispetto alla media stagionale">Media L3/90<span class="arrow"></span></th>
-            <th class="sortable" data-key="cv" title="Coefficiente di variazione: quanto oscilla la prestazione partita per partita. Sotto 0.5 = giocatore regolare, sopra 1 = molto incostante, anche con la stessa media">Consistenza<span class="arrow"></span></th>
-            <th class="num sortable" data-key="hitVenue" title="Quante volte, storicamente, in quel venue ha superato questa esatta linea. ± indica l'incertezza (intervallo di Wilson) dato il campione">Hit venue<span class="arrow"></span></th>
-            <th class="num sortable" data-key="hitStag" title="Come sopra ma su tutta la stagione, senza distinguere casa/trasferta">Hit stag.<span class="arrow"></span></th>
-            <th class="num sortable" data-key="quota" title="Scrivi qui la quota decimale del bookmaker per questa esatta giocata">Quota<span class="arrow"></span></th>
-            <th class="num sortable" data-key="prob" title="Probabilità implicita nella quota = 1 / quota">Prob. impl.<span class="arrow"></span></th>
-            <th class="num sortable" data-key="edge" title="Hit rate venue meno probabilità implicita. Positivo = il book paga più di quanto i tuoi dati suggeriscano probabile">Edge<span class="arrow"></span></th>
-            <th class="num sortable" data-key="ev" title="Valore atteso per 1€ puntato, usando l'hit rate venue come probabilità reale: (hit rate × quota) − 1. Positivo = scommessa a valore nel lungo periodo">EV /1€<span class="arrow"></span></th>
-            <th title="Salva questa giocata nella tabella Preferiti in fondo alla pagina">☆</th>
+            <th class="sortable" data-key="giocatore" title="Nome del giocatore e squadra di appartenenza.">Giocatore<span class="arrow"></span></th>
+            <th title="La partita scansionata e in che venue gioca LUI in quella gara (può essere diverso dal venue della squadra se gioca per la squadra ospite).">Partita / venue</th>
+            <th class="sortable" data-key="titolare" title="Dalla formazione salvata in Matchup Engine. ✓ = titolare confermato · ✓⚠ = titolare in formazione ipotetica (non ancora ufficiale) · ✗ = non in formazione · – = nessuna formazione salvata per quella partita.">Titolare<span class="arrow"></span></th>
+            <th class="sortable" data-key="mercato" title="La statistica su cui si basa la linea. Es.: 'Falli commessi' conta solo i falli FATTI da lui (non quelli subiti); 'Tiri in porta' conta solo i tiri indirizzati in porta, non tutti i tiri tentati.">Mercato<span class="arrow"></span></th>
+            <th class="num sortable" data-key="linea" title="La soglia Over da valutare. Es.: Linea 1,5 falli → la giocata vince se ne fa almeno 2 in quella partita (1 non basta).">Linea<span class="arrow"></span></th>
+            <th class="num sortable" data-key="mediaVenue" title="Media a partita in quel venue (casa o trasferta), calcolata solo sulle partite reali giocate lì — il numero tra parentesi è quante. Es.: 'Media venue 2,3 (8)' = 2,3 falli a partita, in 8 presenze giocate in quel venue.">Media venue /90 (N)<span class="arrow"></span></th>
+            <th class="num sortable" data-key="mediaL3" title="Media nelle ultime 3 presenze giocate, qualunque venue. Es.: media stagionale 1,5 ma Media L3 2,4 → nelle ultime 3 gare è stato sopra la sua media abituale, possibile trend in salita (o semplice variabilità: guarda anche la Consistenza).">Media L3/90<span class="arrow"></span></th>
+            <th class="sortable" data-key="cv" title="Coefficiente di variazione: quanto oscilla la prestazione partita per partita, a parità di media. Sotto 0,5 = stabile, sopra 1 = incostante. Es.: media 2 falli con CV 0,3 (stabile) → quasi sempre tra 1 e 3; stessa media 2 ma CV 1,3 (incostante) → può fare 0 o 5, molto meno prevedibile pur avendo la stessa media.">Consistenza<span class="arrow"></span></th>
+            <th class="num sortable" data-key="hitVenue" title="Quante volte, storicamente, in quel venue ha superato questa esatta linea. ± indica l'incertezza (intervallo di Wilson) dato il campione — si restringe scansionando partite con più presenze. Es.: ha superato la linea in 7 partite su 10 in questo venue → Hit venue 70% ±28pp.">Hit venue<span class="arrow"></span></th>
+            <th class="num sortable" data-key="hitStag" title="Come Hit venue ma su TUTTA la stagione, senza distinguere casa/trasferta — campione più ampio, ma mischia partite in venue diversi. Es.: 13 presenze stagionali, linea superata in 9 → Hit stag. 69%.">Hit stag.<span class="arrow"></span></th>
+            <th class="num sortable" data-key="quota" title="Scrivi qui la quota decimale del bookmaker per questa esatta giocata (es. 1,80, non 4/5 o -120) — da questa si calcolano le 3 colonne seguenti.">Quota<span class="arrow"></span></th>
+            <th class="num sortable" data-key="prob" title="Probabilità implicita nella quota = 1 / quota. Es.: quota 2,00 → 50%; quota 1,50 → 66,7% (più la quota è bassa, più il book la considera probabile).">Prob. impl.<span class="arrow"></span></th>
+            <th class="num sortable" data-key="edge" title="Hit rate venue meno probabilità implicita: quanto il book sta pagando più (o meno) di quanto i tuoi dati suggeriscano probabile. Es.: Hit venue 65%, quota 1,80 (prob. impl. 55,6%) → edge = 65% − 55,6% = +9,4pp. Positivo = a tuo favore.">Edge<span class="arrow"></span></th>
+            <th class="num sortable" data-key="ev" title="Valore atteso per 1€ puntato, usando l'hit rate venue come probabilità reale: (hit rate × quota) − 1. Es.: Hit venue 65%, quota 1,80 → EV = (0,65 × 1,80) − 1 = +0,17€ ogni 1€ puntato, nel lungo periodo. Positivo = scommessa a valore.">EV /1€<span class="arrow"></span></th>
+            <th title="Salva questa giocata nella tabella Preferiti in fondo alla pagina, con la quota e tutti i dati di oggi congelati.">☆</th>
           </tr>
         </thead>
         <tbody id="scnBody"></tbody>
@@ -615,6 +624,15 @@
             <label><input type="checkbox" class="scrFHitChk" value="90-100" /> 90–100%</label>
           </div>
         </div>
+        <div class="msdrop" id="scrFHitStagDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFHitStagDrop')">Hit stag.: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFHitStagChk" value="0-59" /> sotto 60%</label>
+            <label><input type="checkbox" class="scrFHitStagChk" value="60-74" /> 60–74%</label>
+            <label><input type="checkbox" class="scrFHitStagChk" value="75-89" /> 75–89%</label>
+            <label><input type="checkbox" class="scrFHitStagChk" value="90-100" /> 90–100%</label>
+          </div>
+        </div>
         <div class="msdrop" id="scrFEdgeDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFEdgeDrop')">Edge: tutti ▾</button>
           <div class="msdrop-panel">
@@ -636,13 +654,13 @@
         <div class="msdrop" id="scrFQuotaDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFQuotaDrop')">Quota: tutte ▾</button>
           <div class="msdrop-panel">
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.00-1.20" /> 1.00–1.20</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.21-1.40" /> 1.21–1.40</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.41-1.60" /> 1.41–1.60</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.61-1.80" /> 1.61–1.80</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.81-2.00" /> 1.81–2.00</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="2.01-2.50" /> 2.01–2.50</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="2.51-999" /> 2.51+</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.00-1.20" /> sotto 1,20</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.21-1.49" /> 1,21–1,49</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.50-1.60" /> 1,50–1,60</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.61-1.80" /> 1,61–1,80</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="1.81-2.00" /> 1,81–2,00</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="2.01-2.40" /> 2,01–2,40</label>
+            <label><input type="checkbox" class="scrFQuotaChk" value="2.41-999" /> 2,40+</label>
           </div>
         </div>
         <select id="scrFEsito" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
@@ -660,20 +678,20 @@
       <table class="stat" id="scrTable" style="margin-top:14px;width:100%;">
         <thead>
           <tr>
-            <th class="sortable" data-key="giocatore">Giocatore<span class="arrow"></span></th>
-            <th class="sortable" data-key="mercato">Mercato<span class="arrow"></span></th>
-            <th class="num sortable" data-key="linea">Linea<span class="arrow"></span></th>
-            <th class="num sortable" data-key="mediaVenue">Media venue /90<span class="arrow"></span></th>
-            <th class="num sortable" data-key="mediaL3">Media L3 /90<span class="arrow"></span></th>
-            <th class="sortable" data-key="cv">Consistenza<span class="arrow"></span></th>
-            <th class="num sortable" data-key="hitStag">Hit stag.<span class="arrow"></span></th>
-            <th class="num sortable" data-key="hitVenue">Hit venue<span class="arrow"></span></th>
-            <th class="num sortable" data-key="quota">Quota<span class="arrow"></span></th>
-            <th class="num sortable" data-key="prob">Prob. impl.<span class="arrow"></span></th>
-            <th class="num sortable" data-key="edge">Edge<span class="arrow"></span></th>
-            <th class="num sortable" data-key="ev">EV /1€<span class="arrow"></span></th>
-            <th class="sortable" data-key="valutazione">Valutazione<span class="arrow"></span></th>
-            <th>Storico</th><th></th>
+            <th class="sortable" data-key="giocatore" title="Nome del giocatore e squadra di appartenenza.">Giocatore<span class="arrow"></span></th>
+            <th class="sortable" data-key="mercato" title="La statistica su cui si basa la linea. Es.: 'Falli commessi' conta solo i falli FATTI da lui, non quelli subiti.">Mercato<span class="arrow"></span></th>
+            <th class="num sortable" data-key="linea" title="La soglia Over da valutare. Es.: Linea 1,5 falli → vince se ne fa almeno 2.">Linea<span class="arrow"></span></th>
+            <th class="num sortable" data-key="mediaVenue" title="Media a partita nel venue di quella giocata, sulle presenze reali giocate lì.">Media venue /90<span class="arrow"></span></th>
+            <th class="num sortable" data-key="mediaL3" title="Media nelle ultime 3 presenze giocate, qualunque venue — mostra se stava salendo o scendendo rispetto alla media stagionale al momento del salvataggio.">Media L3 /90<span class="arrow"></span></th>
+            <th class="sortable" data-key="cv" title="Coefficiente di variazione: quanto oscilla la prestazione a parità di media. Es.: media 2 falli con CV 0,3 (stabile) → quasi sempre tra 1 e 3; CV 1,3 (incostante) → può fare 0 o 5.">Consistenza<span class="arrow"></span></th>
+            <th class="num sortable" data-key="hitStag" title="Quante volte, su tutta la stagione (casa+trasferta), ha superato questa esatta linea. Es.: 13 presenze, linea superata in 9 → 69%.">Hit stag.<span class="arrow"></span></th>
+            <th class="num sortable" data-key="hitVenue" title="Come Hit stag. ma solo nelle partite giocate in questo venue — campione più piccolo ma più mirato. Es.: 7 su 10 in questo venue → 70% ±28pp.">Hit venue<span class="arrow"></span></th>
+            <th class="num sortable" data-key="quota" title="Quota del bookmaker congelata al momento del salvataggio.">Quota<span class="arrow"></span></th>
+            <th class="num sortable" data-key="prob" title="Probabilità implicita nella quota = 1 / quota. Es.: quota 2,00 → 50%.">Prob. impl.<span class="arrow"></span></th>
+            <th class="num sortable" data-key="edge" title="Hit rate venue meno probabilità implicita. Es.: Hit venue 65%, quota 1,80 (prob. impl. 55,6%) → edge = +9,4pp.">Edge<span class="arrow"></span></th>
+            <th class="num sortable" data-key="ev" title="Valore atteso per 1€ puntato: (hit rate venue × quota) − 1. Es.: Hit venue 65%, quota 1,80 → EV = +0,17€ ogni 1€.">EV /1€<span class="arrow"></span></th>
+            <th class="sortable" data-key="valutazione" title="Favorevole/Sfavorevole in base all'edge (o alla media&gt;linea se manca la quota).">Valutazione<span class="arrow"></span></th>
+            <th title="Se la partita è conclusa, indica se la giocata si è verificata (vinta) o no (persa).">Storico</th><th></th>
           </tr>
         </thead>
         <tbody id="scrBody"></tbody>
@@ -1161,6 +1179,7 @@ function scnFilters(){
     text: (document.getElementById('scnFText').value || '').trim().toLowerCase(),
     cv: document.getElementById('scnFCV').value,
     hitBuckets: bucketsFromChecked('.scnFHitChk'),
+    hitStagBuckets: bucketsFromChecked('.scnFHitStagChk'),
     edgeBuckets: bucketsFromChecked('.scnFEdgeChk'),
     evBuckets: bucketsFromChecked('.scnFEvChk'),
     quotaBuckets: bucketsFromChecked('.scnFQuotaChk'),
@@ -1184,6 +1203,7 @@ function applyScnFilters(rows){
     }
     if (f.cv && cvLabel(r.cv) !== f.cv) return false;
     if (!inAnyBucket(r.hitVenue != null ? r.hitVenue * 100 : null, f.hitBuckets)) return false;
+    if (!inAnyBucket(r.hitStag != null ? r.hitStag * 100 : null, f.hitStagBuckets)) return false;
     const { quota, edge, ev } = derived(r);
     if (!inAnyBucket(edge != null ? edge * 100 : null, f.edgeBuckets)) return false;
     if (!inAnyBucket(ev, f.evBuckets)) return false;
@@ -1210,6 +1230,7 @@ document.getElementById('scnFText').addEventListener('input', renderScan);
 document.getElementById('scnFCV').addEventListener('change', renderScan);
 document.getElementById('scnFTit').addEventListener('change', renderScan);
 document.querySelectorAll('.scnFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk'); renderScan(); }));
+document.querySelectorAll('.scnFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk'); renderScan(); }));
 document.querySelectorAll('.scnFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk'); renderScan(); }));
 document.querySelectorAll('.scnFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk'); renderScan(); }));
 document.querySelectorAll('.scnFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk'); renderScan(); }));
@@ -1219,8 +1240,9 @@ document.getElementById('scnFClear').addEventListener('click', () => {
   document.getElementById('scnFTit').value = '';
   document.querySelector('.scnFVenueRad[value=""]').checked = true;
   updateScnVenueLabel();
-  document.querySelectorAll('.scnFHitChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scnFHitChk,.scnFHitStagChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => { chk.checked = false; });
   updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
+  updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk');
   updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
   updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk');
   updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk');
@@ -1566,6 +1588,7 @@ function scrFilters(){
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
     cv: document.getElementById('scrFCV').value,
     hitBuckets: bucketsFromChecked('.scrFHitChk'),
+    hitStagBuckets: bucketsFromChecked('.scrFHitStagChk'),
     edgeBuckets: bucketsFromChecked('.scrFEdgeChk'),
     evBuckets: bucketsFromChecked('.scrFEvChk'),
     quotaBuckets: bucketsFromChecked('.scrFQuotaChk'),
@@ -1581,6 +1604,7 @@ function applyScrFilters(rows){
     }
     if (f.cv && cvLabel(r.cv) !== f.cv) return false;
     if (!inAnyBucket(r.hitVenue != null ? r.hitVenue * 100 : null, f.hitBuckets)) return false;
+    if (!inAnyBucket(r.hitStag != null ? r.hitStag * 100 : null, f.hitStagBuckets)) return false;
     const { edge, ev } = scrDerived(r);
     if (!inAnyBucket(edge != null ? edge * 100 : null, f.edgeBuckets)) return false;
     if (!inAnyBucket(ev, f.evBuckets)) return false;
@@ -1596,6 +1620,7 @@ document.getElementById('scrFText').addEventListener('input', renderScreener);
 document.getElementById('scrFCV').addEventListener('change', renderScreener);
 document.getElementById('scrFEsito').addEventListener('change', renderScreener);
 document.querySelectorAll('.scrFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk'); renderScreener(); }));
+document.querySelectorAll('.scrFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk'); renderScreener(); }));
 document.querySelectorAll('.scrFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk'); renderScreener(); }));
 document.querySelectorAll('.scrFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFEvDrop','EV','.scrFEvChk'); renderScreener(); }));
 document.querySelectorAll('.scrFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk'); renderScreener(); }));
@@ -1603,8 +1628,9 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFText').value = '';
   document.getElementById('scrFCV').value = '';
   document.getElementById('scrFEsito').value = '';
-  document.querySelectorAll('.scrFHitChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
   updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
+  updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk');
   updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk');
   updateMsDropLabel('scrFEvDrop','EV','.scrFEvChk');
   updateMsDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk');
