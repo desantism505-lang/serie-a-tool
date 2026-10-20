@@ -1036,15 +1036,22 @@ function narrTeamDa(teamName) {
 function narrLeagueRoleAvg(matchLog, ruolo, venueLetter, metricKey) {
   const key = metricKey || 'Tiri_Concessi_90';
   const teamIds = [...new Set(matchLog.map((r) => r.Team_ID))];
-  const segmento = venueLetter === 'H' ? 'AWAY' : 'HOME';
+  const isTotale = venueLetter === 'TOTALE';
+  const segmento = isTotale ? 'TOTALE' : (venueLetter === 'H' ? 'AWAY' : 'HOME');
   let s = 0, n = 0;
   for (const t of teamIds) {
-    const partite = narrPartiteInVenue(matchLog, t, venueLetter);
+    const partite = isTotale ? narrPartiteTotale(matchLog, t) : narrPartiteInVenue(matchLog, t, venueLetter);
     if (!partite) continue;
     const row = computeRoleConcessions(matchLog, t, segmento, ruolo, partite);
     if (row.N_Prestazioni_Ruolo >= 3 && row[key] != null) { s += row[key]; n++; }
   }
   return n ? s / n : null;
+}
+
+// Partite totali giocate da una squadra (entrambi i venue) — per il confronto "su tutte le
+// gare", distinto dal confronto solo-venue già usato dalla Chiave di lettura.
+function narrPartiteTotale(matchLog, teamId) {
+  return new Set(matchLog.filter((r) => r.Team_ID === teamId).map((r) => r.Match_ID)).size;
 }
 
 function narrStandingsTable(calendar) {
@@ -1795,5 +1802,6 @@ if (typeof module !== 'undefined') {
     probCardFromFouls, projectLineupTotal,
     // --- narrativo
     generateMatchNarrative,
+    narrPartiteInVenue, narrPartiteTotale, narrLeagueRoleAvg,
   };
 }

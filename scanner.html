@@ -593,6 +593,38 @@
   </div>
 </section>
 
+<section id="matchupQuoteSection" style="margin-top:24px;">
+  <div class="panel">
+    <h2>Match-up individuali sui falli <span class="tag">chi li subisce contro chi li commette, con la tua quota</span></h2>
+    <div class="body">
+      <div class="screener-form" style="margin-bottom:10px;display:flex;gap:10px;align-items:center;">
+        <select id="mqGiornata"></select>
+        <button id="mqRun">Trova match-up</button>
+      </div>
+      <div style="overflow-x:auto;">
+      <table class="stat" id="mqTable" style="margin-top:14px;width:100%;">
+        <thead>
+          <tr>
+            <th>Partita</th>
+            <th>Chi subisce falli</th>
+            <th>Chi li commette</th>
+            <th class="num">Linea</th>
+            <th class="num">Prob. modello</th>
+            <th class="num">Quota minima</th>
+            <th class="num">Quota (inserisci)</th>
+            <th class="num">EV /1€</th>
+            <th>Conferma di ruolo</th>
+          </tr>
+        </thead>
+        <tbody id="mqBody"></tbody>
+      </table>
+      </div>
+      <div class="subtle" id="mqEmpty">Scegli la giornata e clicca "Trova match-up".</div>
+      <div class="subtle" style="margin-top:8px;">Il ruolo che "marca" l'attaccante è un'approssimazione posizionale (esterno↔terzino, punta↔centrale, trequartista↔centrocampista), non un dato di marcatura reale. "Conferma di ruolo" mostra due numeri INDIPENDENTI: quanto quella squadra concede falli a quel ruolo nel venue di oggi, e quanto lo stesso vale su tutte le gare della stagione. Non sono la stessa cosa della Chiave di lettura del Motore partite: lì la "falla vera" è la debolezza PEGGIORE della squadra su tutti i ruoli; qui si controlla SOLO il ruolo coinvolto in questo match-up, che può non coincidere con quella falla principale — se non coincide, il match-up resta valido ma non è "la falla della squadra", è un segnale più locale.</div>
+    </div>
+  </div>
+</section>
+
 <section id="screenerSection" style="margin-top:24px;">
   <div class="panel">
     <h2>Preferiti <span class="tag">giocate salvate dallo Scanner con la stella — sopravvivono al cambio pagina</span></h2>
@@ -801,6 +833,7 @@ function populateGiornate(){
   scnSel.onchange = populateScnMatch;
   if (giornate.includes(auto)) scnSel.value = String(auto);
   populateScnMatch();
+  populateMqGiornate();
 }
 function populateScnMatch(){
   const g = Number(document.getElementById('scnGiornata').value);
@@ -809,6 +842,108 @@ function populateScnMatch(){
   sel.innerHTML = '<option value="ALL">Tutte le partite</option>' +
     matches.map(m => `<option value="${m.Match_ID}">${m.Home} – ${m.Away}</option>`).join('');
 }
+
+// ---------------------------------------------------------------------------
+// Match-up individuali sui falli: chi li subisce (attacco) contro chi li
+// commette (difesa), con doppia conferma di ruolo (venue della gara di oggi +
+// tutte le gare della stagione) e quota inserita a mano -> prob./edge/EV.
+// Riusa narrFoulMatchup/narrCardMatchup di engine.js (stessa logica già
+// mostrata nella Chiave di lettura del Motore partite), non inventa un nuovo
+// modello.
+// ---------------------------------------------------------------------------
+function populateMqGiornate(){
+  const giornate = [...new Set(DB.calendar.map(r => r.Giornata))].sort((a,b)=>a-b);
+  const auto = prossimaGiornata(DB.calendar);
+  const sel = document.getElementById('mqGiornata');
+  sel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
+  if (giornate.includes(auto)) sel.value = String(auto);
+}
+
+// Quanto la squadra difendente concede falli al ruolo dell'attaccante, in un
+// venue specifico ('H'/'A') o su tutte le gare ('TOTALE'). Ritorna null se il
+// campione è troppo piccolo per dire qualcosa.
+function mqRoleConfirm(matchLog, teamId, ruolo, venueLetter){
+  const partite = venueLetter === 'TOTALE' ? narrPartiteTotale(matchLog, teamId) : narrPartiteInVenue(matchLog, teamId, venueLetter);
+  if (!partite) return null;
+  const segmento = venueLetter === 'TOTALE' ? 'TOTALE' : (venueLetter === 'H' ? 'AWAY' : 'HOME');
+  const row = computeRoleConcessions(matchLog, teamId, segmento, ruolo, partite);
+  if (row.N_Prestazioni_Ruolo < 3 || row.FalliSubiti_Ruolo_90 == null) return { n: row.N_Prestazioni_Ruolo, ratio: null };
+  const avg = narrLeagueRoleAvg(matchLog, ruolo, venueLetter, 'FalliSubiti_Ruolo_90');
+  return { n: row.N_Prestazioni_Ruolo, value: row.FalliSubiti_Ruolo_90, avg, ratio: avg ? row.FalliSubiti_Ruolo_90 / avg : null };
+}
+
+function mqRows(giornata){
+  const matches = DB.calendar.filter(m => m.Giornata === giornata);
+  const rows = [];
+  for (const m of matches) {
+    let N;
+    try { N = generateMatchNarrative(DB.matchLog, DB.calendar, DB.rosters, m); } catch (e) { continue; }
+    const candidates = [
+      ...(N.nomi.foulMatchupHome || []).map(fm => ({ fm, attackTeam: m.Home, defendTeam: m.Away, defendTeamId: m.Away_ID, venueLetterDefend: 'A' })),
+      ...(N.nomi.foulMatchupAway || []).map(fm => ({ fm, attackTeam: m.Away, defendTeam: m.Home, defendTeamId: m.Home_ID, venueLetterDefend: 'H' })),
+    ];
+    for (const c of candidates) {
+      const fm = c.fm;
+      const soglia = Math.max(1, Math.round(fm.fcMu));
+      const line = soglia - 0.5;
+      const prob = probAtLeastAlpha(fm.fcMu, soglia, MODEL_PARAMS.ALPHA.FC);
+      const confVenue = mqRoleConfirm(DB.matchLog, c.defendTeamId, fm.role, c.venueLetterDefend);
+      const confAll = mqRoleConfirm(DB.matchLog, c.defendTeamId, fm.role, 'TOTALE');
+      rows.push({
+        match: `${m.Home} - ${m.Away}`,
+        attacker: fm.attacker.nome, attackTeam: c.attackTeam, attackRole: fm.role, fdMu: fm.fdMu,
+        defender: fm.defender.nome, defendTeam: c.defendTeam, defendRole: fm.defRole, fcMu: fm.fcMu,
+        line, prob, confVenue, confAll,
+      });
+    }
+  }
+  return rows;
+}
+
+function mqFmtRatio(c){
+  if (!c || c.ratio == null) return 'campione insufficiente';
+  const arrow = c.ratio >= 1.15 ? ' ▲' : (c.ratio <= 0.85 ? ' ▼' : '');
+  return c.ratio.toFixed(2).replace('.', ',') + '×' + arrow;
+}
+
+window._mqRows = [];
+function renderMqTable(){
+  const giornata = Number(document.getElementById('mqGiornata').value);
+  const rows = mqRows(giornata);
+  window._mqRows = rows;
+  const tbody = document.getElementById('mqBody');
+  const empty = document.getElementById('mqEmpty');
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    empty.textContent = 'Nessun match-up sui falli trovato per questa giornata (soglie minime di affidabilità non raggiunte).';
+    return;
+  }
+  empty.textContent = '';
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr data-i="${i}">
+      <td>${escAttr(r.match)}</td>
+      <td><b>${escAttr(r.attacker)}</b><br><span class="subtle">${escAttr(r.attackTeam)} · ${escAttr(r.attackRole)} · ${fmt(r.fdMu,1)} falli subiti attesi</span></td>
+      <td><b>${escAttr(r.defender)}</b><br><span class="subtle">${escAttr(r.defendTeam)} · ${escAttr(r.defendRole)} · ${fmt(r.fcMu,1)} falli commessi attesi</span></td>
+      <td class="num">${fmt(r.line,1)}</td>
+      <td class="num">${pct(r.prob)}</td>
+      <td class="num">${fmt(1 / r.prob, 2)}</td>
+      <td class="num"><input type="text" class="mqQuota" data-i="${i}" style="width:62px;background:var(--panel-2);color:inherit;border:1px solid var(--line, #333);border-radius:4px;padding:3px 5px;" placeholder="es. 1,80" /></td>
+      <td class="num mqEv" data-i="${i}">—</td>
+      <td class="subtle">Venue: ${mqFmtRatio(r.confVenue)}<br>Tutte le gare: ${mqFmtRatio(r.confAll)}</td>
+    </tr>`).join('');
+}
+
+document.getElementById('mqRun').addEventListener('click', renderMqTable);
+document.getElementById('mqBody').addEventListener('input', (e) => {
+  if (!e.target.classList.contains('mqQuota')) return;
+  const i = Number(e.target.dataset.i);
+  const r = window._mqRows[i];
+  const quota = Number(e.target.value.replace(',', '.'));
+  const cell = document.querySelector(`.mqEv[data-i="${i}"]`);
+  if (!r || !quota || !(quota > 1)) { cell.textContent = '—'; return; }
+  const ev = r.prob * quota - 1;
+  cell.innerHTML = `<span style="color:${ev >= 0 ? '#4caf7a' : '#e8735b'}">${ev >= 0 ? '+' : ''}${fmt(ev, 2)}€</span>`;
+});
 
 function fmt(v, d=2){
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
