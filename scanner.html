@@ -184,6 +184,13 @@
     color:var(--muted);
   }
   .panel .body{padding:18px 20px;}
+  #screenerSection .fav-min{
+    background:var(--panel);color:var(--text);border:1px solid var(--line);
+    width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px;line-height:1;padding:0;flex:none;margin-left:12px;
+  }
+  #screenerSection .fav-min:hover{border-color:var(--accent);color:var(--accent);}
+  #screenerSection.fav-collapsed .body{display:none;}
+  #screenerSection.fav-collapsed .panel h2{border-bottom:none;}
 
   table.stat{
     width:100%;
@@ -612,7 +619,7 @@
 
 <section id="screenerSection" style="margin-top:24px;">
   <div class="panel">
-    <h2>Preferiti <span class="tag">giocate salvate dallo Scanner con la stella — sopravvivono al cambio pagina</span></h2>
+    <h2><span>Preferiti <span class="tag">giocate salvate dallo Scanner con la stella — sopravvivono al cambio pagina</span></span><button type="button" class="fav-min" id="favMinBtn" title="Minimizza il pannello Preferiti" aria-label="Minimizza il pannello Preferiti" aria-expanded="true">&minus;</button></h2>
     <div class="body">
       <div class="filter-group" id="scrFilterPanel" style="margin-bottom:10px;background:var(--panel-2);padding:10px;border-radius:8px;">
         <span class="filter-label">Filtra preferiti:</span>
@@ -1879,6 +1886,26 @@ function escAttr(v){
 })();
 
 renderScreener();
+</script>
+<script>
+// Pannello Preferiti: pulsante in alto a destra per minimizzare/espandere (stato ricordato nel browser).
+(function(){
+  var sec=document.getElementById('screenerSection'), btn=document.getElementById('favMinBtn');
+  if(!sec||!btn) return;
+  var KEY='scanner_fav_collapsed';
+  function apply(c){
+    sec.classList.toggle('fav-collapsed',c);
+    btn.innerHTML=c?'+':'&minus;';
+    var t=c?'Espandi il pannello Preferiti':'Minimizza il pannello Preferiti';
+    btn.title=t; btn.setAttribute('aria-label',t); btn.setAttribute('aria-expanded',c?'false':'true');
+  }
+  var c=false; try{ c=localStorage.getItem(KEY)==='1'; }catch(e){}
+  apply(c);
+  btn.addEventListener('click',function(){
+    c=!sec.classList.contains('fav-collapsed'); apply(c);
+    try{ localStorage.setItem(KEY,c?'1':'0'); }catch(e){}
+  });
+})();
 </script>
 </body>
 </html>
