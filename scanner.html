@@ -624,6 +624,16 @@
       <div class="filter-group" id="scrFilterPanel" style="margin-bottom:10px;background:var(--panel-2);padding:10px;border-radius:8px;">
         <span class="filter-label">Filtra preferiti:</span>
         <input type="text" id="scrFText" placeholder="cerca giocatore/partita" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:170px;" />
+        <div class="msdrop" id="scrFMercatoDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMercatoDrop')">Giocata: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFMercatoChk" value="TIRI" /> Tiri</label>
+            <label><input type="checkbox" class="scrFMercatoChk" value="TIRI_IN_PORTA" /> Tiri in porta</label>
+            <label><input type="checkbox" class="scrFMercatoChk" value="FALLI_COMMESSI" /> Falli commessi</label>
+            <label><input type="checkbox" class="scrFMercatoChk" value="FALLI_SUBITI" /> Falli subiti</label>
+            <label><input type="checkbox" class="scrFMercatoChk" value="CARTELLINO" /> Cartellino</label>
+          </div>
+        </div>
         <select id="scrFCV" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
           <option value="">Consistenza: tutte</option>
           <option value="stabile">stabile</option>
@@ -1728,6 +1738,7 @@ function scrFilters(){
   return {
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
     cv: document.getElementById('scrFCV').value,
+    mercati: getCheckedValues('.scrFMercatoChk'),
     hitBuckets: bucketsFromChecked('.scrFHitChk'),
     hitStagBuckets: bucketsFromChecked('.scrFHitStagChk'),
     edgeBuckets: bucketsFromChecked('.scrFEdgeChk'),
@@ -1743,6 +1754,7 @@ function applyScrFilters(rows){
       const hay = `${r.giocatore} ${r.partita}`.toLowerCase();
       if (!hay.includes(f.text)) return false;
     }
+    if (f.mercati.length && !f.mercati.includes(r.mercato)) return false;
     if (f.cv && cvLabel(r.cv) !== f.cv) return false;
     if (!inAnyBucket(r.hitVenue != null ? r.hitVenue * 100 : null, f.hitBuckets)) return false;
     if (!inAnyBucket(r.hitStag != null ? r.hitStag * 100 : null, f.hitStagBuckets)) return false;
@@ -1760,6 +1772,7 @@ function applyScrFilters(rows){
 document.getElementById('scrFText').addEventListener('input', renderScreener);
 document.getElementById('scrFCV').addEventListener('change', renderScreener);
 document.getElementById('scrFEsito').addEventListener('change', renderScreener);
+document.querySelectorAll('.scrFMercatoChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk'); renderScreener(); }));
 document.querySelectorAll('.scrFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk'); renderScreener(); }));
 document.querySelectorAll('.scrFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk'); renderScreener(); }));
 document.querySelectorAll('.scrFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk'); renderScreener(); }));
@@ -1769,7 +1782,8 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFText').value = '';
   document.getElementById('scrFCV').value = '';
   document.getElementById('scrFEsito').value = '';
-  document.querySelectorAll('.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scrFMercatoChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
+  updateMsDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
   updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
   updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk');
   updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk');
