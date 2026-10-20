@@ -1211,6 +1211,58 @@ function narrRoleConcessionRank(matchLog, teams, teamId, ruolo, venueLetter, met
   return { rank: idx + 1, totale: rows.length, value: rows[idx].value, mediaLega, partite: rows[idx].partite };
 }
 
+// ---------------------------------------------------------------------------
+// Fatti salienti "ruolo vs avversario" per lo Scanner — STESSI criteri di
+// computePlayerVsOpponentFacts() in index.html (Fatti salienti):
+//  - ruoli = quelli della rosa attiva della squadra in esame, Portiere escluso
+//  - metriche: tiri, tiri in porta, falli (le stesse 3 di index.html)
+//  - confronto con tutte le squadre della lega nello stesso campo
+//  - rankProvisional con campione minimo, almeno 6 squadre idonee,
+//    scartato se piu' di FATTI_MAX_TIE squadre hanno lo stesso valore
+//  - mostrati entrambi gli estremi (alto = "piu'", basso = "meno")
+// Se si cambia un criterio in index.html va cambiato anche qui.
+// FATTI_RUOLO_MIN_SAMPLE_VENUE: UCL: soglia 1 (con la Champions appena iniziata ogni squadra ha 1 sola partita per venue). Serie A: 2, identica a Fatti salienti di index.html (minSample venue).
+// ---------------------------------------------------------------------------
+const FATTI_MAX_TIE = 2; // = MAX_TIE_FOR_FACT in index.html
+const FATTI_RUOLO_MIN_SAMPLE_VENUE = 2;
+const FATTI_RUOLO_METRICS = [
+  { key: 'Tiri', label: 'tiri', col: 'Tiri_Concessi_90' },
+  { key: 'Tiri_in_porta', label: 'tiri in porta', col: 'SOT_Concessi_90' },
+  { key: 'Falli_commessi', label: 'falli', col: 'Falli_Contro_Ruolo_90' },
+];
+// oppVenueLetter: campo in cui gioca l'avversario ('H' casa, 'A' trasferta).
+// minSample opzionale: serve solo ai test di allineamento con index.html.
+function fattiRuoloVsAvversario(matchLog, rosters, teamId, oppId, oppVenueLetter, minSample = FATTI_RUOLO_MIN_SAMPLE_VENUE) {
+  const oppVenue = oppVenueLetter === 'H' ? 'HOME' : 'AWAY';
+  const teamsAll = [...new Set(rosters.map((r) => r.Team_ID_Rif))];
+  const roles = [...new Set(rosters.filter((p) => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId).map((p) => p.Posizione_Analitica))]
+    .filter((r) => r !== 'Portiere');
+  const out = [];
+  for (const ruolo of roles) {
+    for (const m of FATTI_RUOLO_METRICS) {
+      const list = teamsAll.map((t) => {
+        const ts = computeTeamStats(matchLog, t, oppVenue);
+        const rc = computeRoleConcessions(matchLog, t, oppVenue, ruolo, ts.Partite);
+        return { key: t, value: rc[m.col], partite: ts.Partite };
+      });
+      const { rank, eligible } = rankProvisional(list, minSample)[oppId];
+      const me = list.find((x) => x.key === oppId);
+      if (rank === 'N/D' || eligible < 6) continue;
+      const pool = list.filter((x) => x.partite >= minSample && x.value != null);
+      if (pool.filter((x) => x.value === me.value).length > FATTI_MAX_TIE) continue;
+      const top = rank <= (eligible - rank + 1); // = isTopEnd() di index.html
+      out.push({
+        ruolo, metricKey: m.key, metricLabel: m.label, rank, totale: eligible, top, value: me.value,
+        mediaLega: pool.reduce((a, x) => a + x.value, 0) / pool.length,
+        sotto: pool.filter((x) => x.value < me.value).length, // squadre con valore strettamente minore
+        sopra: rank - 1,                                      // squadre con valore strettamente maggiore
+      });
+    }
+  }
+  out.sort((a, b) => Math.min(a.rank, a.totale + 1 - a.rank) - Math.min(b.rank, b.totale + 1 - b.rank));
+  return out;
+}
+
 function narrShootingEfficiency(matchLog, calendar, teamId, venue) {
   const totals = computeTeamMatchTotals(matchLog, teamId, venue === 'H' ? 'HOME' : 'AWAY', calendar).filter((m) => m.Tiri > 0);
   if (!totals.length) return null;
@@ -1844,6 +1896,8 @@ if (typeof module !== 'undefined') {
     narrPlayersInRole,
     narrRoleVsOpponent,
     narrRoleConcessionRank,
+    fattiRuoloVsAvversario,
+    FATTI_RUOLO_MIN_SAMPLE_VENUE,
     NARRATIVE_ROLES,
     NARR_ROLE_METRICS,
     computeTeamDuelTotals,

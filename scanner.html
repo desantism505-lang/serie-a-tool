@@ -899,26 +899,19 @@ function scnJumpToStat(metricKey, venueSide, ruolo){
   document.getElementById('scnTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdInFocus, opponentName, opponentId, opponentVenueLetter){
-  const eligCache = {};
-  const eligibile = r => r in eligCache ? eligCache[r] : (eligCache[r] = narrPlayersInRole(rosters, matchLog, teamIdInFocus, r, 0).length > 0);
-  const rows = [];
-  for (const r of NARRATIVE_ROLES) {
-    if (!eligibile(r)) continue;
-    for (const m of NARR_ROLE_METRICS) {
-      const rank = narrRoleConcessionRank(matchLog, teams, opponentId, r, opponentVenueLetter, m.key);
-      if (rank) rows.push({ ruolo: r, metricKey: m.key, metricLabel: m.label, ...rank });
-    }
-  }
-  const top = rows.filter(r => r.rank <= Math.ceil(r.totale/3))
-    .sort((a,b) => a.rank - b.rank)
-    .slice(0, 8);
+  // Stessi criteri di Fatti salienti (index.html): vedi fattiRuoloVsAvversario() in engine.js.
+  const top = fattiRuoloVsAvversario(matchLog, rosters, teamIdInFocus, opponentId, opponentVenueLetter).slice(0, 8);
   if (!top.length) return { teamName, venueWord, lines: [] };
   const oppVenueWord = opponentVenueLetter === 'H' ? 'in casa' : 'in trasferta';
   const focusVenueSide = venueWord === 'casa' ? 'HOME' : 'AWAY';
   const lines = top.map(r => {
     const ruoloPlur = SCN_ROLE_PLURAL[r.ruolo] || r.ruolo;
     const verbo = SCN_METRIC_VERBO[r.metricKey] || 'producono';
-    const testo = `Contro ${escAttr(opponentName)}, <b>${ruoloPlur}</b> ${verbo} più che contro qualsiasi altra squadra affrontata da ${escAttr(opponentName)} quando gioca ${oppVenueWord} — <b>${r.rank}°</b> su ${r.totale} squadre idonee (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).`;
+    // Confronto: l'avversario contro le altre squadre della lega nello stesso campo.
+    const altre = r.totale - 1;
+    const n = r.top ? r.sotto : r.sopra; // quante altre squadre hanno un valore strettamente inferiore (piu') / superiore (meno)
+    const confronto = `${r.top ? 'più' : 'meno'} che contro ${n >= altre ? 'qualsiasi altra squadra' : `${n} delle altre ${altre} squadre`} della lega ${oppVenueWord}`;
+    const testo = `Contro ${escAttr(opponentName)} ${oppVenueWord}, <b>${ruoloPlur}</b> ${verbo} ${confronto} — <b>${r.rank}°</b> su ${r.totale} squadre idonee (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).`;
     return `<a href="javascript:void(0)" onclick="scnJumpToStat('${r.metricKey}','${focusVenueSide}','${r.ruolo}')" style="color:inherit;text-decoration:none;cursor:pointer;" title="Clic per filtrare la tabella su questa squadra, questo ruolo e questa statistica">${testo} <span style="color:var(--accent);">▸ filtra tabella</span></a>`;
   });
   return { teamName, venueWord, lines };
