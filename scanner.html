@@ -875,6 +875,21 @@ const SCN_METRIC_VERBO = {
   'Tiri': 'tirano', 'Tiri_in_porta': 'tirano in porta', 'Falli_commessi': 'commettono falli',
   'Falli_subiti': 'subiscono falli', 'Cartellini': 'prendono cartellini',
 };
+// Mappa la metrica del fatto saliente al mercato dello Scanner, per il click-to-filter.
+const SCN_METRIC_TO_MERCATO = {
+  'Tiri': 'TIRI', 'Tiri_in_porta': 'TIRI_IN_PORTA', 'Falli_commessi': 'FALLI_COMMESSI',
+  'Falli_subiti': 'FALLI_SUBITI', 'Cartellini': 'CARTELLINO',
+};
+// Clic su una riga del pannello: isola quel mercato, filtra sulla squadra giusta
+// (casa/trasferta) e rilancia la scansione sulla partita già selezionata.
+function scnJumpToStat(metricKey, venueSide){
+  document.querySelectorAll('.scnMercatoChk').forEach(chk => { chk.checked = (chk.value === SCN_METRIC_TO_MERCATO[metricKey]); });
+  document.querySelector(`.scnFVenueRad[value="${venueSide}"]`).checked = true;
+  updateScnVenueLabel();
+  document.getElementById('scnFText').value = '';
+  runScanGiornata();
+  document.getElementById('scnTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdInFocus, opponentName, opponentId, opponentVenueLetter){
   const eligCache = {};
   const eligibile = r => r in eligCache ? eligCache[r] : (eligCache[r] = narrPlayersInRole(rosters, matchLog, teamIdInFocus, r, 0).length > 0);
@@ -891,10 +906,12 @@ function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdIn
     .slice(0, 8);
   if (!top.length) return { teamName, venueWord, lines: [] };
   const oppVenueWord = opponentVenueLetter === 'H' ? 'in casa' : 'in trasferta';
+  const focusVenueSide = venueWord === 'casa' ? 'HOME' : 'AWAY';
   const lines = top.map(r => {
     const ruoloPlur = SCN_ROLE_PLURAL[r.ruolo] || r.ruolo;
     const verbo = SCN_METRIC_VERBO[r.metricKey] || 'producono';
-    return `Contro ${escAttr(opponentName)}, <b>${ruoloPlur}</b> ${verbo} più che contro qualsiasi altra squadra affrontata da ${escAttr(opponentName)} quando gioca ${oppVenueWord} — <b>${r.rank}°</b> su ${r.totale} squadre idonee (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).`;
+    const testo = `Contro ${escAttr(opponentName)}, <b>${ruoloPlur}</b> ${verbo} più che contro qualsiasi altra squadra affrontata da ${escAttr(opponentName)} quando gioca ${oppVenueWord} — <b>${r.rank}°</b> su ${r.totale} squadre idonee (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).`;
+    return `<a href="javascript:void(0)" onclick="scnJumpToStat('${r.metricKey}','${focusVenueSide}')" style="color:inherit;text-decoration:none;cursor:pointer;" title="Clic per filtrare la tabella su questa squadra e questa statistica">${testo} <span style="color:var(--accent);font-size:11px;">▸ filtra tabella</span></a>`;
   });
   return { teamName, venueWord, lines };
 }
