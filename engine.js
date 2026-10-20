@@ -1156,6 +1156,60 @@ function narrPlayersInRole(rosters, matchLog, teamId, ruolo, minMin) {
   }).filter((p) => p.min >= minMin).sort((a, b) => b.min - a.min);
 }
 
+// Le 5 statistiche disponibili per giocatore/ruolo, già quelle usate nei filtri dello
+// Scanner: chiave campo in match_log, etichetta, e campo corrispondente prodotto da
+// computeRoleConcessions (per la classifica di Punto 2).
+const NARR_ROLE_METRICS = [
+  { key: 'Tiri', label: 'tiri', concessField: 'Tiri_Concessi_90' },
+  { key: 'Tiri_in_porta', label: 'tiri in porta', concessField: 'SOT_Concessi_90' },
+  { key: 'Falli_commessi', label: 'falli commessi', concessField: 'Falli_Contro_Ruolo_90' },
+  { key: 'Falli_subiti', label: 'falli subiti', concessField: 'FalliSubiti_Ruolo_90' },
+  { key: 'Cartellini', label: 'cartellini', concessField: 'Cartellini_Ruolo_90' },
+];
+
+// Punto 1 — cosa fa SQUADRA col RUOLO contro QUESTO avversario specifico (solo nel
+// venue di questa giornata), rispetto a cosa fa (stesso ruolo, stesso venue) contro
+// tutte le altre squadre. Fatto storico diretto (non media di lega): con 1 solo
+// precedente il campione resta minimo ma il dato è comunque un fatto vero, va solo
+// etichettato come tale (n=1). metricKey una delle chiavi di NARR_ROLE_METRICS.
+function narrRoleVsOpponent(matchLog, teamId, ruolo, venueLetter, opponentId, metricKey) {
+  const base = matchLog.filter((r) => r.Team_ID === teamId && r.Posizione_Analitica === ruolo && r.Venue === venueLetter);
+  const vsOpp = base.filter((r) => r.Opp_ID === opponentId);
+  const vsAltri = base.filter((r) => r.Opp_ID !== opponentId);
+  if (!vsOpp.length || !vsAltri.length) return null;
+  const val = (r) => metricKey === 'Cartellini' ? (Number(r.Gialli) || 0) + (Number(r.Rossi) || 0) : (Number(r[metricKey]) || 0);
+  const per90 = (rows) => {
+    const n = new Set(rows.map((r) => r.Match_ID)).size;
+    return { n, v90: rows.reduce((s, r) => s + val(r), 0) / n };
+  };
+  const a = per90(vsOpp), b = per90(vsAltri);
+  if (!b.v90) return null;
+  return { ruolo, metricKey, n: a.n, v90VsOpp: a.v90, v90Altri: b.v90, ratio: a.v90 / b.v90 };
+}
+
+// Punto 2 — posizione in classifica (1°-N) di TEAM tra tutte le squadre della lega per
+// quanto concede al RUOLO nel VENUE indicato, per una delle 5 statistiche (stessa
+// metrica di "Chiave di lettura", qui espressa come rank assoluto invece che come
+// ratio-alla-media). Usa tutta la stagione: nessun problema di campione N=1.
+function narrRoleConcessionRank(matchLog, teams, teamId, ruolo, venueLetter, metricKey) {
+  const segmento = venueLetter === 'H' ? 'AWAY' : 'HOME';
+  const field = (NARR_ROLE_METRICS.find((m) => m.key === metricKey) || {}).concessField;
+  if (!field) return null;
+  const rows = [];
+  for (const t of teams) {
+    const partite = narrPartiteInVenue(matchLog, t, venueLetter);
+    if (!partite) continue;
+    const c = computeRoleConcessions(matchLog, t, segmento, ruolo, partite);
+    if (!c || !c.N_Prestazioni_Ruolo) continue;
+    rows.push({ team: t, value: c[field], partite });
+  }
+  if (!rows.length) return null;
+  rows.sort((a, b) => b.value - a.value);
+  const idx = rows.findIndex((r) => r.team === teamId);
+  if (idx < 0) return null;
+  return { rank: idx + 1, totale: rows.length, value: rows[idx].value, partite: rows[idx].partite };
+}
+
 function narrShootingEfficiency(matchLog, calendar, teamId, venue) {
   const totals = computeTeamMatchTotals(matchLog, teamId, venue === 'H' ? 'HOME' : 'AWAY', calendar).filter((m) => m.Tiri > 0);
   if (!totals.length) return null;
@@ -1361,6 +1415,11 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
   }
   const awayExploiters = homeWeak ? withMuTiri(narrPlayersInRole(rosters, matchLog, awayId, homeWeak.Posizione_Analitica, 300), awayId, homeId, 'A') : [];
   const homeExploiters = awayWeak ? withMuTiri(narrPlayersInRole(rosters, matchLog, homeId, awayWeak.Posizione_Analitica, 300), homeId, awayId, 'H') : [];
+  // Il ruolo "debole" di una squadra conta solo se L'AVVERSARIO DI QUESTA PARTITA schiera
+  // davvero un giocatore in quel ruolo — altrimenti è un dato vero ma non sfruttabile oggi
+  // (bug corretto: prima si segnalava la falla anche contro avversari senza quel ruolo).
+  const homeWeakOppHasRole = homeWeak ? narrPlayersInRole(rosters, matchLog, awayId, homeWeak.Posizione_Analitica, 0).length > 0 : null;
+  const awayWeakOppHasRole = awayWeak ? narrPlayersInRole(rosters, matchLog, homeId, awayWeak.Posizione_Analitica, 0).length > 0 : null;
 
   const shootEff = narrShootingEfficiency(matchLog, calendar, awayId, 'A');
 
@@ -1465,6 +1524,7 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
     },
     chiaveLettura: {
       homeWeak, awayWeak, homeWeakMetric, awayWeakMetric, homeWeakRatio, awayWeakRatio,
+      homeWeakOppHasRole, awayWeakOppHasRole,
       homeWeak2: homeWeakX.secondary ? homeWeakX.secondary.row : null,
       awayWeak2: awayWeakX.secondary ? awayWeakX.secondary.row : null,
       homeWeakSOT: homeWeakX.sotWeak, awayWeakSOT: awayWeakX.sotWeak,
@@ -1658,7 +1718,7 @@ function narrPreview(d) {
 // una vera falla. La metrica può essere Tiri concessi O Falli subiti dal ruolo avversario (quella
 // con lo scarto più marcato), non è più forzata sempre sui tiri.
 const NARR_WEAK_FIELD = { Tiri: 'Tiri_Concessi_90', Falli: 'FalliSubiti_Ruolo_90' };
-function narrWeakSentence(teamName, venueWord, weak, ratio, metric) {
+function narrWeakSentence(teamName, venueWord, weak, ratio, metric, oppHasRole) {
   if (!weak) return `<b>${narrTeam(teamName, true)}</b> ${venueWord} non ha un campione sufficiente, in nessun ruolo, per isolare un punto debole affidabile.`;
   const field = NARR_WEAK_FIELD[metric] || 'Tiri_Concessi_90';
   const val = weak[field];
@@ -1666,6 +1726,11 @@ function narrWeakSentence(teamName, venueWord, weak, ratio, metric) {
   const roleA = NARR_ROLE_A[weak.Posizione_Analitica];
   const roleSu = NARR_ROLE_SU[weak.Posizione_Analitica];
   const roleBare = NARR_ROLE_BARE_ART[weak.Posizione_Analitica];
+  // La falla è vera (ratio alto) ma inutile IN QUESTA PARTITA se l'avversario di oggi non
+  // schiera nessun giocatore in quel ruolo — va detto chiaro, non lasciato implicito.
+  const nonSfruttabile = oppHasRole === false
+    ? ' Resta però un dato teorico in questa partita: l\'avversario di oggi non schiera un giocatore in quel ruolo.'
+    : '';
   if (ratio == null) {
     const verbo = metric === 'Falli' ? 'commette più falli contro' : 'concede più tiri';
     return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${verbo} a partita ${roleA} (<span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span>) che a chiunque altro — non basta ancora il campione di lega per dire se è una vera falla o solo il meno solido dei suoi reparti.`;
@@ -1675,13 +1740,13 @@ function narrWeakSentence(teamName, venueWord, weak, ratio, metric) {
     const desc = metric === 'Falli'
       ? `ha una falla vera sulla disciplina ${roleSu}: commette <span class="narr-hl-bad">${val.toFixed(1).replace('.', ',')} falli a partita</span> su quel ruolo avversario`
       : `ha una falla vera ${roleSu}: concede <span class="narr-hl-bad">${val.toFixed(1).replace('.', ',')} tiri a partita</span>`;
-    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc}, il <b>${Math.round((ratio - 1) * 100)}%</b> in più della media di lega per quel ruolo in questo venue.${extreme}`;
+    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc}, il <b>${Math.round((ratio - 1) * 100)}%</b> in più della media di lega per quel ruolo in questo venue.${extreme}${nonSfruttabile}`;
   }
   if (ratio >= 1.15) {
     const desc = metric === 'Falli'
       ? `commette sopra media falli ${roleA} (<span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> falli a partita, circa il <b>${Math.round((ratio - 1) * 100)}%</b> sopra la media di lega)`
       : `concede sopra media ${roleA} (<span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> tiri a partita, circa il <b>${Math.round((ratio - 1) * 100)}%</b> sopra la media di lega)`;
-    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc} — un punto da sfruttare, non ancora una voragine.`;
+    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc} — un punto da sfruttare, non ancora una voragine.${nonSfruttabile}`;
   }
   return `<b>${narrTeam(teamName, true)}</b> ${venueWord} non ha in realtà una vera debolezza di reparto: anche il suo dato più esposto (${roleBare}, <span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> ${unit}) resta in linea con la media di lega per quel ruolo in questo venue.`;
 }
@@ -1690,8 +1755,8 @@ function narrChiaveHtml(d) {
   const hw = c.homeWeak, aw = c.awayWeak;
   if (!hw && !aw) return '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
   const sentences = [
-    narrWeakSentence(d.homeName, 'in casa', hw, c.homeWeakRatio, c.homeWeakMetric),
-    narrWeakSentence(d.awayName, 'in trasferta', aw, c.awayWeakRatio, c.awayWeakMetric),
+    narrWeakSentence(d.homeName, 'in casa', hw, c.homeWeakRatio, c.homeWeakMetric, c.homeWeakOppHasRole),
+    narrWeakSentence(d.awayName, 'in trasferta', aw, c.awayWeakRatio, c.awayWeakMetric, c.awayWeakOppHasRole),
   ];
   const homeGenuine = hw && c.homeWeakRatio != null && c.homeWeakRatio >= 1.15;
   const awayGenuine = aw && c.awayWeakRatio != null && c.awayWeakRatio >= 1.15;
@@ -1774,6 +1839,12 @@ if (typeof module !== 'undefined') {
     computeTeamMatchTotals,
     teamHitRate,
     leagueAverageMetric,
+    narrPartiteInVenue,
+    narrPlayersInRole,
+    narrRoleVsOpponent,
+    narrRoleConcessionRank,
+    NARRATIVE_ROLES,
+    NARR_ROLE_METRICS,
     computeTeamDuelTotals,
     teamDuelRecord,
     multiplicativeProjection,

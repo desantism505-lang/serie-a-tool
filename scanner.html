@@ -573,6 +573,11 @@
         <button id="scnFClear" class="secondary">Pulisci filtri</button>
       </div>
 
+      <div class="msdrop" style="display:block;margin-bottom:10px;">
+        <button type="button" class="msdrop-btn" id="scnRolesToggleBtn" onclick="toggleScnRolesPanel()" style="width:100%;text-align:left;">▸ Ruoli contro l'avversario (venue) — fatti salienti della partita selezionata</button>
+        <div id="scnRolesPanel" style="display:none;margin-top:8px;padding:10px;background:var(--panel-2);border-radius:8px;"></div>
+      </div>
+
       <div style="overflow-x:auto;">
       <table class="stat" id="scnTable" style="margin-top:14px;width:100%;">
         <thead>
@@ -828,7 +833,97 @@ function populateScnMatch(){
   const sel = document.getElementById('scnMatch');
   sel.innerHTML = '<option value="ALL">Tutte le partite</option>' +
     matches.map(m => `<option value="${m.Match_ID}">${m.Home} – ${m.Away}</option>`).join('');
+  renderScnRolesPanel();
 }
+
+// ---------------------------------------------------------------------------
+// "Ruoli contro l'avversario (venue) — fatti salienti": pannello a tendina,
+// collassato di default, che riusa la STESSA funzione della Chiave di
+// lettura del Motore partite (narrWeakestRoleMulti) per mostrare solo le
+// falle vere delle due squadre della partita selezionata — non la matrice
+// completa di tutti i ruoli, solo ciò che si scosta davvero dalla media.
+// Si aggiorna quando cambia la partita selezionata o si rilancia la scansione.
+// ---------------------------------------------------------------------------
+function toggleScnRolesPanel(){
+  const panel = document.getElementById('scnRolesPanel');
+  const btn = document.getElementById('scnRolesToggleBtn');
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  btn.textContent = (open ? '▸' : '▾') + " Ruoli contro l'avversario (venue) — fatti salienti della partita selezionata";
+}
+
+// Punto 1: cosa fa la squadra col ruolo CONTRO QUESTO avversario specifico vs contro
+// tutte le altre (narrRoleVsOpponent). Fatto storico diretto: con n=1 è l'unico
+// precedente disponibile, va etichettato come tale, non nascosto.
+function scnRoleVsOppBlock(teamName, venueWord, matchLog, teamId, venueLetter, opponentId){
+  const rows = [];
+  for (const r of NARRATIVE_ROLES) for (const m of NARR_ROLE_METRICS) {
+    const x = narrRoleVsOpponent(matchLog, teamId, r, venueLetter, opponentId, m.key);
+    if (x) rows.push({ ...x, metricLabel: m.label });
+  }
+  const top = rows.filter(r => r.ratio >= 1.3 || r.ratio <= 0.7)
+    .sort((a,b) => Math.abs(b.ratio-1) - Math.abs(a.ratio-1))
+    .slice(0, 4);
+  if (!top.length) return `<div class="subtle">${escAttr(teamName)} (${venueWord}): nessuno scostamento rilevante vs. il proprio standard contro questo avversario.</div>`;
+  const line = r => {
+    const tag = r.ratio >= 1.3 ? 'TOP' : 'UNDER';
+    const color = r.ratio >= 1.3 ? 'var(--accent)' : 'var(--muted)';
+    const precedenti = r.n === 1 ? 'unico precedente disponibile' : `${r.n} precedenti`;
+    return `<div><span style="color:${color};font-weight:600;">${tag}</span> <b>${escAttr(r.ruolo)}</b> — ${r.metricLabel}: ${fmt(r.v90VsOpp,1)}/90 vs questo avversario, ${fmt(r.v90Altri,1)}/90 contro gli altri (${r.ratio>=1?'+':''}${((r.ratio-1)*100).toFixed(0)}%) <span class="subtle">(${precedenti})</span></div>`;
+  };
+  return `<div style="margin-bottom:4px;"><b>${escAttr(teamName)}</b> <span class="subtle">(${venueWord})</span></div>` + top.map(line).join('');
+}
+
+// Punto 2: posizione in classifica (su tutta la stagione) di quanto l'AVVERSARIO
+// concede a ciascun ruolo in questo venue — mostrata solo per i ruoli che la
+// squadra in focus schiera davvero (narrPlayersInRole), altrimenti il dato non è
+// sfruttabile in questa partita anche se vero in generale (correzione del bug
+// "falla sul trequartista contro una squadra senza trequartisti").
+function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdInFocus, opponentId, opponentVenueLetter){
+  const eligCache = {};
+  const eligibile = r => r in eligCache ? eligCache[r] : (eligCache[r] = narrPlayersInRole(rosters, matchLog, teamIdInFocus, r, 0).length > 0);
+  const rows = [];
+  for (const r of NARRATIVE_ROLES) {
+    if (!eligibile(r)) continue;
+    for (const m of NARR_ROLE_METRICS) {
+      const rank = narrRoleConcessionRank(matchLog, teams, opponentId, r, opponentVenueLetter, m.key);
+      if (rank) rows.push({ ruolo: r, metricLabel: m.label, ...rank });
+    }
+  }
+  const top = rows.filter(r => r.rank <= Math.ceil(r.totale/3))
+    .sort((a,b) => a.rank - b.rank)
+    .slice(0, 4);
+  if (!top.length) return `<div class="subtle">${escAttr(teamName)}: nessun ruolo idoneo e scoperto dall'avversario in classifica.</div>`;
+  const line = r => `<div><b>${escAttr(r.ruolo)}</b> — l'avversario concede ${fmt(r.value,2)} ${r.metricLabel}/90 a questo ruolo (${r.rank}°/${r.totale} tra le squadre, ${venueWord==='casa'?'in trasferta':'in casa'})</div>`;
+  return `<div style="margin-bottom:4px;"><b>${escAttr(teamName)}</b> <span class="subtle">(${venueWord}) — ruoli scoperti dall'avversario</span></div>` + top.map(line).join('');
+}
+
+function renderScnRolesPanel(){
+  const panel = document.getElementById('scnRolesPanel');
+  if (!DB) return;
+  const matchId = document.getElementById('scnMatch').value;
+  if (matchId === 'ALL') {
+    panel.innerHTML = '<div class="subtle">Seleziona una partita specifica (non "Tutte le partite") per vedere i fatti salienti di ruolo delle due squadre.</div>';
+    return;
+  }
+  const g = Number(document.getElementById('scnGiornata').value);
+  const match = DB.calendar.find(m => m.Giornata === g && m.Match_ID === matchId);
+  if (!match) { panel.innerHTML = '<div class="subtle">Partita non trovata.</div>'; return; }
+  const teams = [...new Set(DB.matchLog.map(r => r.Team_ID))];
+  panel.innerHTML = `
+    <div style="font-weight:600;margin-bottom:6px;">Contro questo avversario specifico (vs. proprio standard)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12.5px;margin-bottom:10px;">
+      <div>${scnRoleVsOppBlock(match.Home, 'casa', DB.matchLog, match.Home_ID, 'H', match.Away_ID)}</div>
+      <div>${scnRoleVsOppBlock(match.Away, 'trasferta', DB.matchLog, match.Away_ID, 'A', match.Home_ID)}</div>
+    </div>
+    <div style="font-weight:600;margin-bottom:6px;border-top:1px solid var(--line);padding-top:8px;">Ruoli dove l'avversario è scoperto in classifica (stagione)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12.5px;">
+      <div>${scnOppRankBlock(match.Home, 'casa', DB.matchLog, DB.rosters, teams, match.Home_ID, match.Away_ID, 'A')}</div>
+      <div>${scnOppRankBlock(match.Away, 'trasferta', DB.matchLog, DB.rosters, teams, match.Away_ID, match.Home_ID, 'H')}</div>
+    </div>
+    <div class="subtle" style="margin-top:8px;">Prima sezione: fatto storico diretto contro questo avversario (può basarsi su un solo precedente). Seconda sezione: posizione dell'avversario nella classifica di quanto concede a quel ruolo su tutta la stagione — mostrata solo se la squadra in focus schiera davvero un giocatore in quel ruolo.</div>`;
+}
+document.getElementById('scnMatch').addEventListener('change', renderScnRolesPanel);
 
 function fmt(v, d=2){
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
