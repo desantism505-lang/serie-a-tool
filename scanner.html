@@ -634,6 +634,20 @@
             <label><input type="checkbox" class="scrFMercatoChk" value="CARTELLINO" /> Cartellino</label>
           </div>
         </div>
+        <div class="msdrop" id="scrFVenueDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFVenueDrop')">Squadra: complessivo ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="" checked /> Complessivo (tutte e due)</label>
+            <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="HOME" /> Casa (solo squadra di casa)</label>
+            <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="AWAY" /> Trasferta (solo squadra ospite)</label>
+          </div>
+        </div>
+        <select id="scrFTit" title="Usa le formazioni salvate in Matchup Engine" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
+          <option value="">Titolare: tutti</option>
+          <option value="tit">Solo titolari (✓)</option>
+          <option value="conf">Solo titolari confermati</option>
+          <option value="notN">Nascondi esclusi (✗), tieni senza formazione</option>
+        </select>
         <select id="scrFCV" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
           <option value="">Consistenza: tutte</option>
           <option value="stabile">stabile</option>
@@ -1088,7 +1102,8 @@ function luReadLocal(matchId){
   } catch (e) { /* storage non disponibile */ }
   return out;
 }
-async function loadLineups(matchIds){
+async function loadLineups(matchIds){ LUMAP = await fetchLineupMap(matchIds); }
+async function fetchLineupMap(matchIds){
   const map = {};
   for (const id of matchIds) map[id] = luReadLocal(id);
   if (sb && matchIds.length) {
@@ -1103,7 +1118,7 @@ async function loadLineups(matchIds){
       }
     } catch (e) { console.warn('Supabase: formazioni non lette, uso solo quelle locali.', e); }
   }
-  LUMAP = map;
+  return map;
 }
 function lineupState(r){
   const t = (LUMAP[r.match.Match_ID] || {})[r.player.Team_ID_Rif];
@@ -1739,6 +1754,8 @@ function scrFilters(){
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
     cv: document.getElementById('scrFCV').value,
     mercati: getCheckedValues('.scrFMercatoChk'),
+    venue: (document.querySelector('.scrFVenueRad:checked') || {}).value || '',
+    tit: document.getElementById('scrFTit').value,
     hitBuckets: bucketsFromChecked('.scrFHitChk'),
     hitStagBuckets: bucketsFromChecked('.scrFHitStagChk'),
     edgeBuckets: bucketsFromChecked('.scrFEdgeChk'),
@@ -1747,14 +1764,64 @@ function scrFilters(){
     esito: document.getElementById('scrFEsito').value,
   };
 }
+// Formazioni per i Preferiti: stesse formazioni salvate in Matchup Engine usate dallo
+// Scanner (stati Y / Yh / N / U), ma in una mappa separata (FAV_LUMAP) cosi' non
+// tocca LUMAP dello Scanner. Match e giocatore si ricavano da giornata + partita +
+// nome + venue della riga salvata; se non si risolvono lo stato e' 'U'.
+let FAV_LUMAP = {};
+const favLuFetched = new Set();
+let favLuBusy = false;
+const favResolveCache = new Map();
+function scrResolve(r){
+  const k = String(r.id);
+  if (favResolveCache.has(k)) return favResolveCache.get(k);
+  let res = null;
+  const match = DB && DB.calendar.find(m => m.Giornata === r.giornata && `${m.Home} – ${m.Away}` === r.partita);
+  if (match) {
+    const teamId = r.venue === 'HOME' ? match.Home_ID : match.Away_ID;
+    const player = DB.rosters.find(p => p.Team_ID_Rif === teamId && p.Nome_completo === r.giocatore);
+    if (player) res = { match, player };
+  }
+  favResolveCache.set(k, res);
+  return res;
+}
+function scrLineupState(r){
+  const res = scrResolve(r);
+  if (!res) return 'U';
+  const mid = res.match.Match_ID;
+  if (!(mid in FAV_LUMAP)) FAV_LUMAP[mid] = luReadLocal(mid);
+  const t = FAV_LUMAP[mid][res.player.Team_ID_Rif];
+  if (!t) return 'U';
+  if (!t.ids.has(res.player.Player_ID)) return 'N';
+  return t.confirmed ? 'Y' : 'Yh';
+}
+async function scrRefreshLineups(){
+  if (favLuBusy) return;
+  const ids = [...new Set(screenerRows.map(scrResolve).filter(Boolean).map(x => x.match.Match_ID))].filter(id => !favLuFetched.has(id));
+  if (!ids.length) return;
+  favLuBusy = true;
+  try {
+    const map = await fetchLineupMap(ids);
+    ids.forEach(id => { favLuFetched.add(id); FAV_LUMAP[id] = map[id] || {}; });
+  } finally { favLuBusy = false; }
+  renderScreener();
+}
 function applyScrFilters(rows){
   const f = scrFilters();
+  if (f.tit) scrRefreshLineups(); // aggiorna in background anche dal cloud, poi ridisegna
   return rows.filter(r => {
     if (f.text) {
       const hay = `${r.giocatore} ${r.partita}`.toLowerCase();
       if (!hay.includes(f.text)) return false;
     }
     if (f.mercati.length && !f.mercati.includes(r.mercato)) return false;
+    if (f.venue && r.venue !== f.venue) return false;
+    if (f.tit) {
+      const st = scrLineupState(r);
+      if (f.tit === 'tit' && st !== 'Y' && st !== 'Yh') return false;
+      if (f.tit === 'conf' && st !== 'Y') return false;
+      if (f.tit === 'notN' && st === 'N') return false;
+    }
     if (f.cv && cvLabel(r.cv) !== f.cv) return false;
     if (!inAnyBucket(r.hitVenue != null ? r.hitVenue * 100 : null, f.hitBuckets)) return false;
     if (!inAnyBucket(r.hitStag != null ? r.hitStag * 100 : null, f.hitStagBuckets)) return false;
@@ -1772,6 +1839,15 @@ function applyScrFilters(rows){
 document.getElementById('scrFText').addEventListener('input', renderScreener);
 document.getElementById('scrFCV').addEventListener('change', renderScreener);
 document.getElementById('scrFEsito').addEventListener('change', renderScreener);
+function updateScrVenueLabel(){
+  const c = document.querySelector('.scrFVenueRad:checked');
+  const v = c ? c.value : '';
+  const btn = document.querySelector('#scrFVenueDrop .msdrop-btn');
+  btn.textContent = `Squadra: ${v === 'HOME' ? 'casa' : v === 'AWAY' ? 'trasferta' : 'complessivo'} ▾`;
+  btn.classList.toggle('active-filter', v !== '');
+}
+document.querySelectorAll('.scrFVenueRad').forEach(r => r.addEventListener('change', () => { updateScrVenueLabel(); renderScreener(); }));
+document.getElementById('scrFTit').addEventListener('change', renderScreener);
 document.querySelectorAll('.scrFMercatoChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk'); renderScreener(); }));
 document.querySelectorAll('.scrFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk'); renderScreener(); }));
 document.querySelectorAll('.scrFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk'); renderScreener(); }));
@@ -1782,6 +1858,9 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFText').value = '';
   document.getElementById('scrFCV').value = '';
   document.getElementById('scrFEsito').value = '';
+  document.getElementById('scrFTit').value = '';
+  document.querySelector('.scrFVenueRad[value=""]').checked = true;
+  updateScrVenueLabel();
   document.querySelectorAll('.scrFMercatoChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
   updateMsDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
   updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
