@@ -1643,8 +1643,8 @@ function computeRoleVulnerabilityTable(oppTeamId, oppVenue){
 let MODEL = null, CARDPF = null;
 const S = { sez: 'sintesi', mk: 'Tiri', team: 'home', pl: null, sort: { key: 'mu', dir: -1 }, bench: false };
 try { if (localStorage.getItem('mx_bench') === '1') S.bench = true; } catch (e) {}
-S.scope = 'all'; // 'venue' = casa della squadra di casa e trasferta di quella ospite; 'all' = tutte le partite
-try { if (localStorage.getItem('mx_scope') === 'venue') S.scope = 'venue'; } catch (e) {}
+S.scope = 'venue'; // 'venue' = casa della squadra di casa e trasferta di quella ospite; 'all' = tutte le partite
+try { if (localStorage.getItem('mx_scope') === 'all') S.scope = 'all'; } catch (e) {}
 function setScope(v) { S.scope = v; try { localStorage.setItem('mx_scope', v); } catch (e) {} renderAll(); }
 // venue del GIOCATORE per il modello: in modalita' Casa/trasferta solo le partite nello stesso venue di questa
 const scopePv = (info) => (S.scope === 'venue' ? (info.venue === 'HOME' ? 'H' : 'A') : null);
