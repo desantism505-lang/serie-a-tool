@@ -1036,7 +1036,7 @@ function narrTeamDa(teamName) {
 function narrLeagueRoleAvg(matchLog, ruolo, venueLetter, metricKey) {
   const key = metricKey || 'Tiri_Concessi_90';
   const teamIds = [...new Set(matchLog.map((r) => r.Team_ID))];
-  const segmento = venueLetter === 'H' ? 'AWAY' : 'HOME';
+  const segmento = venueLetter === 'H' ? 'HOME' : 'AWAY';
   let s = 0, n = 0;
   for (const t of teamIds) {
     const partite = narrPartiteInVenue(matchLog, t, venueLetter);
@@ -1093,7 +1093,7 @@ function narrWeakestRole(matchLog, teamId, venue, teamPartiteInVenue) {
 // relativo (ratio sulla media di lega stesso ruolo/venue) più marcato: così la Chiave
 // di lettura non è forzata sui tiri in ogni partita. candidate = {row, metric, value, avg, ratio}.
 function narrWeakestRoleMulti(matchLog, teamId, venue, teamPartiteInVenue) {
-  const segmento = venue === 'H' ? 'AWAY' : 'HOME';
+  const segmento = venue === 'H' ? 'HOME' : 'AWAY';
   const rows = NARRATIVE_ROLES.map((r) => computeRoleConcessions(matchLog, teamId, segmento, r, teamPartiteInVenue))
     .filter((x) => x.N_Prestazioni_Ruolo >= 3);
   if (!rows.length) return { primary: null, secondary: null, sotWeak: null };
@@ -1192,7 +1192,7 @@ function narrRoleVsOpponent(matchLog, teamId, ruolo, venueLetter, opponentId, me
 // metrica di "Chiave di lettura", qui espressa come rank assoluto invece che come
 // ratio-alla-media). Usa tutta la stagione: nessun problema di campione N=1.
 function narrRoleConcessionRank(matchLog, teams, teamId, ruolo, venueLetter, metricKey) {
-  const segmento = venueLetter === 'H' ? 'AWAY' : 'HOME';
+  const segmento = venueLetter === 'H' ? 'HOME' : 'AWAY';
   const field = (NARR_ROLE_METRICS.find((m) => m.key === metricKey) || {}).concessField;
   if (!field) return null;
   const rows = [];
@@ -1207,7 +1207,8 @@ function narrRoleConcessionRank(matchLog, teams, teamId, ruolo, venueLetter, met
   rows.sort((a, b) => b.value - a.value);
   const idx = rows.findIndex((r) => r.team === teamId);
   if (idx < 0) return null;
-  return { rank: idx + 1, totale: rows.length, value: rows[idx].value, partite: rows[idx].partite };
+  const mediaLega = rows.reduce((s, r) => s + r.value, 0) / rows.length;
+  return { rank: idx + 1, totale: rows.length, value: rows[idx].value, mediaLega, partite: rows[idx].partite };
 }
 
 function narrShootingEfficiency(matchLog, calendar, teamId, venue) {
@@ -1490,7 +1491,7 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
   }
   // per questo serve concessione per-ruolo completa (non solo la peggiore) di chi difende
   function allRoleConcessions(teamId, venue, teamPartite) {
-    const segmento = venue === 'H' ? 'AWAY' : 'HOME';
+    const segmento = venue === 'H' ? 'HOME' : 'AWAY';
     return NARRATIVE_ROLES.map((r) => computeRoleConcessions(matchLog, teamId, segmento, r, teamPartite));
   }
   const homeDefRows = homePartiteHome ? allRoleConcessions(homeId, 'H', homePartiteHome) : [];
