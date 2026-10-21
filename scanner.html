@@ -191,6 +191,22 @@
   #screenerSection .fav-min:hover{border-color:var(--accent);color:var(--accent);}
   #screenerSection.fav-collapsed .body{display:none;}
   #screenerSection.fav-collapsed .panel h2{border-bottom:none;}
+  #screenerSection .fav-actions{display:flex;align-items:center;gap:8px;flex:none;}
+  #screenerSection .fav-actions .fav-min{margin-left:0;}
+  #screenerSection .fav-xls{
+    display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;flex:none;
+    background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px;
+    cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;font-size:12px;line-height:1;
+    transition:border-color .15s,color .15s;
+  }
+  #screenerSection .fav-xls svg{width:14px;height:14px;flex:none;}
+  #screenerSection .fav-xls:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+  #screenerSection .fav-xls:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  #screenerSection .fav-xls:disabled{opacity:.4;cursor:not-allowed;}
+  @media (max-width:560px){
+    #screenerSection .fav-xls{width:28px;padding:0;justify-content:center;}
+    #screenerSection .fav-xls span{display:none;}
+  }
 
   table.stat{
     width:100%;
@@ -619,7 +635,7 @@
 
 <section id="screenerSection" style="margin-top:24px;">
   <div class="panel">
-    <h2><span>Preferiti <span class="tag">giocate salvate dallo Scanner con la stella — sopravvivono al cambio pagina</span></span><button type="button" class="fav-min" id="favMinBtn" title="Minimizza il pannello Preferiti" aria-label="Minimizza il pannello Preferiti" aria-expanded="true">&minus;</button></h2>
+    <h2><span>Preferiti <span class="tag">giocate salvate dallo Scanner con la stella — sopravvivono al cambio pagina</span></span><span class="fav-actions"><button type="button" class="fav-xls" id="favXlsBtn" title="Scarica Excel dei preferiti" aria-label="Scarica Excel dei preferiti" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 20h14"/></svg><span>Excel</span></button><button type="button" class="fav-min" id="favMinBtn" title="Minimizza il pannello Preferiti" aria-label="Minimizza il pannello Preferiti" aria-expanded="true">&minus;</button></span></h2>
     <div class="body">
       <div class="filter-group" id="scrFilterPanel" style="margin-bottom:10px;background:var(--panel-2);padding:10px;border-radius:8px;">
         <span class="filter-label">Filtra preferiti:</span>
@@ -1899,6 +1915,7 @@ function renderScreener(){
     empty.style.display = 'block';
     empty.textContent = 'Nessun preferito ancora. Vai su Scanner, scansiona una giornata e clicca la stella ☆ sulle giocate che ti interessano.';
     summary.textContent = '';
+    updateFavExport(0, 0);
     return;
   }
   let rows = applyScrFilters(screenerRows);
@@ -1916,9 +1933,11 @@ function renderScreener(){
     empty.style.display = 'block';
     empty.textContent = 'Nessun preferito soddisfa i filtri impostati sopra.';
     summary.textContent = '';
+    updateFavExport(0, screenerRows.length);
     return;
   }
   empty.style.display = 'none';
+  updateFavExport(rows.length, screenerRows.length);
 
   const verified = screenerRows.filter(r => r.esito != null);
   const favVerified = verified.filter(r => scrDerived(r).favorevole);
@@ -1977,6 +1996,126 @@ function escAttr(v){
     if (inp) scrSetQuota(inp.dataset.id, inp.value);
   });
 })();
+
+// ---------------------------------------------------------------------------
+// ESPORTA PREFERITI IN EXCEL — pulsante accanto a "Minimizza il pannello".
+// Esporta esattamente la vista corrente (filtri e ordinamento attivi), SENZA la
+// colonna Valutazione. Ogni intestazione ha una nota (commento Excel) che spiega
+// la colonna e il foglio "Legenda" le raccoglie tutte. Stessa libreria XLSX
+// dell'export dello Scanner.
+// ---------------------------------------------------------------------------
+const FAV_XLS_PREFIX = 'preferiti_serie_a';
+const FAV_XLS_COLS = [
+  { h: 'Giornata', w: 10, z: '0', note: 'Numero della giornata a cui appartiene la partita.' },
+  { h: 'Partita', w: 34, note: 'Squadra di casa – squadra ospite. Il venue della giocata è sempre riferito a questa partita.' },
+  { h: 'Giocatore', w: 26, note: 'Giocatore salvato tra i Preferiti con la stella dello Scanner.' },
+  { h: 'Venue', w: 11, note: 'Casa o Trasferta: dove gioca il giocatore in questa partita. Media venue e Hit venue usano solo le sue presenze nello stesso venue.' },
+  { h: 'Giocata', w: 16, note: "La statistica su cui si basa la linea. Es.: 'Falli commessi' conta solo i falli FATTI da lui, non quelli subiti." },
+  { h: 'Linea', w: 8, z: '0.0', note: 'La soglia Over da valutare. Es.: Linea 1,5 falli → vince se ne fa almeno 2.' },
+  { h: 'Media venue /90', w: 15, z: '0.00', note: 'Media a partita nel venue di quella giocata, sulle presenze reali giocate lì.' },
+  { h: 'Partite venue (N)', w: 16, z: '0', note: 'Numero di presenze giocate in questo venue su cui si basa la media venue. Campione piccolo = dato meno affidabile.' },
+  { h: 'Media L3 /90', w: 13, z: '0.00', note: 'Media nelle ultime 3 presenze giocate, qualunque venue: mostra se stava salendo o scendendo rispetto alla media stagionale al momento del salvataggio.' },
+  { h: 'Consistenza', w: 13, note: 'Etichetta del CV: stabile (CV sotto 0,5), variabile (da 0,5 a 1), incostante (sopra 1). Vuota se il dato non è calcolabile.' },
+  { h: 'CV', w: 8, z: '0.00', note: 'Coefficiente di variazione: quanto oscilla la prestazione a parità di media. Es.: media 2 falli con CV 0,3 (stabile) → quasi sempre tra 1 e 3; CV 1,3 (incostante) → può fare 0 o 5.' },
+  { h: 'Hit stagione', w: 13, z: '0%', note: 'Quante volte, su tutta la stagione (casa+trasferta), ha superato questa esatta linea. Es.: 13 presenze, linea superata in 9 → 69%.' },
+  { h: 'Hit venue', w: 11, z: '0%', note: 'Come Hit stagione ma solo nelle partite giocate in questo venue: campione più piccolo ma più mirato. Es.: 7 su 10 in questo venue → 70%.' },
+  { h: 'Quota', w: 8, z: '0.00', note: 'Quota del bookmaker registrata nel pannello Preferiti. Vuota se non l\'hai inserita: in quel caso Prob. impl., Edge ed EV non sono calcolabili.' },
+  { h: 'Prob. impl.', w: 12, z: '0.0%', note: 'Probabilità implicita nella quota = 1 / quota. Es.: quota 2,00 → 50%.' },
+  { h: 'Edge (pp)', w: 11, z: '+0.0" pp";-0.0" pp";0.0" pp"', note: 'Hit venue meno probabilità implicita, in punti percentuali. Es.: Hit venue 65%, quota 1,80 (prob. impl. 55,6%) → edge = +9,4 pp.' },
+  { h: 'EV /1€', w: 10, z: '+0.00" €";-0.00" €";0.00" €"', note: 'Valore atteso per 1€ puntato: (hit venue × quota) − 1. Es.: Hit venue 65%, quota 1,80 → EV = +0,17 € ogni 1€.' },
+  { h: 'Storico', w: 11, note: 'Se la partita è conclusa, indica se la giocata si è verificata (Vinta) o no (Persa). "In attesa" = esito non ancora segnato.' },
+];
+
+// Righe come le vedi a schermo: stessi filtri, stesso ordinamento.
+function scrViewRows(){
+  let rows = applyScrFilters(screenerRows);
+  if (scrSortState.key) {
+    const acc = SCR_SORT_ACCESSORS[scrSortState.key];
+    rows = [...rows].sort((a, b) => {
+      const va = acc(a), vb = acc(b);
+      if (va < vb) return -1 * scrSortState.dir;
+      if (va > vb) return 1 * scrSortState.dir;
+      return 0;
+    });
+  }
+  return rows;
+}
+
+function updateFavExport(shown, total){
+  const b = document.getElementById('favXlsBtn');
+  if (!b) return;
+  b.disabled = !shown;
+  b.title = !total ? 'Nessun preferito da scaricare'
+    : !shown ? 'Nessun preferito visibile con i filtri attuali'
+    : shown < total ? `Scarica Excel dei preferiti visibili (${shown} di ${total}, filtri attivi)`
+    : `Scarica Excel di tutti i preferiti (${total})`;
+}
+
+function exportFavoritesXlsx(){
+  if (typeof XLSX === 'undefined') { alert('Libreria Excel non caricata: controlla la connessione e riprova.'); return; }
+  const rows = scrViewRows();
+  if (!rows.length) return;
+
+  const aoa = [FAV_XLS_COLS.map(c => c.h)];
+  rows.forEach(r => {
+    const d = scrDerived(r);
+    aoa.push([
+      r.giornata,
+      r.partita,
+      r.giocatore,
+      r.venue === 'HOME' ? 'Casa' : 'Trasferta',
+      MARKET_LABELS[r.mercato] || r.mercato,
+      r.linea,
+      r.mediaVenue ?? null,
+      r.nVenue ?? null,
+      r.mediaL3 ?? null,
+      cvLabel(r.cv),
+      r.cv ?? null,
+      r.hitStag ?? null,
+      r.hitVenue ?? null,
+      r.quota ?? null,
+      d.prob,
+      d.edge != null ? d.edge * 100 : null,
+      d.ev,
+      r.esito === 'vinta' ? 'Vinta' : r.esito === 'persa' ? 'Persa' : 'In attesa',
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  FAV_XLS_COLS.forEach((c, ci) => {
+    const head = ws[XLSX.utils.encode_cell({ r: 0, c: ci })];
+    if (head) { head.c = [{ a: 'Preferiti', t: c.note }]; head.c.hidden = true; }
+    if (c.z) {
+      for (let ri = 1; ri < aoa.length; ri++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: ri, c: ci })];
+        if (cell && cell.t === 'n') cell.z = c.z;
+      }
+    }
+  });
+  ws['!cols'] = FAV_XLS_COLS.map(c => ({ wch: c.w }));
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: FAV_XLS_COLS.length - 1 } }) };
+
+  const p2 = n => String(n).padStart(2, '0');
+  const now = new Date();
+  const day = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
+  const legend = [
+    ['Preferiti — legenda colonne', ''],
+    ['Esportato il', `${p2(now.getDate())}/${p2(now.getMonth() + 1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`],
+    ['Preferiti esportati', `${rows.length} di ${screenerRows.length}${rows.length < screenerRows.length ? ' (filtri attivi)' : ''}`],
+    ['Nota', 'La colonna Valutazione dell\'app non è inclusa: valuta tu con Hit venue, Edge ed EV.'],
+    ['', ''],
+    ['Colonna', 'Cosa significa'],
+    ...FAV_XLS_COLS.map(c => [c.h, c.note]),
+  ];
+  const wl = XLSX.utils.aoa_to_sheet(legend);
+  wl['!cols'] = [{ wch: 22 }, { wch: 140 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Preferiti');
+  XLSX.utils.book_append_sheet(wb, wl, 'Legenda');
+  XLSX.writeFile(wb, `${FAV_XLS_PREFIX}_${day}.xlsx`);
+}
+document.getElementById('favXlsBtn').addEventListener('click', exportFavoritesXlsx);
 
 renderScreener();
 </script>
