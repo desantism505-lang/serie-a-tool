@@ -923,7 +923,7 @@ function scnJumpToStat(metricKey, venueSide, ruolo){
   crit.value = 'MEDIA';
   crit.dispatchEvent(new Event('change'));
   const minN = document.getElementById('scnMinN');
-  if (Number(minN.value) < FATTI_RUOLO_MIN_SAMPLE_VENUE) minN.value = String(FATTI_RUOLO_MIN_SAMPLE_VENUE);
+  minN.value = String(FATTI_RUOLO_MIN_SAMPLE_VENUE); // esattamente la soglia dei fatti: Serie A 2, UCL 1
   scnJumpRole = ruolo || null;
   runScanGiornata();
   document.getElementById('scnTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
