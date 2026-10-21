@@ -918,13 +918,20 @@ function scnJumpToStat(metricKey, venueSide, ruolo){
   document.querySelector(`.scnFVenueRad[value="${venueSide}"]`).checked = true;
   updateScnVenueLabel();
   document.getElementById('scnFText').value = '';
+  // Criterio "Media venue > Linea" (non Hit rate) e campione minimo come nei fatti (Serie A 2, UCL 1).
+  const crit = document.getElementById('scnCriterio');
+  crit.value = 'MEDIA';
+  crit.dispatchEvent(new Event('change'));
+  const minN = document.getElementById('scnMinN');
+  if (Number(minN.value) < FATTI_RUOLO_MIN_SAMPLE_VENUE) minN.value = String(FATTI_RUOLO_MIN_SAMPLE_VENUE);
   scnJumpRole = ruolo || null;
   runScanGiornata();
   document.getElementById('scnTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdInFocus, opponentName, opponentId, opponentVenueLetter){
   // Stessi criteri di Fatti salienti (index.html): vedi fattiRuoloVsAvversario() in engine.js.
-  const top = fattiRuoloVsAvversario(matchLog, rosters, teamIdInFocus, opponentId, opponentVenueLetter).slice(0, 8);
+  // Solo i fatti "più" (l'avversario concede molto al ruolo): quelli "meno" non suggeriscono giocate Over.
+  const top = fattiRuoloVsAvversario(matchLog, rosters, teamIdInFocus, opponentId, opponentVenueLetter).filter(r => r.top).slice(0, 8);
   if (!top.length) return { teamName, venueWord, lines: [] };
   const oppVenueWord = opponentVenueLetter === 'H' ? 'in casa' : 'in trasferta';
   const focusVenueSide = venueWord === 'casa' ? 'HOME' : 'AWAY';

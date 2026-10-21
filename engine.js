@@ -1221,7 +1221,7 @@ function narrRoleConcessionRank(matchLog, teams, teamId, ruolo, venueLetter, met
 //    scartato se piu' di FATTI_MAX_TIE squadre hanno lo stesso valore
 //  - mostrati entrambi gli estremi (alto = "piu'", basso = "meno")
 // Se si cambia un criterio in index.html va cambiato anche qui.
-// FATTI_RUOLO_MIN_SAMPLE_VENUE: UCL: soglia 1 (con la Champions appena iniziata ogni squadra ha 1 sola partita per venue). Serie A: 2, identica a Fatti salienti di index.html (minSample venue).
+// FATTI_RUOLO_MIN_SAMPLE_VENUE: Serie A 2 partite per campo (come minSample venue di Fatti salienti in index.html); UCL 1.
 // ---------------------------------------------------------------------------
 const FATTI_MAX_TIE = 2; // = MAX_TIE_FOR_FACT in index.html
 const FATTI_RUOLO_MIN_SAMPLE_VENUE = 2;
