@@ -203,6 +203,29 @@
   #screenerSection .fav-xls:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
   #screenerSection .fav-xls:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   #screenerSection .fav-xls:disabled{opacity:.4;cursor:not-allowed;}
+  /* Barra filtri Preferiti: una sola riga, controlli compatti */
+  #scrFilterPanel{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;margin-bottom:12px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;}
+  #scrFilterPanel .fav-fi{width:15px;height:15px;flex:none;color:var(--accent-dim);margin:0 3px 0 1px;}
+  #scrFilterPanel input[type=text]{flex:1 1 130px;min-width:96px;height:28px;box-sizing:border-box;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:0 10px;font:500 11.5px 'Inter',sans-serif;}
+  #scrFilterPanel input[type=text]::placeholder{color:var(--muted);}
+  #scrFilterPanel input[type=text]:focus{outline:none;border-color:var(--accent);}
+  #scrFilterPanel .msdrop{flex:none;}
+  #scrFilterPanel .msdrop-btn,
+  #scrFilterPanel select,
+  #scrFilterPanel #scrFClear{height:28px;box-sizing:border-box;padding:0 10px;border-radius:7px;font:500 11.5px 'Inter',sans-serif;white-space:nowrap;line-height:1;cursor:pointer;transition:border-color .15s,color .15s,background-color .15s;}
+  #scrFilterPanel select{flex:none;appearance:none;-webkit-appearance:none;padding-right:24px;color:var(--text);border:1px solid var(--line);background:var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%2393A897' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 9px center;}
+  #scrFilterPanel select:hover{border-color:var(--accent-dim);}
+  #scrFilterPanel select:focus-visible,#scrFilterPanel .msdrop-btn:focus-visible,#scrFilterPanel #scrFClear:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  #scrFilterPanel #scrFTit{width:112px;}
+  #scrFilterPanel #scrFCV{width:106px;}
+  #scrFilterPanel #scrFEsito{width:96px;}
+  #scrFilterPanel .msdrop-btn.active-filter,
+  #scrFilterPanel select.active-filter{border-color:var(--accent);color:var(--accent);background-color:rgba(212,255,107,.08);}
+  #scrFilterPanel .fav-n{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;margin-left:5px;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-size:10px;font-weight:700;vertical-align:1px;box-sizing:border-box;}
+  #scrFilterPanel #scrFClear{flex:none;display:inline-flex;align-items:center;gap:5px;background:none;color:var(--muted);border:1px solid var(--line);}
+  #scrFilterPanel #scrFClear:hover{border-color:var(--accent);color:var(--accent);}
+  #scrFilterPanel #scrFClear svg{width:11px;height:11px;}
+  @media (max-width:1219px){ #scrFilterPanel{flex-wrap:wrap;} #scrFilterPanel input[type=text]{flex:1 1 100%;} }
   @media (max-width:560px){
     #screenerSection .fav-xls{width:28px;padding:0;justify-content:center;}
     #screenerSection .fav-xls span{display:none;}
@@ -637,11 +660,11 @@
   <div class="panel">
     <h2><span>Preferiti <span class="tag">giocate salvate dallo Scanner con la stella — sopravvivono al cambio pagina</span></span><span class="fav-actions"><button type="button" class="fav-xls" id="favXlsBtn" title="Scarica Excel dei preferiti" aria-label="Scarica Excel dei preferiti" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 20h14"/></svg><span>Excel</span></button><button type="button" class="fav-min" id="favMinBtn" title="Minimizza il pannello Preferiti" aria-label="Minimizza il pannello Preferiti" aria-expanded="true">&minus;</button></span></h2>
     <div class="body">
-      <div class="filter-group" id="scrFilterPanel" style="margin-bottom:10px;background:var(--panel-2);padding:10px;border-radius:8px;">
-        <span class="filter-label">Filtra preferiti:</span>
-        <input type="text" id="scrFText" placeholder="cerca giocatore/partita" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;width:170px;" />
+      <div id="scrFilterPanel" role="toolbar" aria-label="Filtri preferiti">
+        <svg class="fav-fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Filtra preferiti"><title>Filtra preferiti</title><path d="M3 5h18l-7 8.5V20l-4-2v-4.5z"/></svg>
+        <input type="text" id="scrFText" placeholder="Cerca giocatore o partita" aria-label="Cerca giocatore o partita" />
         <div class="msdrop" id="scrFMercatoDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMercatoDrop')">Giocata: tutte ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMercatoDrop')">Giocata ▾</button>
           <div class="msdrop-panel">
             <label><input type="checkbox" class="scrFMercatoChk" value="TIRI" /> Tiri</label>
             <label><input type="checkbox" class="scrFMercatoChk" value="TIRI_IN_PORTA" /> Tiri in porta</label>
@@ -651,7 +674,7 @@
           </div>
         </div>
         <div class="msdrop" id="scrFLineaDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFLineaDrop')">Linea: tutte ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFLineaDrop')">Linea ▾</button>
           <div class="msdrop-panel">
             <label><input type="checkbox" class="scrFLineaChk" value="0.5" /> 0,5</label>
             <label><input type="checkbox" class="scrFLineaChk" value="1.5" /> 1,5</label>
@@ -660,27 +683,27 @@
           </div>
         </div>
         <div class="msdrop" id="scrFVenueDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFVenueDrop')">Squadra: complessivo ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFVenueDrop')">Squadra ▾</button>
           <div class="msdrop-panel">
             <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="" checked /> Complessivo (tutte e due)</label>
             <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="HOME" /> Casa (solo squadra di casa)</label>
             <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="AWAY" /> Trasferta (solo squadra ospite)</label>
           </div>
         </div>
-        <select id="scrFTit" title="Usa le formazioni salvate in Matchup Engine" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
-          <option value="">Titolare: tutti</option>
-          <option value="tit">Solo titolari (✓)</option>
-          <option value="conf">Solo titolari confermati</option>
-          <option value="notN">Nascondi esclusi (✗), tieni senza formazione</option>
+        <select id="scrFTit" title="Usa le formazioni salvate in Matchup Engine. «Escludi ✗» toglie chi non è in formazione e tiene chi non ha formazione.">
+          <option value="">Titolare</option>
+          <option value="tit">Solo titolari ✓</option>
+          <option value="conf">Confermati</option>
+          <option value="notN">Escludi ✗</option>
         </select>
-        <select id="scrFCV" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
-          <option value="">Consistenza: tutte</option>
+        <select id="scrFCV" aria-label="Consistenza">
+          <option value="">Consistenza</option>
           <option value="stabile">stabile</option>
           <option value="variabile">variabile</option>
           <option value="incostante">incostante</option>
         </select>
         <div class="msdrop" id="scrFHitDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFHitDrop')">Hit venue: tutte ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFHitDrop')">Hit venue ▾</button>
           <div class="msdrop-panel">
             <label><input type="checkbox" class="scrFHitChk" value="0-59" /> sotto 60%</label>
             <label><input type="checkbox" class="scrFHitChk" value="60-74" /> 60–74%</label>
@@ -689,7 +712,7 @@
           </div>
         </div>
         <div class="msdrop" id="scrFHitStagDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFHitStagDrop')">Hit stag.: tutte ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFHitStagDrop')">Hit stag. ▾</button>
           <div class="msdrop-panel">
             <label><input type="checkbox" class="scrFHitStagChk" value="0-59" /> sotto 60%</label>
             <label><input type="checkbox" class="scrFHitStagChk" value="60-74" /> 60–74%</label>
@@ -698,7 +721,7 @@
           </div>
         </div>
         <div class="msdrop" id="scrFEdgeDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFEdgeDrop')">Edge: tutti ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFEdgeDrop')">Edge ▾</button>
           <div class="msdrop-panel">
             <label><input type="checkbox" class="scrFEdgeChk" value="neg" /> negativo</label>
             <label><input type="checkbox" class="scrFEdgeChk" value="0-9" /> 0–9pp</label>
@@ -707,7 +730,7 @@
           </div>
         </div>
         <div class="msdrop" id="scrFEvDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFEvDrop')">EV: tutti ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFEvDrop')">EV ▾</button>
           <div class="msdrop-panel">
             <label><input type="checkbox" class="scrFEvChk" value="neg" /> negativo</label>
             <label><input type="checkbox" class="scrFEvChk" value="0-0.19" /> 0–0,19€</label>
@@ -716,7 +739,7 @@
           </div>
         </div>
         <div class="msdrop" id="scrFQuotaDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFQuotaDrop')">Quota: tutte ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFQuotaDrop')">Quota ▾</button>
           <div class="msdrop-panel">
             <label><input type="checkbox" class="scrFQuotaChk" value="1.00-1.20" /> sotto 1,20</label>
             <label><input type="checkbox" class="scrFQuotaChk" value="1.21-1.49" /> 1,21–1,49</label>
@@ -728,14 +751,14 @@
             <label><input type="checkbox" class="scrFQuotaChk" value="2.41-999" /> 2,41+</label>
           </div>
         </div>
-        <select id="scrFEsito" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
-          <option value="">Storico: tutte</option>
+        <select id="scrFEsito" aria-label="Storico">
+          <option value="">Storico</option>
           <option value="vinta">vinta</option>
           <option value="persa">persa</option>
           <option value="null">non verificata</option>
-          <option value="ver">verificata (vinta o persa)</option>
+          <option value="ver" title="Vinta o persa">verificata</option>
         </select>
-        <button id="scrFClear" class="secondary">Pulisci filtri</button>
+        <button id="scrFClear" type="button" title="Azzera tutti i filtri"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8"/></svg>Pulisci</button>
       </div>
       <div class="screener-form">
         <button id="scrClear" class="secondary">Svuota tutti i preferiti</button>
@@ -1782,6 +1805,18 @@ const SCR_SORT_ACCESSORS = {
 };
 let scrSortState = { key: null, dir: 1 };
 
+// Etichette compatte dei filtri Preferiti: nome + contatore delle voci spuntate.
+function updateFavDropLabel(dropId, baseLabel, checkboxSelector){
+  const n = getCheckedValues(checkboxSelector).length;
+  const btn = document.querySelector('#' + dropId + ' .msdrop-btn');
+  btn.innerHTML = baseLabel + (n ? ` <b class="fav-n">${n}</b>` : '') + ' ▾';
+  btn.classList.toggle('active-filter', n > 0);
+}
+// Evidenzia (bordo lime) le select con un valore scelto, come i menu multi-selezione.
+function favSyncFilterStyle(){
+  document.querySelectorAll('#scrFilterPanel select').forEach(s => s.classList.toggle('active-filter', s.value !== ''));
+}
+
 function scrFilters(){
   return {
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
@@ -1879,18 +1914,18 @@ function updateScrVenueLabel(){
   const c = document.querySelector('.scrFVenueRad:checked');
   const v = c ? c.value : '';
   const btn = document.querySelector('#scrFVenueDrop .msdrop-btn');
-  btn.textContent = `Squadra: ${v === 'HOME' ? 'casa' : v === 'AWAY' ? 'trasferta' : 'complessivo'} ▾`;
+  btn.textContent = `${v === 'HOME' ? 'Casa' : v === 'AWAY' ? 'Trasferta' : 'Squadra'} ▾`;
   btn.classList.toggle('active-filter', v !== '');
 }
 document.querySelectorAll('.scrFVenueRad').forEach(r => r.addEventListener('change', () => { updateScrVenueLabel(); renderScreener(); }));
 document.getElementById('scrFTit').addEventListener('change', renderScreener);
-document.querySelectorAll('.scrFMercatoChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk'); renderScreener(); }));
-document.querySelectorAll('.scrFLineaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFLineaDrop','Linea','.scrFLineaChk'); renderScreener(); }));
-document.querySelectorAll('.scrFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk'); renderScreener(); }));
-document.querySelectorAll('.scrFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk'); renderScreener(); }));
-document.querySelectorAll('.scrFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk'); renderScreener(); }));
-document.querySelectorAll('.scrFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFEvDrop','EV','.scrFEvChk'); renderScreener(); }));
-document.querySelectorAll('.scrFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk'); renderScreener(); }));
+document.querySelectorAll('.scrFMercatoChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk'); renderScreener(); }));
+document.querySelectorAll('.scrFLineaChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFLineaDrop','Linea','.scrFLineaChk'); renderScreener(); }));
+document.querySelectorAll('.scrFHitChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFHitDrop','Hit venue','.scrFHitChk'); renderScreener(); }));
+document.querySelectorAll('.scrFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk'); renderScreener(); }));
+document.querySelectorAll('.scrFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk'); renderScreener(); }));
+document.querySelectorAll('.scrFEvChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFEvDrop','EV','.scrFEvChk'); renderScreener(); }));
+document.querySelectorAll('.scrFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk'); renderScreener(); }));
 document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFText').value = '';
   document.getElementById('scrFCV').value = '';
@@ -1899,13 +1934,13 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.querySelector('.scrFVenueRad[value=""]').checked = true;
   updateScrVenueLabel();
   document.querySelectorAll('.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
-  updateMsDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
-  updateMsDropLabel('scrFLineaDrop','Linea','.scrFLineaChk');
-  updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
-  updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk');
-  updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk');
-  updateMsDropLabel('scrFEvDrop','EV','.scrFEvChk');
-  updateMsDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk');
+  updateFavDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
+  updateFavDropLabel('scrFLineaDrop','Linea','.scrFLineaChk');
+  updateFavDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
+  updateFavDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk');
+  updateFavDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk');
+  updateFavDropLabel('scrFEvDrop','EV','.scrFEvChk');
+  updateFavDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk');
   renderScreener();
 });
 document.querySelectorAll('#scrTable th.sortable').forEach(th => {
@@ -1918,6 +1953,7 @@ document.querySelectorAll('#scrTable th.sortable').forEach(th => {
 });
 
 function renderScreener(){
+  favSyncFilterStyle();
   const body = document.getElementById('scrBody');
   const empty = document.getElementById('scrEmpty');
   const summary = document.getElementById('scrSummary');
