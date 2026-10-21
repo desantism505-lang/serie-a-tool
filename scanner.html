@@ -650,6 +650,15 @@
             <label><input type="checkbox" class="scrFMercatoChk" value="CARTELLINO" /> Cartellino</label>
           </div>
         </div>
+        <div class="msdrop" id="scrFLineaDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFLineaDrop')">Linea: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFLineaChk" value="0.5" /> 0,5</label>
+            <label><input type="checkbox" class="scrFLineaChk" value="1.5" /> 1,5</label>
+            <label><input type="checkbox" class="scrFLineaChk" value="2.5" /> 2,5</label>
+            <label><input type="checkbox" class="scrFLineaChk" value="3.5" /> 3,5</label>
+          </div>
+        </div>
         <div class="msdrop" id="scrFVenueDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFVenueDrop')">Squadra: complessivo ▾</button>
           <div class="msdrop-panel">
@@ -724,6 +733,7 @@
           <option value="vinta">vinta</option>
           <option value="persa">persa</option>
           <option value="null">non verificata</option>
+          <option value="ver">verificata (vinta o persa)</option>
         </select>
         <button id="scrFClear" class="secondary">Pulisci filtri</button>
       </div>
@@ -1777,6 +1787,7 @@ function scrFilters(){
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
     cv: document.getElementById('scrFCV').value,
     mercati: getCheckedValues('.scrFMercatoChk'),
+    linee: getCheckedValues('.scrFLineaChk').map(Number),
     venue: (document.querySelector('.scrFVenueRad:checked') || {}).value || '',
     tit: document.getElementById('scrFTit').value,
     hitBuckets: bucketsFromChecked('.scrFHitChk'),
@@ -1838,6 +1849,7 @@ function applyScrFilters(rows){
       if (!hay.includes(f.text)) return false;
     }
     if (f.mercati.length && !f.mercati.includes(r.mercato)) return false;
+    if (f.linee.length && !f.linee.includes(Number(r.linea))) return false;
     if (f.venue && r.venue !== f.venue) return false;
     if (f.tit) {
       const st = scrLineupState(r);
@@ -1854,6 +1866,7 @@ function applyScrFilters(rows){
     if (!inAnyBucket(r.quota, f.quotaBuckets)) return false;
     if (f.esito) {
       if (f.esito === 'null') { if (r.esito != null) return false; }
+      else if (f.esito === 'ver') { if (r.esito == null) return false; }
       else if (r.esito !== f.esito) return false;
     }
     return true;
@@ -1872,6 +1885,7 @@ function updateScrVenueLabel(){
 document.querySelectorAll('.scrFVenueRad').forEach(r => r.addEventListener('change', () => { updateScrVenueLabel(); renderScreener(); }));
 document.getElementById('scrFTit').addEventListener('change', renderScreener);
 document.querySelectorAll('.scrFMercatoChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk'); renderScreener(); }));
+document.querySelectorAll('.scrFLineaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFLineaDrop','Linea','.scrFLineaChk'); renderScreener(); }));
 document.querySelectorAll('.scrFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk'); renderScreener(); }));
 document.querySelectorAll('.scrFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk'); renderScreener(); }));
 document.querySelectorAll('.scrFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk'); renderScreener(); }));
@@ -1884,8 +1898,9 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFTit').value = '';
   document.querySelector('.scrFVenueRad[value=""]').checked = true;
   updateScrVenueLabel();
-  document.querySelectorAll('.scrFMercatoChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
   updateMsDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
+  updateMsDropLabel('scrFLineaDrop','Linea','.scrFLineaChk');
   updateMsDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
   updateMsDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk');
   updateMsDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk');
