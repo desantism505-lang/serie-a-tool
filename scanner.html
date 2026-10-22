@@ -538,10 +538,11 @@
       </div>
       <div class="filter-group">
         <span class="filter-label">Linee:</span>
-        <label><input type="checkbox" class="scnLineaChk" value="0.5" checked /> 0.5</label>
-        <label><input type="checkbox" class="scnLineaChk" value="1.5" checked /> 1.5</label>
-        <label><input type="checkbox" class="scnLineaChk" value="2.5" checked /> 2.5</label>
-        <label><input type="checkbox" class="scnLineaChk" value="3.5" checked /> 3.5</label>
+        <label><input type="checkbox" class="scnLineaChk" value="0.5" checked /> 1+</label>
+        <label><input type="checkbox" class="scnLineaChk" value="1.5" checked /> 2+</label>
+        <label><input type="checkbox" class="scnLineaChk" value="2.5" checked /> 3+</label>
+        <label><input type="checkbox" class="scnLineaChk" value="3.5" checked /> 4+</label>
+        <span class="subtle" style="margin-left:6px;" title="Linea Over 0,5 vince con almeno 1; Over 1,5 vince con almeno 2; e così via">(0,5=1+ · 1,5=2+ · 2,5=3+ · 3,5=4+)</span>
       </div>
 
       <div class="filter-group" id="scnFilterPanel" style="margin-bottom:6px;background:var(--panel-2);padding:10px;border-radius:8px;">
@@ -635,7 +636,7 @@
             <th title="La partita scansionata e in che venue gioca LUI in quella gara (può essere diverso dal venue della squadra se gioca per la squadra ospite).">Partita / venue</th>
             <th class="sortable" data-key="titolare" title="Dalla formazione salvata in Matchup Engine. ✓ = titolare confermato · ✓⚠ = titolare in formazione ipotetica (non ancora ufficiale) · ✗ = non in formazione · – = nessuna formazione salvata per quella partita.">Titolare<span class="arrow"></span></th>
             <th class="sortable" data-key="mercato" title="La statistica su cui si basa la linea. Es.: 'Falli commessi' conta solo i falli FATTI da lui (non quelli subiti); 'Tiri in porta' conta solo i tiri indirizzati in porta, non tutti i tiri tentati.">Mercato<span class="arrow"></span></th>
-            <th class="num sortable" data-key="linea" title="La soglia Over da valutare. Es.: Linea 1,5 falli → la giocata vince se ne fa almeno 2 in quella partita (1 non basta).">Linea<span class="arrow"></span></th>
+            <th class="num sortable" data-key="linea" title="La soglia Over da valutare, mostrata come '2+' ecc. (0,5=1+ · 1,5=2+ · 2,5=3+ · 3,5=4+). Es.: Linea 2+ falli → la giocata vince se ne fa almeno 2 in quella partita (1 non basta).">Linea<span class="arrow"></span></th>
             <th class="num sortable" data-key="mediaVenue" title="Media a partita in quel venue (casa o trasferta), calcolata solo sulle partite reali giocate lì — il numero tra parentesi è quante. Es.: 'Media venue 2,3 (8)' = 2,3 falli a partita, in 8 presenze giocate in quel venue.">Media venue /90 (N)<span class="arrow"></span></th>
             <th class="num sortable" data-key="mediaL3" title="Media nelle ultime 3 presenze giocate, qualunque venue. Es.: media stagionale 1,5 ma Media L3 2,4 → nelle ultime 3 gare è stato sopra la sua media abituale, possibile trend in salita (o semplice variabilità: guarda anche la Consistenza).">Media L3/90<span class="arrow"></span></th>
             <th class="sortable" data-key="cv" title="Coefficiente di variazione: quanto oscilla la prestazione partita per partita, a parità di media. Sotto 0,5 = stabile, sopra 1 = incostante. Es.: media 2 falli con CV 0,3 (stabile) → quasi sempre tra 1 e 3; stessa media 2 ma CV 1,3 (incostante) → può fare 0 o 5, molto meno prevedibile pur avendo la stessa media.">Consistenza<span class="arrow"></span></th>
@@ -675,12 +676,13 @@
           </div>
         </div>
         <div class="msdrop" id="scrFLineaDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFLineaDrop')">Linea ▾</button>
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFLineaDrop')" title="Linea Over 0,5 vince con almeno 1; Over 1,5 vince con almeno 2; e così via">Linea ▾</button>
           <div class="msdrop-panel">
-            <label><input type="checkbox" class="scrFLineaChk" value="0.5" /> 0,5</label>
-            <label><input type="checkbox" class="scrFLineaChk" value="1.5" /> 1,5</label>
-            <label><input type="checkbox" class="scrFLineaChk" value="2.5" /> 2,5</label>
-            <label><input type="checkbox" class="scrFLineaChk" value="3.5" /> 3,5</label>
+            <label><input type="checkbox" class="scrFLineaChk" value="0.5" /> 1+</label>
+            <label><input type="checkbox" class="scrFLineaChk" value="1.5" /> 2+</label>
+            <label><input type="checkbox" class="scrFLineaChk" value="2.5" /> 3+</label>
+            <label><input type="checkbox" class="scrFLineaChk" value="3.5" /> 4+</label>
+            <div class="subtle" style="padding:4px 8px 0;font-size:10.5px;">0,5=1+ · 1,5=2+ · 2,5=3+ · 3,5=4+</div>
           </div>
         </div>
         <div class="msdrop" id="scrFVenueDrop">
@@ -771,7 +773,7 @@
           <tr>
             <th class="sortable" data-key="giocatore" title="Nome del giocatore e squadra di appartenenza.">Giocatore<span class="arrow"></span></th>
             <th class="sortable" data-key="mercato" title="La statistica su cui si basa la linea. Es.: 'Falli commessi' conta solo i falli FATTI da lui, non quelli subiti.">Mercato<span class="arrow"></span></th>
-            <th class="num sortable" data-key="linea" title="La soglia Over da valutare. Es.: Linea 1,5 falli → vince se ne fa almeno 2.">Linea<span class="arrow"></span></th>
+            <th class="num sortable" data-key="linea" title="La soglia Over da valutare, mostrata come '2+' ecc. (0,5=1+ · 1,5=2+ · 2,5=3+ · 3,5=4+). Es.: Linea 2+ falli → vince se ne fa almeno 2.">Linea<span class="arrow"></span></th>
             <th class="num sortable" data-key="mediaVenue" title="Media a partita nel venue di quella giocata, sulle presenze reali giocate lì.">Media venue /90<span class="arrow"></span></th>
             <th class="num sortable" data-key="mediaL3" title="Media nelle ultime 3 presenze giocate, qualunque venue — mostra se stava salendo o scendendo rispetto alla media stagionale al momento del salvataggio.">Media L3 /90<span class="arrow"></span></th>
             <th class="sortable" data-key="cv" title="Coefficiente di variazione: quanto oscilla la prestazione a parità di media. Es.: media 2 falli con CV 0,3 (stabile) → quasi sempre tra 1 e 3; CV 1,3 (incostante) → può fare 0 o 5.">Consistenza<span class="arrow"></span></th>
@@ -1049,6 +1051,12 @@ function fmt(v, d=2){
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
   if (typeof v !== 'number') return v;
   return v.toFixed(d).replace(/\.00$/, '');
+}
+// Etichetta "N+" di una linea Over X,5 (0,5=1+ · 1,5=2+ · 2,5=3+ · 3,5=4+). Solo
+// per la visualizzazione: il valore sotto resta X,5 per tutti i confronti (> linea).
+function lineaLabel(linea){
+  if (linea === null || linea === undefined || Number.isNaN(Number(linea))) return '—';
+  return (Number(linea) + 0.5) + '+';
 }
 function pct(v){ return v == null ? '—' : (v*100).toFixed(0) + '%'; }
 // Colora una percentuale per fascia (lime alta, rosso bassa, normale in mezzo)
@@ -1535,7 +1543,7 @@ function renderScan(){
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
     <td class="num">${lineupBadge(r)}</td>
     <td>${MARKET_LABELS[r.mercato]}</td>
-    <td class="num">${fmt(r.linea,1)}</td>
+    <td class="num">${lineaLabel(r.linea)}</td>
     <td class="num nw">${fmt(r.mediaVenue)} <span class="subtle">(N=${r.nVenue})</span></td>
     <td class="num">${fmt(r.mediaL3)}</td>
     <td>${cvBadge(r.cv)}</td>
@@ -1600,7 +1608,7 @@ document.getElementById('scnExport').addEventListener('click', () => {
       Venue: r.venue,
       Titolare: ({ Y: 'confermato', Yh: 'ipotetico', N: 'no', U: 'n/d' })[lineupState(r)],
       Mercato: MARKET_LABELS[r.mercato],
-      Linea: r.linea,
+      Linea: lineaLabel(r.linea),
       'Media venue /90': r.mediaVenue,
       'N venue': r.nVenue,
       'Consistenza (CV)': r.cv,
@@ -2012,7 +2020,7 @@ function renderScreener(){
     return `<tr>
       <td class="metricname">${r.giocatore}<div class="subtle">G${r.giornata} · ${r.partita}</div></td>
       <td>${MARKET_LABELS[r.mercato]}</td>
-      <td class="num">${fmt(r.linea,1)}</td>
+      <td class="num">${lineaLabel(r.linea)}</td>
       <td class="num">${fmt(r.mediaVenue)} <span class="subtle">(${r.venue.toLowerCase()}, N=${r.nVenue})</span></td>
       <td class="num">${fmt(r.mediaL3)}</td>
       <td>${cvBadge(r.cv)}</td>
@@ -2064,7 +2072,7 @@ const FAV_XLS_COLS = [
   { h: 'Giocatore', w: 26, note: 'Giocatore salvato tra i Preferiti con la stella dello Scanner.' },
   { h: 'Venue', w: 11, note: 'Casa o Trasferta: dove gioca il giocatore in questa partita. Media venue e Hit venue usano solo le sue presenze nello stesso venue.' },
   { h: 'Giocata', w: 16, note: "La statistica su cui si basa la linea. Es.: 'Falli commessi' conta solo i falli FATTI da lui, non quelli subiti." },
-  { h: 'Linea', w: 8, z: '0.0', note: 'La soglia Over da valutare. Es.: Linea 1,5 falli → vince se ne fa almeno 2.' },
+  { h: 'Linea', w: 8, note: "La soglia Over da valutare, mostrata come '2+' ecc. (0,5=1+ · 1,5=2+ · 2,5=3+ · 3,5=4+). Es.: Linea 2+ falli → vince se ne fa almeno 2." },
   { h: 'Media venue /90', w: 15, z: '0.00', note: 'Media a partita nel venue di quella giocata, sulle presenze reali giocate lì.' },
   { h: 'Partite venue (N)', w: 16, z: '0', note: 'Numero di presenze giocate in questo venue su cui si basa la media venue. Campione piccolo = dato meno affidabile.' },
   { h: 'Media L3 /90', w: 13, z: '0.00', note: 'Media nelle ultime 3 presenze giocate, qualunque venue: mostra se stava salendo o scendendo rispetto alla media stagionale al momento del salvataggio.' },
@@ -2118,7 +2126,7 @@ function exportFavoritesXlsx(){
       r.giocatore,
       r.venue === 'HOME' ? 'Casa' : 'Trasferta',
       MARKET_LABELS[r.mercato] || r.mercato,
-      r.linea,
+      lineaLabel(r.linea),
       r.mediaVenue ?? null,
       r.nVenue ?? null,
       r.mediaL3 ?? null,
