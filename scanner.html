@@ -912,7 +912,7 @@ function populateGiornate(){
   scnSel.onchange = populateScnMatch;
   if (giornate.includes(auto)) scnSel.value = String(auto);
   populateScnMatch();
-  applyScnState(); // ripristina (se presente) l'ultima selezione Scanner salvata e rilancia la scansione
+  applyScnState(auto); // ripristina (se presente e coerente con la giornata auto) l'ultima selezione salvata
 }
 
 // ---------------------------------------------------------------------------
@@ -943,6 +943,7 @@ function saveScnState(){
       edge: getCheckedValues('.scnFEdgeChk'),
       ev: getCheckedValues('.scnFEvChk'),
       quota: getCheckedValues('.scnFQuotaChk'),
+      auto: document.getElementById('scnGiornata') ? String(prossimaGiornata(DB.calendar)) : null,
     };
     localStorage.setItem(SCN_STATE_KEY, JSON.stringify(state));
   } catch(e) { /* storage non disponibile (es. navigazione privata): i filtri semplicemente non persistono */ }
@@ -957,9 +958,14 @@ function checkOnly(selector, values){
   const set = new Set(values || []);
   document.querySelectorAll(selector).forEach(chk => { chk.checked = set.has(chk.value); });
 }
-function applyScnState(){
+function applyScnState(currentAuto){
   const state = loadScnState();
   if (!state || !DB) return;
+  // Se la "prossima giornata" calcolata ora e' diversa da quella al momento del
+  // salvataggio, la giornata di gioco e' avanzata (es. nuovo turno il 27/10):
+  // in questo caso lo stato salvato e' vecchio e va ignorato, lasciando
+  // l'auto-selezione della nuova giornata fatta da populateGiornate().
+  if (state.auto !== undefined && String(currentAuto) !== String(state.auto)) return;
   const gSel = document.getElementById('scnGiornata');
   if (state.giornata && [...gSel.options].some(o => o.value === state.giornata)) {
     gSel.value = state.giornata;
