@@ -619,6 +619,7 @@
           </div>
         </div>
         <button id="scnFClear" class="secondary">Pulisci filtri</button>
+        <span id="scnJumpRoleBadge" style="display:none;"></span>
       </div>
 
       <div style="margin:18px 0 14px;padding-top:14px;border-top:1px solid var(--line);">
@@ -909,7 +910,7 @@ function populateGiornate(){
   const auto = prossimaGiornata(DB.calendar);
   const scnSel = document.getElementById('scnGiornata');
   scnSel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
-  scnSel.onchange = populateScnMatch;
+  scnSel.onchange = () => { setScnJumpRole(null); populateScnMatch(); }; // cambio manuale giornata: il filtro ruolo di un'altra partita non ha più senso
   if (giornate.includes(auto)) scnSel.value = String(auto);
   populateScnMatch();
   applyScnState(auto); // ripristina (se presente e coerente con la giornata auto) l'ultima selezione salvata
@@ -1068,7 +1069,7 @@ function scnJumpToStat(metricKey, venueSide, ruolo){
   crit.dispatchEvent(new Event('change'));
   const minN = document.getElementById('scnMinN');
   minN.value = String(FATTI_RUOLO_MIN_SAMPLE_VENUE); // esattamente la soglia dei fatti: Serie A 2, UCL 1
-  scnJumpRole = ruolo || null;
+  setScnJumpRole(ruolo);
   runScanGiornata();
   document.getElementById('scnTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1136,7 +1137,7 @@ function scnToggleMore(sideKey){
   const n = more.children.length;
   btn.textContent = open ? `mostra altri ${n} ▾` : 'mostra meno ▴';
 }
-document.getElementById('scnMatch').addEventListener('change', renderScnRolesPanel);
+document.getElementById('scnMatch').addEventListener('change', () => { setScnJumpRole(null); renderScnRolesPanel(); }); // cambio manuale partita: idem
 
 function fmt(v, d=2){
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
@@ -1517,10 +1518,27 @@ function scnFilters(){
     tit: document.getElementById('scnFTit').value,
   };
 }
-// Filtro silenzioso (nessun controllo visibile): impostato dal clic su una riga del
-// pannello "Ruoli scoperti" per restringere anche al ruolo specifico, non solo al
-// mercato — altrimenti il clic su "punte centrali" mostrava anche gli altri ruoli.
+// Filtro impostato dal clic su una riga del pannello "Ruoli scoperti", per
+// restringere anche al ruolo specifico (non solo al mercato) — altrimenti il
+// clic su "punte centrali" mostrava anche gli altri ruoli. Bug corretto il
+// 23/10: prima non c'era NESSUN controllo visibile di questo filtro, quindi
+// restava attivo silenziosamente anche dopo aver cambiato partita o giornata,
+// facendo sembrare "pochi giocatori" un risultato normale invece di un filtro
+// dimenticato. Ora un badge lo mostra sempre quando è attivo (con una X per
+// togliere solo questo filtro) ed è resettato in automatico quando si cambia
+// manualmente giornata o partita.
 let scnJumpRole = null;
+function setScnJumpRole(ruolo){
+  scnJumpRole = ruolo || null;
+  renderScnJumpRoleBadge();
+}
+function renderScnJumpRoleBadge(){
+  const badge = document.getElementById('scnJumpRoleBadge');
+  if (!badge) return;
+  if (!scnJumpRole) { badge.style.display = 'none'; badge.innerHTML = ''; return; }
+  badge.style.display = 'inline-flex';
+  badge.innerHTML = `<span class="status-pill active-filter" style="margin-left:8px;display:inline-flex;align-items:center;gap:6px;">Ruolo: ${escAttr(scnJumpRole)} <a href="javascript:void(0)" onclick="setScnJumpRole(null); renderScan();" title="Togli solo questo filtro" style="color:inherit;text-decoration:none;font-weight:700;">✕</a></span>`;
+}
 function applyScnFilters(rows){
   const f = scnFilters();
   return rows.filter(r => {
@@ -1570,7 +1588,7 @@ document.querySelectorAll('.scnFEdgeChk').forEach(chk => chk.addEventListener('c
 document.querySelectorAll('.scnFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk'); renderScan(); }));
 document.querySelectorAll('.scnFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk'); renderScan(); }));
 document.getElementById('scnFClear').addEventListener('click', () => {
-  scnJumpRole = null;
+  setScnJumpRole(null);
   document.getElementById('scnFText').value = '';
   document.getElementById('scnFCV').value = '';
   document.getElementById('scnFTit').value = '';
@@ -1621,6 +1639,7 @@ document.querySelectorAll('#scnTable th.sortable').forEach(th => {
 
 function renderScan(){
   saveScnState(); // ogni scansione e ogni modifica ai filtri "live" aggiorna lo stato salvato
+  renderScnJumpRoleBadge(); // mostra sempre se il filtro ruolo (da "fatti salienti") è attivo
   const body = document.getElementById('scnBody');
   const empty = document.getElementById('scnEmpty');
   const filtered = applyScnFilters(scanResults);
