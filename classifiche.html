@@ -428,12 +428,12 @@
   </div>
 </header>
 <nav class="sitenav">
-  <a href="serie.html">Serie &amp; Ritardi</a>
   <a href="index.html">Matchup Engine</a>
   <a href="scanner.html">Scanner &amp; Screener</a>
   <a href="multigol.html">Multigol</a>
-  <a href="arbitri.html">Arbitri</a>
+  <a href="serie.html">Serie &amp; Ritardi</a>
   <a href="classifiche.html" class="active">Classifiche</a>
+  <a href="arbitri.html">Arbitri</a>
 </nav>
 
 <main style="max-width:1280px;margin:0 auto;padding:24px 28px 40px;">
@@ -451,6 +451,7 @@
     <label>Vista</label>
     <select id="clVista">
       <option value="90">Media (per90)</option>
+      <option value="match">Media (a partita)</option>
       <option value="tot">Totale stagione</option>
     </select>
   </div>
@@ -579,7 +580,7 @@ function topPlayers(segmento, totKey, k90Key, n){
     if (s.Partite === 0) continue;
     if (segmento === 'TOTALE' && s.Minuti < BASELINE_THRESHOLDS.minMinutiStagione) continue;
     if (segmento !== 'TOTALE' && s.Partite < BASELINE_THRESHOLDS.minNVenue) continue;
-    const value = vista === '90' ? s[k90Key] : s[totKey];
+    const value = vista === '90' ? s[k90Key] : vista === 'match' ? (s.Partite ? s[totKey] / s.Partite : null) : s[totKey];
     if (value == null) continue;
     out.push({ nome: p.Nome_completo, squadra: p.Squadra_Rif, value, partite: s.Partite });
   }
@@ -594,7 +595,7 @@ function topTeams(segmento, totKey, k90Key, n){
   for (const t of teamsAll) {
     const s = computeTeamStats(DB.matchLog, t, segmento);
     if (s.Partite < minSample) continue;
-    const value = vista === '90' ? s[k90Key] : s[totKey];
+    const value = vista === '90' ? s[k90Key] : vista === 'match' ? (s.Partite ? s[totKey] / s.Partite : null) : s[totKey];
     if (value == null) continue;
     const nome = (DB.rosters.find(r => r.Team_ID_Rif === t) || {}).Squadra_Rif || t;
     out.push({ nome, value, partite: s.Partite });
@@ -613,7 +614,7 @@ function topTeamsCorner(segmento, tipo, n){
     if (matches.length < minSample) continue;
     const key = tipo === 'fatti' ? 'Corner' : 'CornerConcessi';
     const tot = matches.reduce((a,m) => a + (m[key] || 0), 0);
-    const value = vista === '90' ? tot / matches.length : tot;
+    const value = vista === 'tot' ? tot : tot / matches.length;
     const nome = (DB.rosters.find(r => r.Team_ID_Rif === t) || {}).Squadra_Rif || t;
     out.push({ nome, value, partite: matches.length });
   }
@@ -653,7 +654,7 @@ function renderClassifiche(){
   const segmento = document.getElementById('clSegmento').value;
   vista = document.getElementById('clVista').value;
   scopeSquadra = document.getElementById('clScopeSquadra').value !== 'TUTTE';
-  const unitLabel = vista === '90' ? 'Media' : 'Totale';
+  const unitLabel = vista === 'tot' ? 'Totale' : 'Media';
 
   const playerGrid = document.getElementById('clPlayerGrid');
   playerGrid.innerHTML = PLAYER_METRICS.map(([totKey, label, k90Key]) => {

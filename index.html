@@ -329,18 +329,20 @@
   table.iqx-table td.iqx-val, .iqx-table .iqx-val{text-align:center;width:33%;}
   table.iqx-table td.iqx-metric, .iqx-table .iqx-metric{text-align:center;color:var(--text-2);font-weight:600;width:34%;}
   .panel-collapse-btn{
-    background:none;
+    background:var(--panel);
+    color:var(--text);
     border:1px solid var(--line);
-    border-radius:var(--radius-sm);
-    color:var(--muted);
-    font-family:'Inter',sans-serif;
-    font-weight:600;
-    font-size:11px;
-    padding:4px 10px;
+    width:28px;height:28px;
+    border-radius:6px;
     cursor:pointer;
+    font-size:16px;
+    line-height:1;
+    padding:0;
+    flex:none;
     flex-shrink:0;
+    margin-left:12px;
   }
-  .panel-collapse-btn:hover{color:var(--text);border-color:var(--accent-dim);}
+  .panel-collapse-btn:hover{border-color:var(--accent);color:var(--accent);}
   .section-gap{margin-top:28px;}
 
   /* ===================== Pannello "Analisi partita" — testo discorsivo ===================== */
@@ -610,12 +612,12 @@
   </div>
 </header>
 <nav class="sitenav">
-  <a href="serie.html">Serie &amp; Ritardi</a>
   <a href="index.html" class="active">Matchup Engine</a>
   <a href="scanner.html">Scanner &amp; Screener</a>
   <a href="multigol.html">Multigol</a>
-  <a href="arbitri.html">Arbitri</a>
+  <a href="serie.html">Serie &amp; Ritardi</a>
   <a href="classifiche.html">Classifiche</a>
+  <a href="arbitri.html">Arbitri</a>
 </nav>
 
 
@@ -1324,10 +1326,15 @@ function computeStreakFacts(teamId, venue, venueLabel){
 // persiste finché non cambi partita (viene ricreato ad ogni render() ma lo
 // stato JS resta, quindi il pannello resta chiuso se lo era).
 const panelCollapseState = { facts: false, teamStats: false, narrative: false };
+const PANEL_COLLAPSE_LABEL = { facts: 'Fatti salienti', teamStats: 'Statistiche squadra', narrative: 'Analisi partita' };
 function togglePanelCollapse(id){
   panelCollapseState[id] = !panelCollapseState[id];
-  document.getElementById('panelBody-' + id).style.display = panelCollapseState[id] ? 'none' : '';
-  document.getElementById('panelBtn-' + id).textContent = panelCollapseState[id] ? 'espandi ▸' : 'minimizza ▾';
+  const c = panelCollapseState[id];
+  document.getElementById('panelBody-' + id).style.display = c ? 'none' : '';
+  const btn = document.getElementById('panelBtn-' + id);
+  btn.innerHTML = c ? '+' : '&minus;';
+  const t = (c ? 'Espandi il pannello ' : 'Minimizza il pannello ') + (PANEL_COLLAPSE_LABEL[id] || '');
+  btn.title = t; btn.setAttribute('aria-label', t); btn.setAttribute('aria-expanded', c ? 'false' : 'true');
 }
 const TEAM_METRIC_LABELS = [['Tiri', 'Tiri Totali'], ['SOT', 'Tiri in porta'], ['Falli', 'Falli'], ['Cart', 'Cartellini'], ['Corner', 'Corner']];
 const TEAM_LINE_SETS = { Tiri: [8.5, 10.5, 12.5], SOT: [2.5, 3.5, 4.5], Falli: [8.5, 10.5, 12.5], Cart: [0.5, 1.5, 2.5], Corner: [3.5, 4.5, 5.5] };
@@ -1578,7 +1585,7 @@ function renderNotableFactsPanel(match){
   return `
     <div class="panel" style="margin-top:28px;">
       <h2>Fatti salienti <span class="tag" style="flex:1;">rank più estremi (vicini a 1° o all'ultimo posto), squadra e giocatore, sempre nel venue reale della partita</span>
-        <button class="panel-collapse-btn" onclick="togglePanelCollapse('facts')" id="panelBtn-facts">${panelCollapseState.facts ? 'espandi ▸' : 'minimizza ▾'}</button>
+        <button type="button" class="panel-collapse-btn" onclick="togglePanelCollapse('facts')" id="panelBtn-facts" title="${panelCollapseState.facts ? 'Espandi il pannello Fatti salienti' : 'Minimizza il pannello Fatti salienti'}" aria-label="${panelCollapseState.facts ? 'Espandi il pannello Fatti salienti' : 'Minimizza il pannello Fatti salienti'}" aria-expanded="${panelCollapseState.facts ? 'false' : 'true'}">${panelCollapseState.facts ? '+' : '&minus;'}</button>
       </h2>
       <div id="panelBody-facts" style="${panelCollapseState.facts ? 'display:none;' : ''}">
         <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
@@ -2117,7 +2124,7 @@ function narrativeBlock(match) {
   return `
     <div class="panel" style="margin-bottom:22px;">
       <h2>Analisi partita <span class="tag" style="flex:1;">lettura tattica e statistica · venue reale della gara</span>
-        <button class="panel-collapse-btn" onclick="togglePanelCollapse('narrative')" id="panelBtn-narrative">${panelCollapseState.narrative ? 'espandi ▸' : 'minimizza ▾'}</button>
+        <button type="button" class="panel-collapse-btn" onclick="togglePanelCollapse('narrative')" id="panelBtn-narrative" title="${panelCollapseState.narrative ? 'Espandi il pannello Analisi partita' : 'Minimizza il pannello Analisi partita'}" aria-label="${panelCollapseState.narrative ? 'Espandi il pannello Analisi partita' : 'Minimizza il pannello Analisi partita'}" aria-expanded="${panelCollapseState.narrative ? 'false' : 'true'}">${panelCollapseState.narrative ? '+' : '&minus;'}</button>
       </h2>
       <div id="panelBody-narrative" style="${panelCollapseState.narrative ? 'display:none;' : ''}">
         <div class="narr-body">
