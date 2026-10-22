@@ -912,6 +912,91 @@ function populateGiornate(){
   scnSel.onchange = populateScnMatch;
   if (giornate.includes(auto)) scnSel.value = String(auto);
   populateScnMatch();
+  applyScnState(); // ripristina (se presente) l'ultima selezione Scanner salvata e rilancia la scansione
+}
+
+// ---------------------------------------------------------------------------
+// Persistenza filtri Scanner (localStorage, per browser/dispositivo): ricorda
+// giornata, partita, criterio, mercati, linee e tutti i filtri "Filtra
+// risultati", cosi' un refresh o un cambio pagina ritrova la stessa
+// schermata invece di dover rifiltrare da capo. saveScnState() e' chiamata
+// da renderScan() (quindi ad ogni scansione e ad ogni modifica di un filtro
+// "live"); applyScnState() e' chiamata da populateGiornate() al caricamento.
+// ---------------------------------------------------------------------------
+const SCN_STATE_KEY = 'sa_scanner_filters_v1';
+function saveScnState(){
+  try {
+    const state = {
+      giornata: document.getElementById('scnGiornata').value,
+      match: document.getElementById('scnMatch').value,
+      criterio: document.getElementById('scnCriterio').value,
+      minHit: document.getElementById('scnMinHit').value,
+      minN: document.getElementById('scnMinN').value,
+      mercati: getCheckedValues('.scnMercatoChk'),
+      linee: getCheckedValues('.scnLineaChk'),
+      text: document.getElementById('scnFText').value,
+      venue: getScnVenue(),
+      tit: document.getElementById('scnFTit').value,
+      cv: document.getElementById('scnFCV').value,
+      hit: getCheckedValues('.scnFHitChk'),
+      hitStag: getCheckedValues('.scnFHitStagChk'),
+      edge: getCheckedValues('.scnFEdgeChk'),
+      ev: getCheckedValues('.scnFEvChk'),
+      quota: getCheckedValues('.scnFQuotaChk'),
+    };
+    localStorage.setItem(SCN_STATE_KEY, JSON.stringify(state));
+  } catch(e) { /* storage non disponibile (es. navigazione privata): i filtri semplicemente non persistono */ }
+}
+function loadScnState(){
+  try {
+    const raw = localStorage.getItem(SCN_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+function checkOnly(selector, values){
+  const set = new Set(values || []);
+  document.querySelectorAll(selector).forEach(chk => { chk.checked = set.has(chk.value); });
+}
+function applyScnState(){
+  const state = loadScnState();
+  if (!state || !DB) return;
+  const gSel = document.getElementById('scnGiornata');
+  if (state.giornata && [...gSel.options].some(o => o.value === state.giornata)) {
+    gSel.value = state.giornata;
+    populateScnMatch(); // la giornata e' cambiata: ricostruisce le <option> di Partita
+  }
+  const mSel = document.getElementById('scnMatch');
+  if (state.match && [...mSel.options].some(o => o.value === state.match)) {
+    mSel.value = state.match;
+  }
+  if (state.criterio) {
+    document.getElementById('scnCriterio').value = state.criterio;
+    document.getElementById('scnCriterio').dispatchEvent(new Event('change')); // mostra/nasconde scnMinHitWrap
+  }
+  if (state.minHit) document.getElementById('scnMinHit').value = state.minHit;
+  if (state.minN) document.getElementById('scnMinN').value = state.minN;
+  if (state.mercati) checkOnly('.scnMercatoChk', state.mercati);
+  if (state.linee) checkOnly('.scnLineaChk', state.linee);
+  if (state.text != null) document.getElementById('scnFText').value = state.text;
+  if (state.venue !== undefined) {
+    const rad = document.querySelector(`.scnFVenueRad[value="${state.venue}"]`);
+    if (rad) rad.checked = true;
+    updateScnVenueLabel();
+  }
+  if (state.tit) document.getElementById('scnFTit').value = state.tit;
+  if (state.cv) document.getElementById('scnFCV').value = state.cv;
+  checkOnly('.scnFHitChk', state.hit);
+  checkOnly('.scnFHitStagChk', state.hitStag);
+  checkOnly('.scnFEdgeChk', state.edge);
+  checkOnly('.scnFEvChk', state.ev);
+  checkOnly('.scnFQuotaChk', state.quota);
+  updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
+  updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk');
+  updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
+  updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk');
+  updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk');
+  renderScnRolesPanel();
+  runScanGiornata();
 }
 function populateScnMatch(){
   const g = Number(document.getElementById('scnGiornata').value);
@@ -1516,6 +1601,7 @@ document.querySelectorAll('#scnTable th.sortable').forEach(th => {
 });
 
 function renderScan(){
+  saveScnState(); // ogni scansione e ogni modifica ai filtri "live" aggiorna lo stato salvato
   const body = document.getElementById('scnBody');
   const empty = document.getElementById('scnEmpty');
   const filtered = applyScnFilters(scanResults);
