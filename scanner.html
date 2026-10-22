@@ -1143,6 +1143,16 @@ function fmt(v, d=2){
   if (typeof v !== 'number') return v;
   return v.toFixed(d).replace(/\.00$/, '');
 }
+// Formatta una quota per i campi di input "quota": completa a 2 decimali solo
+// se ne manca uno (es. 1,4 -> 1,40), ma lascia invariate le quote con più di
+// 2 decimali (es. 1,078), che restano esattamente come inserite.
+function fmtQuotaInput(n){
+  if (n === null || n === undefined || Number.isNaN(n)) return '';
+  const s = String(n);
+  const dot = s.indexOf('.');
+  const decimals = dot === -1 ? 0 : (s.length - dot - 1);
+  return n.toFixed(Math.max(2, decimals)).replace('.', ',');
+}
 // Etichetta "N+" di una linea Over X,5 (0,5=1+ · 1,5=2+ · 2,5=3+ · 3,5=4+). Solo
 // per la visualizzazione: il valore sotto resta X,5 per tutti i confronti (> linea).
 function lineaLabel(linea){
@@ -1382,6 +1392,9 @@ function scnSetQuota(i, val){
   // (bug corretto il 18/10: prima qui si chiamava sempre renderScan(), che
   // ricostruisce l'intero corpo tabella con body.innerHTML = ... e quindi
   // cancellava anche quote digitate in altre righe nello stesso istante).
+  const inputEl = document.getElementById('scnQuotaInput-' + i);
+  if (inputEl) inputEl.value = fmtQuotaInput(scanQuotes[key]);
+
   const { prob, edge, ev } = derived(r);
   const probEl = document.getElementById('scnProb-' + i);
   const edgeEl = document.getElementById('scnEdge-' + i);
@@ -1641,7 +1654,7 @@ function renderScan(){
     <td>${cvBadge(r.cv)}</td>
     <td class="num"><div class="hitcell">${hitChip(r.hitVenue)}${ciTxt}</div></td>
     <td class="num">${pctColored(r.hitStag)}</td>
-    <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" id="scnQuotaInput-${i}" value="${quota ?? ''}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" /></td>
+    <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" id="scnQuotaInput-${i}" value="${fmtQuotaInput(quota)}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" /></td>
     <td class="num" id="scnProb-${i}">${prob != null ? pct(prob) : '—'}</td>
     <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}" id="scnEdge-${i}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
     <td class="num ${ev != null && ev > 0 ? 'verdict-fav' : (ev != null ? 'verdict-nofav' : '')}" id="scnEv-${i}">${ev != null ? (ev>0?'+':'') + ev.toFixed(2)+'€' : '—'}</td>
@@ -2118,7 +2131,7 @@ function renderScreener(){
       <td>${cvBadge(r.cv)}</td>
       <td class="num">${pctColored(r.hitStag)}</td>
       <td class="num">${hitChip(r.hitVenue)}</td>
-      <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${r.quota ?? ''}" style="width:54px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" data-act="quota" data-id="${escAttr(r.id)}" /></td>
+      <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${fmtQuotaInput(r.quota)}" style="width:54px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" data-act="quota" data-id="${escAttr(r.id)}" /></td>
       <td class="num">${prob != null ? pct(prob) : '—'}</td>
       <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
       <td class="num ${ev != null && ev > 0 ? 'verdict-fav' : (ev != null ? 'verdict-nofav' : '')}">${ev != null ? (ev>0?'+':'') + ev.toFixed(2)+'€' : '—'}</td>

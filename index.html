@@ -775,6 +775,16 @@ function fmt(v, d=2){
   return v.toFixed(d).replace(/\.00$/, '');
 }
 function pct(v){ return v == null ? '—' : (v*100).toFixed(0) + '%'; }
+// Formatta una quota per i campi di input "quota": completa a 2 decimali solo
+// se ne manca uno (es. 1,4 -> 1,40), ma lascia invariate le quote con più di
+// 2 decimali (es. 1,078), che restano esattamente come inserite.
+function fmtQuotaInput(n){
+  if (n === null || n === undefined || n === '' || Number.isNaN(n)) return '';
+  const s = String(n);
+  const dot = s.indexOf('.');
+  const decimals = dot === -1 ? 0 : (s.length - dot - 1);
+  return Number(n).toFixed(Math.max(2, decimals)).replace('.', ',');
+}
 
 
 // Somma grezza di una colonna di MATCH_LOG per un giocatore (con eventuale
@@ -2815,7 +2825,7 @@ function gmCard(key, title, tag, left, right, defLine, proj, alpha, hist) {
   const [hn, ho] = hist; const hitsO = ho, hitsU = hn - ho;
   const vo = pm == null ? { cls: 'mid', txt: '—', ev: null } : gmVerdict(pm, st.qo, hitsO, hn), vu = pm == null ? { cls: 'mid', txt: '—', ev: null } : gmVerdict(1 - pm, st.qu, hitsU, hn);
   const evT = (v) => (v.ev == null ? '' : `<span class="sm">EV ${v.ev >= 0 ? '+' : ''}${Math.round(v.ev * 100)}%</span>`);
-  const inp = (f, v) => `<input class="inp" type="text" inputmode="decimal" value="${v === '' || v == null ? '' : v}" placeholder="—" onchange="gmSet('${key}','${f}',this.value)" style="width:64px;"/>`;
+  const inp = (f, v) => `<input class="inp" type="text" inputmode="decimal" value="${fmtQuotaInput(v)}" placeholder="—" onchange="gmSet('${key}','${f}',this.value)" style="width:64px;"/>`;
   return `<div class="m4"><div class="top4"><h4>${title}</h4><span class="pill">${tag}</span><div class="ln">Linea book <input class="inp ln-in" type="text" inputmode="decimal" value="${line}" onchange="gmSet('${key}','line',this.value)"/></div></div>
     <div class="body">${left}<div class="center">${pm == null ? '<div class="sm">proiezione non disponibile</div>' : gmGauge(pm)}<div class="sm">proiezione</div><b style="color:var(--accent);font-size:20px">${proj == null ? '—' : fmt(proj, 1)}</b></div>${right}</div>
     <div class="foot"><div><span class="sm">Quota minima Over</span><b>${pm == null ? '—' : qm(pm)}</b></div><div><span class="sm">Quota minima Under</span><b>${pm == null ? '—' : qm(1 - pm)}</b></div>
