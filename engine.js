@@ -1219,7 +1219,14 @@ function narrRoleConcessionRank(matchLog, teams, teamId, ruolo, venueLetter, met
 //  - confronto con tutte le squadre della lega nello stesso campo
 //  - rankProvisional con campione minimo, almeno 6 squadre idonee,
 //    scartato se piu' di FATTI_MAX_TIE squadre hanno lo stesso valore
-//  - mostrati entrambi gli estremi (alto = "piu'", basso = "meno")
+//  - SOLO top3 (rank <= 3): niente "ultimi 3"/"meno" in questa categoria —
+//    qui i fatti alimentano direttamente lo Scanner (filtra tabella → giocata
+//    Over), e un fatto "concede meno" suggerirebbe Under, non utile qui
+//    (22/10: prima non c'era soglia, un 7°/20 passava; poi provata soglia
+//    simmetrica top3/ultimi3 ma scartata su richiesta esplicita — solo top3)
+// NB: questa regola (solo top3, mai "meno") vale SOLO per questa categoria
+// dentro lo Scanner. In index.html, computePlayerVsOpponentFacts() (Fatti
+// salienti, tag "Matchup ruolo") resta allineata: stessa soglia rank<=3.
 // Se si cambia un criterio in index.html va cambiato anche qui.
 // FATTI_RUOLO_MIN_SAMPLE_VENUE: Serie A 2 partite per campo (come minSample venue di Fatti salienti in index.html); UCL 1.
 // ---------------------------------------------------------------------------
@@ -1248,6 +1255,7 @@ function fattiRuoloVsAvversario(matchLog, rosters, teamId, oppId, oppVenueLetter
       const { rank, eligible } = rankProvisional(list, minSample)[oppId];
       const me = list.find((x) => x.key === oppId);
       if (rank === 'N/D' || eligible < 6) continue;
+      if (rank > 3) continue; // solo top3 (concede di più): mai "meno" in questa categoria, suggerirebbe Under
       const pool = list.filter((x) => x.partite >= minSample && x.value != null);
       if (pool.filter((x) => x.value === me.value).length > FATTI_MAX_TIE) continue;
       const top = rank <= (eligible - rank + 1); // = isTopEnd() di index.html

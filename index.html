@@ -1154,7 +1154,7 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
       });
       const { rank, eligible } = rankProvisional(list, minSample)[oppTeamId];
       const me = list.find(x => x.key === oppTeamId);
-      if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
+      if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT && rank <= 3) {
         const top = isTopEnd(rank, eligible);
         facts.push({
           tag: 'Matchup ruolo',
