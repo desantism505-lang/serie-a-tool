@@ -556,6 +556,18 @@
             <label><input type="radio" name="scnFVenue" class="scnFVenueRad" value="AWAY" /> Trasferta (solo squadra ospite)</label>
           </div>
         </div>
+        <div class="msdrop" id="scnFRuoloDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFRuoloDrop')">Ruolo: tutti ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scnFRuoloChk" value="Punta centrale" /> Punta centrale</label>
+            <label><input type="checkbox" class="scnFRuoloChk" value="Esterno offensivo" /> Esterno offensivo</label>
+            <label><input type="checkbox" class="scnFRuoloChk" value="Trequartista" /> Trequartista</label>
+            <label><input type="checkbox" class="scnFRuoloChk" value="Esterno/Quinto" /> Esterno/Quinto</label>
+            <label><input type="checkbox" class="scnFRuoloChk" value="Centrocampista centrale" /> Centrocampista centrale</label>
+            <label><input type="checkbox" class="scnFRuoloChk" value="Terzino" /> Terzino</label>
+            <label><input type="checkbox" class="scnFRuoloChk" value="Centrale difensivo" /> Centrale difensivo</label>
+          </div>
+        </div>
         <select id="scnFTit" title="Usa le formazioni salvate in Matchup Engine" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
           <option value="">Titolare: tutti</option>
           <option value="tit">Solo titolari (✓)</option>
@@ -692,6 +704,18 @@
             <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="" checked /> Complessivo (tutte e due)</label>
             <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="HOME" /> Casa (solo squadra di casa)</label>
             <label><input type="radio" name="scrFVenue" class="scrFVenueRad" value="AWAY" /> Trasferta (solo squadra ospite)</label>
+          </div>
+        </div>
+        <div class="msdrop" id="scrFRuoloDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFRuoloDrop')">Ruolo ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFRuoloChk" value="Punta centrale" /> Punta centrale</label>
+            <label><input type="checkbox" class="scrFRuoloChk" value="Esterno offensivo" /> Esterno offensivo</label>
+            <label><input type="checkbox" class="scrFRuoloChk" value="Trequartista" /> Trequartista</label>
+            <label><input type="checkbox" class="scrFRuoloChk" value="Esterno/Quinto" /> Esterno/Quinto</label>
+            <label><input type="checkbox" class="scrFRuoloChk" value="Centrocampista centrale" /> Centrocampista centrale</label>
+            <label><input type="checkbox" class="scrFRuoloChk" value="Terzino" /> Terzino</label>
+            <label><input type="checkbox" class="scrFRuoloChk" value="Centrale difensivo" /> Centrale difensivo</label>
           </div>
         </div>
         <select id="scrFTit" title="Usa le formazioni salvate in Matchup Engine. «Escludi ✗» toglie chi non è in formazione e tiene chi non ha formazione.">
@@ -944,6 +968,7 @@ function saveScnState(){
       edge: getCheckedValues('.scnFEdgeChk'),
       ev: getCheckedValues('.scnFEvChk'),
       quota: getCheckedValues('.scnFQuotaChk'),
+      ruoli: getCheckedValues('.scnFRuoloChk'),
       auto: document.getElementById('scnGiornata') ? String(prossimaGiornata(DB.calendar)) : null,
     };
     localStorage.setItem(SCN_STATE_KEY, JSON.stringify(state));
@@ -997,11 +1022,13 @@ function applyScnState(currentAuto){
   checkOnly('.scnFEdgeChk', state.edge);
   checkOnly('.scnFEvChk', state.ev);
   checkOnly('.scnFQuotaChk', state.quota);
+  checkOnly('.scnFRuoloChk', state.ruoli);
   updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
   updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk');
   updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
   updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk');
   updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk');
+  updateMsDropLabel('scnFRuoloDrop','Ruolo','.scnFRuoloChk');
   renderScnRolesPanel();
   runScanGiornata();
 }
@@ -1464,8 +1491,19 @@ function cvLabel(cv){
 function toggleMsDrop(id){
   const target = document.querySelector('#' + id + ' .msdrop-panel');
   const wasOpen = target.classList.contains('open');
-  document.querySelectorAll('.msdrop-panel.open').forEach(p => p.classList.remove('open'));
-  if (!wasOpen) target.classList.add('open');
+  document.querySelectorAll('.msdrop-panel.open').forEach(p => { p.classList.remove('open'); p.style.left = ''; p.style.right = ''; });
+  if (!wasOpen) {
+    target.classList.add('open');
+    // Non far uscire il pannello dall'inquadratura a destra: se il bottone è
+    // vicino al bordo destro, il pannello si apre ancorato a destra invece
+    // che a sinistra (comportamento di default), restando sempre visibile.
+    target.style.left = ''; target.style.right = '';
+    const rect = target.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      target.style.left = 'auto';
+      target.style.right = '0';
+    }
+  }
 }
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.msdrop')) {
@@ -1516,6 +1554,7 @@ function scnFilters(){
     quotaBuckets: bucketsFromChecked('.scnFQuotaChk'),
     venue: getScnVenue(),
     tit: document.getElementById('scnFTit').value,
+    ruoli: getCheckedValues('.scnFRuoloChk'),
   };
 }
 // Filtro impostato dal clic su una riga del pannello "Ruoli scoperti", per
@@ -1543,6 +1582,7 @@ function applyScnFilters(rows){
   const f = scnFilters();
   return rows.filter(r => {
     if (scnJumpRole && r.player.Posizione_Analitica !== scnJumpRole) return false;
+    if (f.ruoli.length && !f.ruoli.includes(r.player.Posizione_Analitica)) return false;
     if (f.venue && r.venue !== f.venue) return false;
     if (f.tit) {
       const st = lineupState(r);
@@ -1587,6 +1627,7 @@ document.querySelectorAll('.scnFHitStagChk').forEach(chk => chk.addEventListener
 document.querySelectorAll('.scnFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk'); renderScan(); }));
 document.querySelectorAll('.scnFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk'); renderScan(); }));
 document.querySelectorAll('.scnFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk'); renderScan(); }));
+document.querySelectorAll('.scnFRuoloChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFRuoloDrop','Ruolo','.scnFRuoloChk'); renderScan(); }));
 document.getElementById('scnFClear').addEventListener('click', () => {
   setScnJumpRole(null);
   document.getElementById('scnFText').value = '';
@@ -1594,12 +1635,13 @@ document.getElementById('scnFClear').addEventListener('click', () => {
   document.getElementById('scnFTit').value = '';
   document.querySelector('.scnFVenueRad[value=""]').checked = true;
   updateScnVenueLabel();
-  document.querySelectorAll('.scnFHitChk,.scnFHitStagChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scnFHitChk,.scnFHitStagChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk,.scnFRuoloChk').forEach(chk => { chk.checked = false; });
   updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
   updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk');
   updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
   updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk');
   updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk');
+  updateMsDropLabel('scnFRuoloDrop','Ruolo','.scnFRuoloChk');
   renderScan();
 });
 
@@ -1965,6 +2007,7 @@ function scrFilters(){
     evBuckets: bucketsFromChecked('.scrFEvChk'),
     quotaBuckets: bucketsFromChecked('.scrFQuotaChk'),
     esito: document.getElementById('scrFEsito').value,
+    ruoli: getCheckedValues('.scrFRuoloChk'),
   };
 }
 // Formazioni per i Preferiti: stesse formazioni salvate in Matchup Engine usate dallo
@@ -2020,6 +2063,15 @@ function applyScrFilters(rows){
     if (f.mercati.length && !f.mercati.includes(r.mercato)) return false;
     if (f.linee.length && !f.linee.includes(Number(r.linea))) return false;
     if (f.venue && r.venue !== f.venue) return false;
+    if (f.ruoli.length) {
+      // Il preferito salva giornata/partita/venue/nome, non il ruolo: lo si
+      // ricava al volo risolvendo il giocatore (stessa risoluzione usata per
+      // lo stato titolare), così il filtro funziona anche sui preferiti
+      // salvati prima che esistesse questo filtro.
+      const res = scrResolve(r);
+      const ruolo = res ? res.player.Posizione_Analitica : null;
+      if (!ruolo || !f.ruoli.includes(ruolo)) return false;
+    }
     if (f.tit) {
       const st = scrLineupState(r);
       if (f.tit === 'tit' && st !== 'Y' && st !== 'Yh') return false;
@@ -2060,6 +2112,7 @@ document.querySelectorAll('.scrFHitStagChk').forEach(chk => chk.addEventListener
 document.querySelectorAll('.scrFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk'); renderScreener(); }));
 document.querySelectorAll('.scrFEvChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFEvDrop','EV','.scrFEvChk'); renderScreener(); }));
 document.querySelectorAll('.scrFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk'); renderScreener(); }));
+document.querySelectorAll('.scrFRuoloChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFRuoloDrop','Ruolo','.scrFRuoloChk'); renderScreener(); }));
 document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFText').value = '';
   document.getElementById('scrFCV').value = '';
@@ -2067,7 +2120,7 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFTit').value = '';
   document.querySelector('.scrFVenueRad[value=""]').checked = true;
   updateScrVenueLabel();
-  document.querySelectorAll('.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
   updateFavDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
   updateFavDropLabel('scrFLineaDrop','Linea','.scrFLineaChk');
   updateFavDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
@@ -2075,6 +2128,7 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   updateFavDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk');
   updateFavDropLabel('scrFEvDrop','EV','.scrFEvChk');
   updateFavDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk');
+  updateFavDropLabel('scrFRuoloDrop','Ruolo','.scrFRuoloChk');
   renderScreener();
 });
 document.querySelectorAll('#scrTable th.sortable').forEach(th => {
