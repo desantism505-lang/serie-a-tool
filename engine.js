@@ -592,6 +592,60 @@ function computeTeamStreak(calendar, teamId, venue, key, n) {
   return { streak, partite };
 }
 
+// ---------------------------------------------------------------------------
+// LINEA RICORRENTE SUI GOL — richiesto da Marco, 24/10: stesso principio di
+// "linea ricorrente" già usato per Tiri/SOT/Falli/Cartellini/Corner in
+// lineFacts() di index.html (sempre sopra o sempre sotto una soglia, in
+// quel venue, con campione minimo), ma per gol fatti/subiti/totale-partita,
+// letti da CALENDAR (Home_Score/Away_Score) invece che da MATCH_LOG.
+// Differenza deliberata rispetto a lineFacts(): QUI non c'è il filtro "linea
+// vicina alla media di lega" — con i gol le linee di mercato reali (0.5,
+// 1.5, 2.5, 3.5) sono già standard e significative di per sé, quel filtro
+// serviva solo a scartare soglie banali su metriche senza linee standard.
+// minSample di default 3 = stessa soglia minima decisa da Marco per gli
+// arbitri, applicata qui per coerenza.
+// ---------------------------------------------------------------------------
+const GOAL_LINE_MIN_SAMPLE = 3;
+function teamGoalMatches(calendar, teamId, venue) {
+  let rows = calendar.filter(
+    (r) => (r.Home_ID === teamId || r.Away_ID === teamId) && r.Stato === 'CONCLUSA' &&
+      r.Home_Score !== '' && r.Home_Score != null && r.Away_Score !== '' && r.Away_Score != null
+  );
+  if (venue !== 'TOTALE') rows = rows.filter((r) => (venue === 'HOME' ? r.Home_ID === teamId : r.Away_ID === teamId));
+  return rows.map((r) => {
+    const isHome = r.Home_ID === teamId;
+    const fatti = Number(isHome ? r.Home_Score : r.Away_Score);
+    const subiti = Number(isHome ? r.Away_Score : r.Home_Score);
+    return { fatti, subiti, totale: fatti + subiti };
+  });
+}
+function computeGoalLineFacts(calendar, teamId, venue, venueLabel, minSample) {
+  minSample = minSample == null ? GOAL_LINE_MIN_SAMPLE : minSample;
+  const matches = teamGoalMatches(calendar, teamId, venue);
+  if (matches.length < minSample) return [];
+  const facts = [];
+  const metrics = [
+    ['fatti', 'gol fatti', 'ha segnato'],
+    ['subiti', 'gol subiti', 'ha subito'],
+    ['totale', 'gol totali nella partita (entrambe le squadre)', 'la partita ha avuto'],
+  ];
+  for (const [col, label, verbo] of metrics) {
+    const vs = matches.map((m) => m[col]);
+    const mn = Math.min(...vs), mx = Math.max(...vs);
+    const n = vs.length;
+    const lowL = Math.ceil(mn) - 0.5, highL = Math.floor(mx) + 0.5;
+    if (mn >= 1) {
+      facts.push({ type: 'goalLine', col, over: true, line: lowL, n, min: mn,
+        txt: `${verbo} sempre più di ${String(lowL).replace('.', ',')} ${label} ${venueLabel} (${n}/${n} partite, minimo ${mn})` });
+    }
+    if (mx <= 4) { // sopra 4 la soglia "sempre sotto" diventa poco interessante come linea di mercato
+      facts.push({ type: 'goalLine', col, over: false, line: highL, n, max: mx,
+        txt: `${verbo} sempre meno di ${String(highL).replace('.', ',')} ${label} ${venueLabel} (${n}/${n} partite, massimo ${mx})` });
+    }
+  }
+  return facts;
+}
+
 // Normalizzazione nome arbitro: l'inserimento è manuale, quindi lo stesso
 // arbitro può comparire con maiuscole/minuscole diverse ("ROSSI", "Rossi",
 // "rossi") — vanno raggruppati come UNA persona, non contati come arbitri
@@ -696,7 +750,7 @@ function estimateCardProbability(avgFalli, probTable) {
 // accanto al valore: con 1-2 partite dirette il numero non è una media
 // affidabile, è il dato grezzo di poche gare travestito da statistica.
 // ---------------------------------------------------------------------------
-function computeArbitroStats(matchLog, arbitri, arbitro) {
+function computeArbitroStats(matchLog, arbitri, arbitro, calendar) {
   const targetKey = normalizeArbitroKey(arbitro);
   const matchIds = arbitri.filter((a) => normalizeArbitroKey(a.Arbitro) === targetKey).map((a) => a.Match_ID);
   const nPartite = matchIds.length;
@@ -705,6 +759,14 @@ function computeArbitroStats(matchLog, arbitri, arbitro) {
 
   const avg = (rows, col, n) => (n ? sum(rows, col) / n : null);
   const cartellini = (rows) => sum(rows, 'Gialli') + sum(rows, 'Rossi');
+
+  // Gol medi nelle partite dirette: letti dal CALENDAR (Home_Score/Away_Score),
+  // non da MATCH_LOG — solo le partite CONCLUSA hanno il punteggio compilato.
+  let golMedi = null;
+  if (calendar) {
+    const cal = calendar.filter((c) => matchIds.includes(c.Match_ID) && c.Stato === 'CONCLUSA' && c.Home_Score !== '' && c.Home_Score != null);
+    if (cal.length) golMedi = cal.reduce((a, c) => a + (Number(c.Home_Score) || 0) + (Number(c.Away_Score) || 0), 0) / cal.length;
+  }
 
   return {
     Arbitro: titleCaseArbitro(arbitro),
@@ -717,6 +779,7 @@ function computeArbitroStats(matchLog, arbitri, arbitro) {
     Cartellini_Casa_Medi: nPartite ? cartellini(rowsCasa) / nPartite : null,
     Cartellini_Trasferta_Medi: nPartite ? cartellini(rowsTrasferta) / nPartite : null,
     Cartellini_Totali_Medi: nPartite ? (cartellini(rowsCasa) + cartellini(rowsTrasferta)) / nPartite : null,
+    Gol_Medi: golMedi,
   };
 }
 
@@ -725,14 +788,51 @@ function computeArbitroStats(matchLog, arbitri, arbitro) {
 // varianti di maiuscole/minuscole dello stesso arbitro non vengono contate
 // come persone diverse. Il nome mostrato è la prima occorrenza, in forma
 // Title Case.
-function computeAllArbitroStats(matchLog, arbitri) {
+function computeAllArbitroStats(matchLog, arbitri, calendar) {
   const canonici = new Map(); // chiave normalizzata -> nome da mostrare
   for (const a of arbitri) {
     if (!isArbitroNomeValido(a.Arbitro)) continue;
     const key = normalizeArbitroKey(a.Arbitro);
     if (key && !canonici.has(key)) canonici.set(key, titleCaseArbitro(a.Arbitro));
   }
-  return [...canonici.values()].map((nome) => computeArbitroStats(matchLog, arbitri, nome));
+  return [...canonici.values()].map((nome) => computeArbitroStats(matchLog, arbitri, nome, calendar));
+}
+
+// ---------------------------------------------------------------------------
+// RANK ARBITRI — richiesto da Marco, 24/10: segnala in Fatti salienti quando
+// l'arbitro assegnato a QUESTA partita è tra i primi 3 o gli ultimi 3 arbitri
+// della stagione su una metrica, con soglia minima di partite dirette (come
+// gli altri rank del tool, mai un rank spacciato per definitivo su 1-2 gare).
+// Casa/Trasferta sono per costruzione specifiche a un lato della partita;
+// Totali e Gol sono "comuni" (riguardano l'arbitro, non una delle due
+// squadre) — il chiamante decide se mostrarle su un lato o su entrambi.
+// ---------------------------------------------------------------------------
+const ARBITRO_RANK_MIN_PARTITE = 3;
+const ARBITRO_RANK_METRICS = [
+  ['Falli_Totali_Medi', 'falli fischiati a partita', 'falli', 'comune'],
+  ['Falli_Casa_Medi', 'falli fischiati contro la squadra di casa', 'falli', 'casa'],
+  ['Falli_Trasferta_Medi', 'falli fischiati contro la squadra in trasferta', 'falli', 'trasferta'],
+  ['Cartellini_Totali_Medi', 'cartellini a partita', 'cartellini', 'comune'],
+  ['Gol_Medi', 'gol complessivi a partita', 'gol', 'comune'],
+];
+function rankArbitriFacts(matchLog, arbitri, calendar, minPartite) {
+  minPartite = minPartite == null ? ARBITRO_RANK_MIN_PARTITE : minPartite;
+  const all = computeAllArbitroStats(matchLog, arbitri, calendar);
+  const out = {}; // Arbitro (titleCase) -> [{ col, label, kind, rank, eligible, value, top }]
+  for (const [col, label, metricKind, lato] of ARBITRO_RANK_METRICS) {
+    const eligible = all.filter((a) => a.N_Partite >= minPartite && a[col] != null);
+    if (eligible.length < 6) continue; // stesso minimo "eleggibili" usato altrove in Fatti salienti
+    const sorted = [...eligible].sort((a, b) => b[col] - a[col]);
+    sorted.forEach((a, idx) => {
+      const rank = idx + 1;
+      const top = rank <= 3, bottom = rank > sorted.length - 3;
+      if (!top && !bottom) return;
+      (out[a.Arbitro] || (out[a.Arbitro] = [])).push({
+        col, label, metricKind, lato, rank, eligible: sorted.length, value: a[col], top, n: a.N_Partite,
+      });
+    });
+  }
+  return out;
 }
 
 // ============================================================================
@@ -1897,6 +1997,9 @@ if (typeof module !== 'undefined') {
     wilsonInterval,
     computeArbitroStats,
     computeAllArbitroStats,
+    rankArbitriFacts,
+    computeGoalLineFacts,
+    teamGoalMatches,
     computeTeamMatchTotals,
     teamHitRate,
     leagueAverageMetric,

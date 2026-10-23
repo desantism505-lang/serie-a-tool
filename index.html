@@ -863,6 +863,10 @@ function tiedCount(list, minSample, value){
   return list.filter(x => x.partite >= minSample && x.value === value).length;
 }
 const MAX_TIE_FOR_FACT = 2;
+// Metriche di concessione-per-ruolo condivise tra computeTeamFacts e
+// computePlayerVsOpponentFacts — usate per evitare di mostrare lo stesso
+// fatto due volte (una per squadra, una per giocatore vs avversario).
+const ROLE_FACT_DUP_METRICS = ['tiri', 'tiri in porta', 'falli'];
 
 // Vero/falso: il rank è più vicino alla cima (valore più alto della lega) o
 // al fondo (valore più basso)? Usato per scrivere la frase nella direzione
@@ -1091,7 +1095,14 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
       });
       const { rank, eligible } = rankProvisional(list, minSample)[teamId];
       const me = list.find(x => x.key === teamId);
-      if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
+      // Dedup richiesto da Marco, 24/10: le 3 metriche condivise con
+      // computePlayerVsOpponentFacts (tiri/tiri in porta/falli), quando il
+      // rank è tra i primi 3 (stesso filtro rank<=3 usato là), vengono già
+      // mostrate — con gli stessi identici numeri — lato squadra avversaria
+      // reale di questa partita, nominando i SUOI giocatori di quel ruolo.
+      // Qui le saltiamo per non duplicare lo stesso fatto sui due lati.
+      const dedupByPlayerSide = ROLE_FACT_DUP_METRICS.includes(label) && rank !== 'N/D' && rank <= 3;
+      if (!dedupByPlayerSide && rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
         const top = isTopEnd(rank, eligible);
         facts.push({
           tag: 'Matchup ruolo',
@@ -1565,10 +1576,59 @@ function computeSignalStrength(teamId, teamKey, venue, proiezione, proiezioneOpp
 
   return { confidence, hitBest, duelInfo };
 }
+// ---------------------------------------------------------------------------
+// FATTI ARBITRO — richiesto da Marco, 24/10: se l'arbitro assegnato a questa
+// partita è tra i primi 3 o gli ultimi 3 della stagione su una metrica
+// (min. 3 partite dirette), lo segnala in Fatti salienti. Lato di
+// collocazione: Falli_Casa_Medi → solo lato Casa, Falli_Trasferta_Medi →
+// solo lato Trasferta (riguardano specificamente quel lato), le metriche
+// "comuni" (Falli_Totali_Medi, Cartellini_Totali_Medi, Gol_Medi) → entrambi
+// i lati, perché non riguardano una squadra in particolare ma l'arbitro.
+// ---------------------------------------------------------------------------
+function arbitroFactsForSide(match, side, venueLabel){
+  const arbitriEff = arbitriEffettivi();
+  const riga = arbitriEff.find(a => a.Match_ID === match.Match_ID && isArbitroNomeValido(a.Arbitro));
+  if (!riga) return [];
+  const allRanks = rankArbitriFacts(DB.matchLog, arbitriEff, DB.calendar);
+  const nomeKey = titleCaseArbitro(riga.Arbitro);
+  const entries = allRanks[nomeKey];
+  if (!entries || !entries.length) return [];
+  const latoWanted = side === 'home' ? 'casa' : 'trasferta';
+  return entries
+    .filter(e => e.lato === 'comune' || e.lato === latoWanted)
+    .map(e => ({
+      tag: 'Arbitro',
+      icon: metricIcon(e.metricKind),
+      text: `L'arbitro ${nomeKey} (${e.n} partite dirette in stagione) ha una media di ${e.value.toFixed(2)} ${e.label} — ${e.rank}° su ${e.eligible} arbitri idonei`,
+      rank: e.rank, eligible: e.eligible,
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// FATTI LINEA GOL — richiesto da Marco, 24/10: stesso principio della "linea
+// ricorrente" già usata su Tiri/SOT/Falli/Cartellini/Corner (lineFacts), qui
+// applicato ai gol fatti/subiti/totali-partita, nel venue reale della
+// partita, campione minimo 3. Deliberatamente senza il filtro "linea vicina
+// alla media di lega": le linee gol (0.5/1.5/2.5/3.5) sono mercati standard
+// di per sé significativi.
+// ---------------------------------------------------------------------------
+function goalLineFactsForSide(teamId, venue, venueLabel){
+  const raw = computeGoalLineFacts(DB.calendar, teamId, venue, venueLabel);
+  // Rank/eligible fittizi 1/1 solo per compatibilità col rendering esistente
+  // (badge/ordinamento): non è un rank tra squadre, è "sempre sopra/sotto"
+  // per QUESTA squadra nel suo campione — niente "eleggibili" da contare.
+  return raw.map(f => ({
+    tag: 'Linea gol',
+    icon: metricIcon('gol'),
+    text: `${f.txt.charAt(0).toUpperCase()}${f.txt.slice(1)}`,
+    rank: 1, eligible: 1,
+  }));
+}
+
 function renderNotableFactsPanel(match){
   _pCache = {}; _roleCache = {}; _leagueMetricCache = {}; // reset cache per questo render
 
-  function sideFacts(teamId, venue, oppTeamId, oppVenue, venueLabel){
+  function sideFacts(teamId, venue, oppTeamId, oppVenue, venueLabel, side){
     const facts = [
       ...computeTeamFacts(teamId, venue, venueLabel, oppTeamId),
       ...computeDuelFacts(teamId, venue, venueLabel),
@@ -1578,17 +1638,28 @@ function renderNotableFactsPanel(match){
       ...computePlayerAbsoluteFacts(teamId, venue, venueLabel),
     ];
     facts.sort((a, b) => Math.min(a.rank, a.eligible + 1 - a.rank) - Math.min(b.rank, b.eligible + 1 - b.rank));
-    return facts.slice(0, 8);
+    const top = facts.slice(0, 8);
+    // Arbitro e linee gol: aggiunti DOPO il taglio agli 8 fatti più estremi
+    // (sono rilevanti di per sé, non competono sullo stesso criterio di
+    // estremità rank — sempre visibili quando presenti, senza spiazzare gli
+    // 8 fatti principali).
+    return [...top, ...arbitroFactsForSide(match, side, venueLabel), ...goalLineFactsForSide(teamId, venue, venueLabel)];
   }
 
-  const home = sideFacts(match.Home_ID, 'HOME', match.Away_ID, 'AWAY', 'in casa');
-  const away = sideFacts(match.Away_ID, 'AWAY', match.Home_ID, 'HOME', 'in trasferta');
+  const home = sideFacts(match.Home_ID, 'HOME', match.Away_ID, 'AWAY', 'in casa', 'home');
+  const away = sideFacts(match.Away_ID, 'AWAY', match.Home_ID, 'HOME', 'in trasferta', 'away');
 
   function list(teamName, facts){
     if (!facts.length) return `<div class="subtle">Nessun rank ancora affidabile (campione insufficiente su tutte le metriche).</div>`;
     return `<ul class="facts-list" style="margin:0;padding-left:16px;list-style:none;">${facts.map(f => {
-      const badge = factBadge(f.rank, f.eligible, f.icon || '');
-      return `<li style="margin-bottom:5px;"><span title="Posizione ${f.rank}° su ${f.eligible}">${badge}</span> <span class="tag-inline">[${f.tag}]</span> ${f.text}</li>`;
+      // Arbitro/Linea gol non sono rank comparativi tra squadre: nessun badge
+      // di posizione "1°/ultimo", solo l'icona della metrica.
+      const isNonRank = f.tag === 'Arbitro' || f.tag === 'Linea gol';
+      const badge = isNonRank
+        ? `<span style="display:inline-flex;align-items:center;gap:5px;min-width:50px;color:var(--text-2);">${f.icon || ''}</span>`
+        : factBadge(f.rank, f.eligible, f.icon || '');
+      const tip = isNonRank ? '' : ` title="Posizione ${f.rank}° su ${f.eligible}"`;
+      return `<li style="margin-bottom:5px;"><span${tip}>${badge}</span> <span class="tag-inline">[${f.tag}]</span> ${f.text}</li>`;
     }).join('')}</ul>`;
   }
 

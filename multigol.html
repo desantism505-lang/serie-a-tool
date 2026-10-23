@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="engine.js"></script>
 <style>
 :root{
   --bg:#0B1210;--panel:#16241D;--panel-2:#101B15;--panel-header:#233529;--zebra:#1C2A21;
@@ -175,11 +176,20 @@ function sheetToRows(wb,name){
 }
 function loadWorkbook(wb){
   const calendar = normalizeCalendar(sheetToRows(wb,'CALENDAR').filter(r=>r.Match_ID));
-  DB = {calendar};
+  // match_log/arbitri aggiunti per i Fatti salienti (linee gol + stats
+  // arbitro) — richiesto da Marco, 24/10: "la voglio in fatti salienti...
+  // e anche su multigol". Prima qui si caricava solo CALENDAR.
+  const matchLog = sheetToRows(wb,'MATCH_LOG');
+  const arbitri = sheetToRows(wb,'ARBITRI');
+  DB = {calendar, matchLog, arbitri};
   afterLoad('Excel');
 }
 function loadFromJSON(D){
-  DB = {calendar:normalizeCalendar((D.calendar||[]).filter(r=>r.Match_ID))};
+  DB = {
+    calendar: normalizeCalendar((D.calendar||[]).filter(r=>r.Match_ID)),
+    matchLog: D.match_log || [],
+    arbitri: D.arbitri || [],
+  };
   afterLoad('data.json');
 }
 function afterLoad(source){
@@ -336,6 +346,61 @@ function bttsTable(rows){
   </table>`;
 }
 
+// ---------------------------------------------------------------------------
+// FATTI SALIENTI (Multigol) — richiesto da Marco, 24/10, come in index.html:
+// linee gol ricorrenti (sempre sopra/sotto una soglia, nel venue reale,
+// campione minimo 3) + stats arbitro (top3/under3 su falli/cartellini/gol,
+// campione minimo 3 partite dirette). Usa le stesse funzioni di engine.js
+// usate in index.html (computeGoalLineFacts, rankArbitriFacts) così i numeri
+// coincidono esattamente tra le due pagine.
+// ---------------------------------------------------------------------------
+function factsSalientiMultigol(m){
+  if (typeof computeGoalLineFacts !== 'function') return '';
+  const hFacts = computeGoalLineFacts(DB.calendar, m.Home_ID, 'HOME', 'in casa');
+  const aFacts = computeGoalLineFacts(DB.calendar, m.Away_ID, 'AWAY', 'in trasferta');
+
+  let arbHtml = '';
+  if (DB.arbitri && DB.arbitri.length && DB.matchLog && DB.matchLog.length && typeof rankArbitriFacts === 'function') {
+    const riga = DB.arbitri.find(a => a.Match_ID === m.Match_ID && isArbitroNomeValido(a.Arbitro));
+    if (riga) {
+      const allRanks = rankArbitriFacts(DB.matchLog, DB.arbitri, DB.calendar);
+      const nomeKey = titleCaseArbitro(riga.Arbitro);
+      const entries = allRanks[nomeKey] || [];
+      const golEntries = entries.filter(e => e.metricKind === 'gol');
+      const altreEntries = entries.filter(e => e.metricKind !== 'gol');
+      if (entries.length) {
+        arbHtml = `<div class="card">
+          <div class="card-title">Arbitro: ${nomeKey}</div>
+          <ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--text-2);">
+            ${[...golEntries, ...altreEntries].map(e => `<li style="margin-bottom:4px;">media <strong>${e.value.toFixed(2)}</strong> ${e.label} — ${e.rank}° su ${e.eligible} arbitri idonei (${e.n} partite dirette)</li>`).join('')}
+          </ul>
+        </div>`;
+      }
+    }
+  }
+
+  const sideBox = (teamName, venueLabel, facts) => {
+    if (!facts.length) return `<div class="card"><div class="card-title">${teamName} — ${venueLabel}</div><div class="subtle">Nessuna linea gol ricorrente ancora affidabile (campione insufficiente).</div></div>`;
+    return `<div class="card">
+      <div class="card-title">${teamName} — ${venueLabel}</div>
+      <ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--text-2);">
+        ${facts.map(f => `<li style="margin-bottom:4px;">${f.txt.charAt(0).toUpperCase()}${f.txt.slice(1)}</li>`).join('')}
+      </ul>
+    </div>`;
+  };
+
+  if (!hFacts.length && !aFacts.length && !arbHtml) return '';
+  return `
+    <section class="panel">
+      <h2>0 · Fatti salienti <span class="tag">linee gol ricorrenti e stats arbitro rilevanti per questa partita</span></h2>
+      <div class="body grid2">
+        ${sideBox(m.Home, 'Casa', hFacts)}
+        ${sideBox(m.Away, 'Trasferta', aFacts)}
+      </div>
+      ${arbHtml ? `<div class="body" style="padding-top:0;">${arbHtml}</div>` : ''}
+    </section>`;
+}
+
 function render(){
   if(!DB)return;
   const id=document.getElementById('selMatch').value;
@@ -371,6 +436,8 @@ function render(){
         <span class="pill ${Math.min(H.rows.length,A.rows.length)>=3?'good':'mid'}">${Math.min(H.rows.length,A.rows.length)>=3?'campione utilizzabile':'campione ridotto'}</span>
       </div>
     </div>
+
+    ${factsSalientiMultigol(m)}
 
     <!-- 2. PROFILO SQUADRA -->
     <section class="panel">
