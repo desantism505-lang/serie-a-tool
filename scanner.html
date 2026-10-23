@@ -1352,14 +1352,28 @@ function runScanGiornata(){
   for (const match of matches) {
     for (const [venue, teamId] of [['HOME', match.Home_ID], ['AWAY', match.Away_ID]]) {
       const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
+      const venueLetter = venue === 'HOME' ? 'H' : 'A';
       for (const player of players) {
         const pTot = computePlayerStats(DB.matchLog, player.Player_ID, 'TOTALE', null, teamId);
         const pVenue = computePlayerStats(DB.matchLog, player.Player_ID, venue, null, teamId);
         if (pVenue.Partite < minN) continue;
+        // Righe grezze del giocatore (tutte le presenze, qualunque minutaggio):
+        // playerHitRateK applica da sé il filtro MIN_HITRATE (60') — stesso
+        // criterio già usato nella scheda giocatore del Matchup Engine. Prima
+        // di questo fix, l'Hit rate qui sotto veniva letto da computePlayerStats,
+        // che NON scarta le presenze brevi: un subentro di 10' senza tempo per
+        // arrivare alla soglia contava come "miss" tanto quanto una partita da
+        // titolare, abbassando l'hit rate (e restringendo artificialmente
+        // l'intervallo di Wilson) senza motivo. Vedi ARCHITECTURE.md.
+        const rowsAll = playerRows(DB.matchLog, player.Player_ID, teamId);
+        const rowsVenue = rowsAll.filter(r => r.Venue === venueLetter);
         for (const mercato of mercatiScelti) {
           for (const [linea, avgKey, hitKey, cvKey] of MARKET_LINES[mercato]) {
             if (!lineeScelte.includes(linea)) continue;
-            const hitV = pVenue[hitKey];
+            const m = hitKey.match(/^Hit_(Tiri|SOT|FC|FD|Cart)_(\d+)$/);
+            const hVenue = m ? playerHitRateK(rowsVenue, m[1], Number(m[2])) : { rate: null, n: 0 };
+            const hStag = m ? playerHitRateK(rowsAll, m[1], Number(m[2])) : { rate: null, n: 0 };
+            const hitV = hVenue.rate;
             const mediaV = pVenue[avgKey];
             let pass;
             if (criterio === 'MEDIA') pass = mediaV != null && mediaV > linea;
@@ -1367,11 +1381,11 @@ function runScanGiornata(){
             if (!pass) continue;
             results.push({
               player, match, venue, mercato, linea, avgKey, hitKey, cvKey,
-              hitVenue: hitV, hitStag: pTot[hitKey],
+              hitVenue: hitV, hitStag: hStag.rate,
               mediaVenue: mediaV, mediaStag: pTot[avgKey],
               mediaL3: pTot['L3_' + avgKey],
               cv: pVenue[cvKey],
-              nVenue: pVenue.Partite,
+              nVenue: hVenue.n,
             });
           }
         }
