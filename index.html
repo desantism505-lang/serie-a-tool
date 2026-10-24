@@ -997,6 +997,16 @@ function factsRankBadgeV2(rank, eligible){
   if (!m) return '';
   return `<span title="${m.label}" aria-label="${m.label}" style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:18px;padding:0 5px;border:1px solid ${m.color};border-radius:999px;color:${m.color};font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;line-height:1;">${m.text}</span>`;
 }
+// Badge Over/Under: stile outline coerente con ★/▼, ma senza falsi rank.
+function goalLineDirectionBadge(direction){
+  if (direction !== 'over' && direction !== 'under') return '';
+  const up = direction === 'over';
+  const color = up ? '#39CBB5' : '#BB9AFF';
+  const chevrons = up ? '<path d="m2 7 4-4 4 4M2 12l4-4 4 4"/>' : '<path d="m2 3 4 4 4-4M2 8l4 4 4-4"/>';
+  const svg = `<svg viewBox="0 0 12 15" width="11" height="13" aria-hidden="true" focusable="false" style="display:block;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;">${chevrons}</svg>`;
+  const title = up ? 'Linea Over' : 'Linea Under';
+  return `<span title="${title}" aria-label="${title}" style="display:inline-flex;align-items:center;justify-content:center;gap:2px;min-width:28px;height:18px;padding:0 5px;border:1px solid ${color};border-radius:999px;color:${color};font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;line-height:1;">${svg}${up ? 'O' : 'U'}</span>`;
+}
 function factBadge(rank, eligible, iconHtml){
   return `<span style="display:inline-flex;align-items:center;gap:5px;min-width:50px;">${factsRankBadgeV2(rank, eligible)}<span style="display:inline-flex;color:var(--text-2);">${iconHtml}</span></span>`;
 }
@@ -1723,6 +1733,7 @@ function goalLineFactsForSide(teamId, venue, venueLabel){
     tag: 'Linea gol',
     icon: metricIcon('linea gol'),
     text: `${f.txt.charAt(0).toUpperCase()}${f.txt.slice(1)}`,
+    lineDirection: /^over\b/i.test(f.txt) ? 'over' : /^under\b/i.test(f.txt) ? 'under' : null,
     rank: 1, eligible: 1,
   }));
 }
@@ -1763,7 +1774,7 @@ function renderNotableFactsPanel(match){
       // tag Squadra, che il badge lo mostra già di default).
       const isNonRank = f.tag === 'Linea gol';
       const badge = isNonRank
-        ? `<span style="display:inline-flex;align-items:center;gap:5px;min-width:50px;color:var(--text-2);">${f.icon || ''}</span>`
+        ? `<span style="display:inline-flex;align-items:center;gap:5px;min-width:50px;">${goalLineDirectionBadge(f.lineDirection)}<span style="display:inline-flex;color:var(--text-2);">${f.icon || ''}</span></span>`
         : factBadge(f.rank, f.eligible, f.icon || '');
       const tip = isNonRank ? '' : ` title="Posizione ${f.rank}° su ${f.eligible}"`;
       return `<li style="margin-bottom:5px;"><span${tip}>${badge}</span> <span class="tag-inline">[${f.tag}]</span> ${f.text}</li>`;
