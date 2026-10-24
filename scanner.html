@@ -375,6 +375,8 @@
     transition:opacity .12s ease;z-index:60;pointer-events:none;
   }
   .cv-wrap:hover .cv-bubble{opacity:1;visibility:visible;}
+  /* applicata via JS quando non c'è spazio sopra (es. prima riga della tabella) */
+  .cv-bubble.cv-below{bottom:auto;top:calc(100% + 7px);}
 
   .match-title{
     font-size:20px;
@@ -1305,6 +1307,19 @@ function cvBadge(r){
   if (!tip) return pill;
   return `<span class="cv-wrap">${pill}<span class="cv-bubble">${tip}</span></span>`;
 }
+// Se la riga è troppo vicina al bordo superiore della finestra, la tooltip
+// sopra uscirebbe dallo schermo (tagliata) — es. la prima riga della
+// tabella. In quel caso la ribalta sotto. Delegation su tutta la pagina:
+// funziona per entrambe le tabelle (Scanner e Preferiti) senza doverla
+// riagganciare a ogni renderScan()/renderScreener().
+document.addEventListener('mouseover', (e) => {
+  const wrap = e.target.closest && e.target.closest('.cv-wrap');
+  if (!wrap) return;
+  const bubble = wrap.querySelector('.cv-bubble');
+  if (!bubble) return;
+  const spaceAbove = wrap.getBoundingClientRect().top;
+  bubble.classList.toggle('cv-below', spaceAbove < 110);
+});
 const MARKET_LABELS = {
   TIRI: 'Tiri', TIRI_IN_PORTA: 'Tiri in porta', FALLI_COMMESSI: 'Falli commessi',
   FALLI_SUBITI: 'Falli subiti', CARTELLINO: 'Cartellino',
