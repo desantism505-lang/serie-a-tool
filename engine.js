@@ -1864,9 +1864,9 @@ function narrDiscoverThemes(d) {
   ];
   for(const z of roles){
     if(!z.weak||z.ok!==true||z.ratio==null||z.ratio<1.15) continue;
-    const role=NARR_ROLE_BARE_ART[z.weak.Posizione_Analitica]||z.weak.Posizione_Analitica;
+    const role=NARR_ROLE_A[z.weak.Posizione_Analitica]||('al ruolo '+z.weak.Posizione_Analitica);
     add('role'+z.team,'matchup','Un ruolo avversario da monitorare',
-      narrTeam(z.team,true)+' mostra un valore del '+Math.round((z.ratio-1)*100)+'% sopra la media di lega per '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi a ')+role+'. '+narrTeam(z.opp,true)+' dispone di giocatori di quel ruolo.',
+      narrTeam(z.team,true)+' mostra un valore del '+Math.round((z.ratio-1)*100)+'% sopra la media di lega per '+(z.metric==='Falli'?'falli commessi ':'tiri concessi ')+role+'. '+narrTeam(z.opp,true)+' dispone di giocatori di quel ruolo.',
       'È una concessione per ruolo, non una previsione individuale: verificare titolarità, minuti e linea.',
       (z.ratio-1)/.65,z.n);
   }
