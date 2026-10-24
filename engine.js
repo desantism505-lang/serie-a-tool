@@ -1903,15 +1903,22 @@ function narrDiscoverThemes(d) {
 }
 function narrDynamicPreview(d,temi){
   if(!temi.length)return [
-    'Nel confronto tra '+narrTeam(d.homeName)+' e '+narrTeam(d.awayName)+' non emergono ancora incroci statistici abbastanza distintivi nei dati disponibili per il venue della partita.',
-    'Meglio non forzare una storia: i matchup individuali e il possibile scenario dipendono anche da formazioni e minuti.'
+    'Tra '+narrTeam(d.homeName)+' e '+narrTeam(d.awayName)+' il campione disponibile non evidenzia oggi un incrocio dominante: sarebbe forzato indicare un tema principale.',
+    'Le formazioni e i matchup individuali potranno cambiare la lettura, ma al momento non emerge una base numerica abbastanza specifica.'
   ];
-  const parts=temi.slice(0,2).map(t=>t.evidence+' '+t.limit);
-  const n=Math.min(...temi.map(t=>t.n));
-  parts.push(n<5?
-    'La lettura è esplorativa: uno dei temi utilizza un campione di appena '+n+' partite. Non è una probabilità di vincita né una quota equa.':
-    'Sono tendenze storiche, non una previsione certa. Formazioni, minuti e sviluppo della gara possono cambiare lo scenario.');
-  return parts;
+  const principal=temi[0];
+  const second=temi.length>1?temi[1]:null;
+  const opening=principal.evidence;
+  const paragraphs=[opening];
+  if(second) paragraphs.push('C’è però un secondo elemento che completa il quadro: '+second.evidence);
+  if(principal.domain==='matchup') {
+    paragraphs.push('Il dato riguarda una concessione del reparto avversario, non un evento certo: la verifica decisiva passa da ruolo reale, titolarità e minuti del giocatore citato.');
+  } else if(principal.domain==='tiri'||principal.domain==='precisione') {
+    paragraphs.push('Per trasformare questa differenza di produzione in una valutazione di mercato serve incrociarla con i dati concessi dall’avversaria e con i giocatori effettivamente impiegati.');
+  } else {
+    paragraphs.push('Il rendimento osservato può orientare lo scenario ma non sostituisce il confronto su tiri, concessioni e singoli ruoli.');
+  }
+  return paragraphs;
 }
 
 function narrPreview(d) {
