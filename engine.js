@@ -1901,7 +1901,7 @@ function narrDynamicPreview(d,temi){
   const first=temi[0],second=temi.find(x=>x.domain!==first.domain);
   const paragraphs=[];
   if(first.domain==='matchup'){
-    paragraphs.push('La chiave statistica di '+d.homeName+'–'+d.awayName+' è un incrocio tra ruolo offensivo e difesa avversaria. '+first.evidence+' Se chi occupa quel ruolo viene impiegato con continuità, quella zona del campo potrebbe generare più situazioni di tiro o di contatto rispetto al profilo medio del campionato.');
+    paragraphs.push('La chiave statistica di '+d.homeName+'–'+d.awayName+' è un incrocio tra ruolo offensivo e difesa avversaria. '+first.evidence+' Se chi occupa quel ruolo viene impiegato con continuità, quel reparto potrebbe trovare più occasioni per la propria statistica specifica, pur senza rendere automatico il rendimento dei singoli.');
   } else if(first.domain==='tiri'){
     paragraphs.push('Il primo squilibrio della sfida riguarda la frequenza delle conclusioni. '+first.evidence+' Questo suggerisce una diversa propensione a cercare il tiro, non necessariamente un maggiore numero di occasioni pulite: sarà la risposta difensiva dell’avversaria a determinare se il divario si ripeterà.');
   } else if(first.domain==='precisione'){
