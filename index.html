@@ -2240,18 +2240,39 @@ function narrativeBlock(match) {
   // (narrPreview/narrChiaveHtml), per avere un'unica fonte di lessico corretto
   // (articoli di squadra, soglie, framing condizionale al match) invece di
   // ricostruirlo qui con regole duplicate.
-  const previewText = N.preview && N.preview.length ? N.preview.join(' ') : '';
   const previewLead = N.temi && N.temi.length ? esc(N.temi[0].title) : null;
-  // I dettagli numerici restano nella Preview; qui segnaliamo temi aggiuntivi
-  // e limiti del campione senza ripetere le stesse statistiche.
-  const temiHtml = N.temi && N.temi.length
-    ? '<div class="narr-names-grid">' + N.temi.map((t, idx) =>
-        '<div class="narr-theme-item"><p><b>' + esc(t.title) + '</b> <span class="narr-hl">N=' + t.n + '</span></p>' +
-        '<p>' + t.evidence + '</p>' +
-        '<p class="subtle"><b>Lettura:</b> ' + t.limit + '</p></div>'
-      ).join('') + '</div>'
-    : '<p>Nei dati attuali non emergono incroci abbastanza distintivi: meglio evitare una lettura forzata della partita.</p>';
-  const chiaveHtml = N.chiaveHtml || '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
+  const previewHtml = N.preview && N.preview.length
+    ? N.preview.map(part => '<p>' + part + '</p>').join('')
+    : '<p>Dati insufficienti per una lettura dettagliata.</p>';
+  // Approfondimenti esclusivi: non ripetere il mismatch principale già spiegato nella Preview.
+  const mainId = N.temi && N.temi[0] ? N.temi[0].id : null;
+  const matchupRows = [];
+  const matchupSides = [
+    {team:homeName, opponent:awayName, weak:N.chiaveLettura.homeWeak, ratio:N.chiaveLettura.homeWeakRatio,
+     metric:N.chiaveLettura.homeWeakMetric, present:N.chiaveLettura.homeWeakOppHasRole,
+     candidates:N.chiaveLettura.awayExploiters, skipId:'role'+homeName, venue:'in casa'},
+    {team:awayName, opponent:homeName, weak:N.chiaveLettura.awayWeak, ratio:N.chiaveLettura.awayWeakRatio,
+     metric:N.chiaveLettura.awayWeakMetric, present:N.chiaveLettura.awayWeakOppHasRole,
+     candidates:N.chiaveLettura.homeExploiters, skipId:'role'+awayName, venue:'in trasferta'}
+  ];
+  for (const side of matchupSides) {
+    if (!side.weak || side.skipId === mainId || side.ratio == null || side.ratio < 1.15 || !side.present) continue;
+    const role = esc(side.weak.Posizione_Analitica);
+    const field = side.metric === 'Falli' ? 'FalliSubiti_Ruolo_90' : 'Tiri_Concessi_90';
+    const value = side.weak[field];
+    if (value == null) continue;
+    const unit = side.metric === 'Falli' ? 'falli commessi contro' : 'tiri concessi a';
+    const player = side.metric === 'Tiri' && side.candidates && side.candidates.length ? side.candidates[0] : null;
+    const playerText = player && player.mu != null
+      ? ' Possibile interprete: <b>' + esc(player.nome) + '</b>, ' + fmt1(player.mu) + ' tiri stimati dal modello.'
+      : '';
+    matchupRows.push('<p><b>' + esc(side.opponent) + ' contro ' + esc(side.team) + ' (' + side.venue + ')</b>: ' +
+      fmt1(value) + ' ' + unit + ' ' + role.toLowerCase() + ' per gara, +' + Math.round((side.ratio-1)*100) +
+      '% sulla media del medesimo ruolo/venue.' + playerText + '</p>');
+  }
+  const matchupHtml = matchupRows.length
+    ? matchupRows.join('')
+    : '<p>Nessun altro mismatch di ruolo sufficientemente distinto dalla tesi principale. Gli approfondimenti individuali restano nella sezione successiva.</p>';
 
   // --- Nomi che contano: ogni giocatore è citato sulla metrica dove è davvero sopra il proprio
   // ruolo (tiri, tiri in porta, falli commessi o falli subiti), con soglia proporzionale al suo
@@ -2341,15 +2362,11 @@ function narrativeBlock(match) {
           <div class="narr-sec">
             <div class="narr-sec-title">Preview</div>
             ${previewLead ? `<p class="narr-lead">${previewLead}</p>` : ''}
-            <p>${previewText}</p>
+            ${previewHtml}
           </div>
           <div class="narr-sec">
-            <div class="narr-sec-title">Temi e anomalie da monitorare</div>
-            ${temiHtml}
-          </div>
-          <div class="narr-sec">
-            <div class="narr-sec-title">Matchup e chiavi di lettura</div>
-            ${chiaveHtml}
+            <div class="narr-sec-title">Altri matchup di ruolo</div>
+            ${matchupHtml}
           </div>
           <div class="narr-sec">
             <div class="narr-sec-title">Nomi che contano</div>
