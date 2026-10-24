@@ -357,6 +357,11 @@
   .rowdel{
     background:none;border:none;color:var(--bad);cursor:pointer;font-size:14px;
   }
+  .excl-mark{
+    background:none;border:none;cursor:pointer;font-size:9px;line-height:1;
+    color:var(--muted);vertical-align:super;padding:0 1px;margin-left:1px;opacity:.6;
+  }
+  .excl-mark:hover{color:var(--bad);opacity:1;}
 
   .match-title{
     font-size:20px;
@@ -1775,7 +1780,7 @@ function renderScan(){
     const ciTxt = (lo != null) ? `<span class="subtle">±${Math.round((hi - lo) / 2 * 100)}pp</span>` : '';
     const fav = isFavorited(r);
     return `<tr>
-    <td class="metricname">${r.player.Nome_completo} <button class="rowdel" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')" style="color:var(--bad);font-size:13px;vertical-align:1px;">🚫</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
+    <td class="metricname">${r.player.Nome_completo}<button class="excl-mark" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')">✕</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
     <td class="num">${lineupBadge(r)}</td>
     <td>${MARKET_LABELS[r.mercato]}</td>
