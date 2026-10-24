@@ -1743,15 +1743,15 @@ const NARR_ROLE_PLURAL = {
 // femminile ("le punte centrali"), gli altri sono maschili; servono le tre forme perché "a"/"su"
 // si contraggono con l'articolo ("ai trequartisti", non "a i trequartisti").
 const NARR_ROLE_BARE_ART = {
-  'Punta centrale': 'le punte centrali', 'Trequartista': 'i trequartisti', 'Esterno/Quinto': 'gli esterni',
+  'Punta centrale': 'le punte centrali', 'Trequartista': 'i trequartisti', 'Esterno/Quinto': 'gli Esterni/Quinti',
   'Centrocampista centrale': 'i centrocampisti centrali', 'Terzino': 'i terzini', 'Centrale difensivo': 'i centrali difensivi',
 };
 const NARR_ROLE_A = {
-  'Punta centrale': 'alle punte centrali', 'Trequartista': 'ai trequartisti', 'Esterno/Quinto': 'agli esterni',
+  'Punta centrale': 'alle punte centrali', 'Trequartista': 'ai trequartisti', 'Esterno/Quinto': 'agli Esterni/Quinti',
   'Centrocampista centrale': 'ai centrocampisti centrali', 'Terzino': 'ai terzini', 'Centrale difensivo': 'ai centrali difensivi',
 };
 const NARR_ROLE_SU = {
-  'Punta centrale': 'sulle punte centrali', 'Trequartista': 'sui trequartisti', 'Esterno/Quinto': 'sugli esterni',
+  'Punta centrale': 'sulle punte centrali', 'Trequartista': 'sui trequartisti', 'Esterno/Quinto': 'sugli Esterni/Quinti',
   'Centrocampista centrale': 'sui centrocampisti centrali', 'Terzino': 'sui terzini', 'Centrale difensivo': 'sui centrali difensivi',
 };
 
@@ -1861,16 +1861,16 @@ function narrDiscoverThemes(d) {
     const value=z.weak[field];
     const player=z.metric==='Tiri'&&z.players&&z.players.length?z.players[0]:null;
     const playerNote=player&&player.mu!=null
-      ? ' Tra i possibili interpreti c’è '+player.nome+' ('+f(player.mu)+' tiri stimati dal modello, '+player.min+' minuti stagionali).'
+      ? ' Per '+z.opp+' il candidato è '+player.nome+' ('+f(player.mu)+' tiri stimati dal modello sull’intero storico, '+player.min+' minuti stagionali).'
       : '';
     const title=z.metric==='Falli'
       ? z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' e falli contro '+z.team
       : z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' contro la difesa '+z.team;
     add('role'+z.team,'matchup',title,
-      narrTeam(z.team,true)+' '+(z.team===d.homeName?'in casa':'in trasferta')+' registra '+f(value)+' '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi ')+role+' a partita: '+Math.round((z.ratio-1)*100)+'% sopra la media di riferimento dello stesso ruolo/venue.'+playerNote,
+      'Squadra che concede: '+z.team+' '+(z.team===d.homeName?'in casa':'in trasferta')+'. Squadra che può beneficiare: '+z.opp+'. '+narrTeam(z.team,true)+' registra '+f(value)+' '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi ')+role+' a partita nel proprio venue: +'+Math.round((z.ratio-1)*100)+'% sulla media di riferimento per lo stesso ruolo/venue.'+playerNote,
       player ? 'È un incrocio da approfondire sul mercato tiri di '+player.nome+', verificando formazione, minuti e prezzo; non è una giocata automatica.'
         : 'Il matchup è riferito al ruolo, non identifica da solo il giocatore su cui puntare. Verificare chi parte titolare e le rispettive linee.',
-      (z.ratio-1)/.65,z.n);
+      Math.min(1,(z.ratio-1)/.65)*(player&&player.mu!=null?Math.min(1.25,Math.max(.25,player.mu/1.4)):0.35),z.n);
   }
   const hc=v.homeCornerCart,ac=v.awayCornerCart;
   if(hc&&ac&&hc.corner!=null&&ac.corner!=null&&v.homeAtHome&&v.awayAtAway&&v.homeAtHome.n>=2&&v.awayAtAway.n>=2){
