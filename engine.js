@@ -1850,15 +1850,6 @@ function narrDiscoverThemes(d) {
       'Il risultato storico è influenzato anche dal calendario degli avversari: non dimostra superiorità nel gioco.',
       Math.abs(ph-pa)/1.5,Math.min(v.homeAtHome.n,v.awayAtAway.n));
   }
-  const fh=v.homeRecentForm,fa=v.awayRecentForm;
-  if(fh&&fa&&fh.n>=4&&fa.n>=4&&Math.abs(fh.ppg-fa.ppg)>=.8){
-    const team=fh.ppg>fa.ppg?d.homeName:d.awayName;
-    const leader=fh.ppg>fa.ppg?fh:fa,other=fh.ppg>fa.ppg?fa:fh;
-    add('forma','forma','Ultime cinque gare: '+team+' meglio nei risultati',
-      narrTeam(team,true)+' ha raccolto '+leader.w+'V, '+leader.d+'N e '+leader.l+'P nelle ultime '+leader.n+' gare ('+f(leader.ppg)+' punti/partita); l’avversaria '+other.w+'V, '+other.d+'N e '+other.l+'P ('+f(other.ppg)+' punti/partita).',
-      'Lo scarto è '+f(Math.abs(fh.ppg-fa.ppg))+' punti/partita, ma include gare sia in casa sia fuori: valutare separatamente il rendimento nel venue della sfida.',
-      Math.abs(fh.ppg-fa.ppg)/1.6,Math.min(fh.n,fa.n));
-  }
   const roles=[
     {team:d.homeName,opp:d.awayName,weak:c.homeWeak,ratio:c.homeWeakRatio,metric:c.homeWeakMetric,ok:c.homeWeakOppHasRole,n:v.homeAtHome?v.homeAtHome.n:0,players:c.awayExploiters},
     {team:d.awayName,opp:d.homeName,weak:c.awayWeak,ratio:c.awayWeakRatio,metric:c.awayWeakMetric,ok:c.awayWeakOppHasRole,n:v.awayAtAway?v.awayAtAway.n:0,players:c.homeExploiters}
@@ -1902,22 +1893,39 @@ function narrDiscoverThemes(d) {
   return selected;
 }
 function narrDynamicPreview(d,temi){
+  const home=narrTeam(d.homeName),away=narrTeam(d.awayName);
   if(!temi.length)return [
-    'Tra '+narrTeam(d.homeName)+' e '+narrTeam(d.awayName)+' il campione disponibile non evidenzia oggi un incrocio dominante: sarebbe forzato indicare un tema principale.',
-    'Le formazioni e i matchup individuali potranno cambiare la lettura, ma al momento non emerge una base numerica abbastanza specifica.'
+    'Il confronto tra '+home+' in casa e '+away+' in trasferta non restituisce un vantaggio statistico dominante con i dati attualmente disponibili. Non emerge un tema abbastanza solido per costruire una lettura univoca della gara.',
+    'Per il momento la valutazione resta aperta: saranno decisive le formazioni e le concessioni effettive per ruolo. Non utilizziamo dati delle partite nel venue opposto per riempire la Preview.'
   ];
-  const principal=temi[0];
-  const second=temi.length>1?temi[1]:null;
-  const opening=principal.evidence;
-  const paragraphs=[opening];
-  if(second) paragraphs.push('Un altro dato da mettere in relazione con questo matchup: '+second.evidence);
-  if(principal.domain==='matchup') {
-    paragraphs.push('Il dato riguarda una concessione del reparto avversario, non un evento certo: la verifica decisiva passa da ruolo reale, titolarità e minuti del giocatore citato.');
-  } else if(principal.domain==='tiri'||principal.domain==='precisione') {
-    paragraphs.push('Per trasformare questa differenza di produzione in una valutazione di mercato serve incrociarla con i dati concessi dall’avversaria e con i giocatori effettivamente impiegati.');
+  const first=temi[0],second=temi.find(x=>x.domain!==first.domain);
+  const paragraphs=[];
+  if(first.domain==='matchup'){
+    paragraphs.push('La chiave statistica di '+d.homeName+'–'+d.awayName+' è un incrocio tra ruolo offensivo e difesa avversaria. '+first.evidence+' Se chi occupa quel ruolo viene impiegato con continuità, quella zona del campo potrebbe generare più situazioni di tiro o di contatto rispetto al profilo medio del campionato.');
+  } else if(first.domain==='tiri'){
+    paragraphs.push('Il primo squilibrio della sfida riguarda la frequenza delle conclusioni. '+first.evidence+' Questo suggerisce una diversa propensione a cercare il tiro, non necessariamente un maggiore numero di occasioni pulite: sarà la risposta difensiva dell’avversaria a determinare se il divario si ripeterà.');
+  } else if(first.domain==='precisione'){
+    paragraphs.push('La lettura della gara parte da come le due squadre trasformano i tentativi in tiri nello specchio. '+first.evidence+' La differenza è interessante perché il semplice totale dei tiri potrebbe raccontare una partita diversa rispetto alle conclusioni che impegnano il portiere.');
+  } else if(first.domain==='rendimento'){
+    paragraphs.push('Il confronto tra il rendimento casalingo di '+home+' e quello esterno di '+away+' propone una prima gerarchia. '+first.evidence+' I risultati, però, vanno letti insieme alla produzione offensiva e a ciò che ciascuna squadra concede: da soli non descrivono il controllo della gara.');
   } else {
-    paragraphs.push('Il rendimento osservato può orientare lo scenario ma non sostituisce il confronto su tiri, concessioni e singoli ruoli.');
+    paragraphs.push('Un dato distingue questa partita dalle altre: '+first.evidence+' '+first.limit);
   }
+  if(second){
+    const conjunction=second.domain==='matchup'
+      ? 'Sul piano dei singoli ruoli emerge anche una seconda possibile direzione della gara. '
+      : second.domain==='rendimento' ? 'Il quadro dei risultati nel venue aggiunge un elemento diverso. '
+      : second.domain==='tiri' ? 'Guardando invece al volume offensivo, emerge un secondo contrasto. '
+      : second.domain==='precisione' ? 'C’è però una distinzione importante tra volume di gioco e precisione delle conclusioni. '
+      : 'Un secondo segnale merita attenzione. ';
+    paragraphs.push(conjunction+second.evidence);
+  }
+  const n=Math.min(...temi.slice(0,second?2:1).map(t=>t.n));
+  let counter='Il punto che potrebbe smentire questa lettura è la scarsa profondità del campione ('+n+' gare per almeno uno degli indicatori).';
+  if(first.domain==='matchup') counter+=' Inoltre, senza la conferma del ruolo e dei minuti del giocatore segnalato, il mismatch resta soltanto potenziale.';
+  else if(first.domain==='tiri'||first.domain==='precisione') counter+=' Il dato sui tiri prodotti non incorpora automaticamente quelli concessi dall’avversaria.';
+  else counter+=' La forza degli avversari già incontrati può aver influenzato il rendimento.';
+  paragraphs.push(counter);
   return paragraphs;
 }
 
