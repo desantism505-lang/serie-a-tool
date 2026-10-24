@@ -926,7 +926,7 @@ function metricIcon(label){
   if (l.includes('tiri')) {
     return svg('<circle cx="12" cy="12" r="8.5"/><path d="M9.5 8.5 12 7l2.5 1.5-.9 3h-3.2zM7 13l3.4-1.5 2.4 2.8-2.2 3M17 13l-3.4-1.5-2.4 2.8 2.2 3"/>');
   }
-  if (l.includes('falli')) {
+  if (l.includes('arbitro') || l.includes('falli')) {
     return svg('<circle cx="8.5" cy="14.5" r="4.5"/><path d="M12.5 12.5 21 9v4l-6.5 2.2"/><path d="M8.5 10V6M5.5 11 4 9.5"/>'); // fischietto
   }
   if (l.includes('cartellin')) {
@@ -934,6 +934,11 @@ function metricIcon(label){
   }
   if (l.includes('corner')) {
     return svg('<path d="M7 20V4"/><path d="M7 5h9l-3 3 3 3H7"/><path d="M4.5 20h6"/>');
+  }
+  if (l.includes('gol')) {
+    // Pallone da calcio stilizzato: cerchio + pentagono centrale con 3 raggi
+    // verso il bordo, nello stesso stile a tratto delle altre icone.
+    return svg('<circle cx="12" cy="12" r="9"/><path d="M12 7.3 15.4 9.8 14.1 13.9H9.9L8.6 9.8 12 7.3z"/><path d="M12 7.3V4.3M15.4 9.8l2.8-1M8.6 9.8l-2.8-1M9.9 13.9 8.2 17.8M14.1 13.9l1.7 3.9"/>');
   }
   // Serie / trend
   return svg('<path d="M4 17l5-5 4 3 7-8"/><path d="M16.5 7H20v3.5"/><circle cx="4" cy="17" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="13" cy="15" r="1"/>');
@@ -989,6 +994,15 @@ function factsTeamMetricTextV2(label, top, venueLabel){
     'corner concessi': top
       ? `Concede più corner di ogni altra squadra della Serie A ${venueLabel}`
       : `Concede meno corner di ogni altra squadra della Serie A ${venueLabel}`,
+    'gol fatti': top
+      ? `Segna più gol di ogni altra squadra della Serie A ${venueLabel}`
+      : `Segna meno gol di ogni altra squadra della Serie A ${venueLabel}`,
+    'gol subiti': top
+      ? `Subisce più gol di ogni altra squadra della Serie A ${venueLabel}`
+      : `Subisce meno gol di ogni altra squadra della Serie A ${venueLabel}`,
+    'gol totali di partita': top
+      ? `Le sue partite producono più gol complessivi di ogni altra squadra della Serie A ${venueLabel}`
+      : `Le sue partite producono meno gol complessivi di ogni altra squadra della Serie A ${venueLabel}`,
   };
   return map[label] || `${top ? 'Valore più alto' : 'Valore più basso'} della Serie A per ${label} ${venueLabel}`;
 }
@@ -1065,6 +1079,33 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
         tag: 'Squadra',
         icon: metricIcon(label),
         text: `${factsTeamMetricTextV2(label, top, venueLabel)} — ${rank}° su ${eligible} squadre idonee`,
+        rank, eligible,
+      });
+    }
+  }
+
+  // Media gol vs lega — richiesto da Marco, 24/10: stesso identico
+  // meccanismo di rank comparativo già usato sopra per tiri/falli/corner
+  // (rank tra le 20 squadre nello stesso venue, top3/under3, min 6
+  // eleggibili), applicato a gol fatti/subiti/totale-partita. Diverso dalla
+  // "Linea gol" (quella è "sempre sopra/sotto" per QUESTA squadra, senza
+  // confronto con le altre): qui invece si dice se la sua MEDIA è più alta
+  // o più bassa di quella di ogni altra squadra della Serie A.
+  const goalMetrics = [['gol fatti', 'fatti'], ['gol subiti', 'subiti'], ['gol totali di partita', 'totale']];
+  for (const [label, col] of goalMetrics) {
+    const list = teamsAll.map(t => {
+      const matches = teamGoalMatches(DB.calendar, t, venue);
+      const vals = matches.map(mm => mm[col]);
+      return { key: t, value: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null, partite: matches.length };
+    });
+    const { rank, eligible } = rankProvisional(list, minSample)[teamId];
+    const me = list.find(x => x.key === teamId);
+    if (rank !== 'N/D' && eligible >= 6 && me.value != null && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
+      const top = isTopEnd(rank, eligible);
+      facts.push({
+        tag: 'Squadra',
+        icon: metricIcon('gol'),
+        text: `${factsTeamMetricTextV2(label, top, venueLabel)} (media ${me.value.toFixed(2)}) — ${rank}° su ${eligible} squadre idonee`,
         rank, eligible,
       });
     }
@@ -1585,6 +1626,20 @@ function computeSignalStrength(teamId, teamKey, venue, proiezione, proiezioneOpp
 // "comuni" (Falli_Totali_Medi, Cartellini_Totali_Medi, Gol_Medi) → entrambi
 // i lati, perché non riguardano una squadra in particolare ma l'arbitro.
 // ---------------------------------------------------------------------------
+// Testo direzionale per i fatti arbitro — richiesto da Marco, 24/10: come
+// per le squadre (factsTeamMetricTextV2), serve dire se la sua media è PIÙ
+// ALTA o PIÙ BASSA rispetto agli altri arbitri, non solo "ha una media di X".
+function arbitroFactTextV2(e, nomeKey){
+  const dir = e.top ? 'più' : 'meno';
+  const verbo = {
+    Falli_Totali_Medi: `È tra gli arbitri che fischiano ${dir} falli a partita della stagione`,
+    Falli_Casa_Medi: `È tra gli arbitri che fischiano ${dir} falli alla squadra di casa della stagione`,
+    Falli_Trasferta_Medi: `È tra gli arbitri che fischiano ${dir} falli alla squadra in trasferta della stagione`,
+    Cartellini_Totali_Medi: `È tra gli arbitri che assegnano ${dir} cartellini a partita della stagione`,
+    Gol_Medi: `Le partite che dirige hanno ${dir === 'più' ? 'in media più' : 'in media meno'} gol complessivi rispetto alla media degli altri arbitri della stagione`,
+  }[e.col] || `È tra gli arbitri con ${dir} ${e.label} della stagione`;
+  return `L'arbitro ${nomeKey}: ${verbo} (media ${e.value.toFixed(2)}, ${e.n} partite dirette) — ${e.rank}° su ${e.eligible} arbitri idonei`;
+}
 function arbitroFactsForSide(match, side, venueLabel){
   const arbitriEff = arbitriEffettivi();
   const riga = arbitriEff.find(a => a.Match_ID === match.Match_ID && isArbitroNomeValido(a.Arbitro));
@@ -1598,8 +1653,8 @@ function arbitroFactsForSide(match, side, venueLabel){
     .filter(e => e.lato === 'comune' || e.lato === latoWanted)
     .map(e => ({
       tag: 'Arbitro',
-      icon: metricIcon(e.metricKind),
-      text: `L'arbitro ${nomeKey} (${e.n} partite dirette in stagione) ha una media di ${e.value.toFixed(2)} ${e.label} — ${e.rank}° su ${e.eligible} arbitri idonei`,
+      icon: metricIcon('arbitro'),
+      text: arbitroFactTextV2(e, nomeKey),
       rank: e.rank, eligible: e.eligible,
     }));
 }

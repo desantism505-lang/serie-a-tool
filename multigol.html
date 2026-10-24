@@ -354,6 +354,21 @@ function bttsTable(rows){
 // usate in index.html (computeGoalLineFacts, rankArbitriFacts) così i numeri
 // coincidono esattamente tra le due pagine.
 // ---------------------------------------------------------------------------
+// Testo direzionale per i fatti arbitro, stesso linguaggio di index.html
+// (arbitroFactTextV2) — duplicato qui perché multigol.html non carica le
+// funzioni di index.html, solo engine.js.
+function arbitroFactTextMultigol(e, nomeKey){
+  const dir = e.top ? 'più' : 'meno';
+  const verbo = {
+    Falli_Totali_Medi: `fischia ${dir} falli a partita della stagione`,
+    Falli_Casa_Medi: `fischia ${dir} falli alla squadra di casa della stagione`,
+    Falli_Trasferta_Medi: `fischia ${dir} falli alla squadra in trasferta della stagione`,
+    Cartellini_Totali_Medi: `assegna ${dir} cartellini a partita della stagione`,
+    Gol_Medi: `le sue partite hanno in media ${dir === 'più' ? 'più' : 'meno'} gol complessivi rispetto agli altri arbitri`,
+  }[e.col] || `ha ${dir} ${e.label} della stagione`;
+  return `${nomeKey} ${verbo} — media <strong>${e.value.toFixed(2)}</strong> (${e.n} partite dirette) — ${e.rank}° su ${e.eligible} arbitri idonei`;
+}
+
 function factsSalientiMultigol(m){
   if (typeof computeGoalLineFacts !== 'function') return '';
   const hFacts = computeGoalLineFacts(DB.calendar, m.Home_ID, 'HOME', 'in casa');
@@ -372,7 +387,7 @@ function factsSalientiMultigol(m){
         arbHtml = `<div class="card">
           <div class="card-title">Arbitro: ${nomeKey}</div>
           <ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--text-2);">
-            ${[...golEntries, ...altreEntries].map(e => `<li style="margin-bottom:4px;">media <strong>${e.value.toFixed(2)}</strong> ${e.label} — ${e.rank}° su ${e.eligible} arbitri idonei (${e.n} partite dirette)</li>`).join('')}
+            ${[...golEntries, ...altreEntries].map(e => `<li style="margin-bottom:4px;">${arbitroFactTextMultigol(e, nomeKey)}</li>`).join('')}
           </ul>
         </div>`;
       }
