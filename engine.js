@@ -1729,7 +1729,8 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
     sequenze: { home: seqHome, away: seqAway },
     disciplina: { home: foulHome, away: foulAway },
   };
-  result.preview = narrPreview(result);
+  result.temi = narrDiscoverThemes(result);
+  result.preview = narrDynamicPreview(result, result.temi);
   result.chiaveHtml = narrChiaveHtml(result);
   return result;
 }
@@ -1811,6 +1812,97 @@ function narrAnalisiVera(d) {
 // --- PREVIEW: verdetto sul reale favorito stasera (confronto diretto dei venue, non ciascuno
 // contro la propria media stagionale) + eventuale sorpresa classifica/rendimento. Niente debolezze
 // di ruolo qui — quelle sono materia della Chiave di lettura, per non ripetersi tra le due sezioni.
+
+/* Preview 2.0: scoperta temi, ordinamento per rilievo e campione.
+ * I punteggi sono priorità editoriali, NON probabilità di una scommessa. */
+function narrDiscoverThemes(d) {
+  const v=d.venue, c=d.chiaveLettura, found=[];
+  const f=x=>Number(x).toFixed(1).replace('.', ',');
+  const ppg=r=>r&&r.n?(r.w*3+r.d)/r.n:null;
+  const add=(id,domain,title,evidence,limit,signal,n)=>{
+    if(n<2 || !Number.isFinite(signal)) return;
+    const score=Math.round(55*Math.min(1,signal)+20+15*Math.min(1,n/6)+10);
+    found.push({id,domain,title,evidence,limit,n,score});
+  };
+  const h=v.homeShotProfile, a=v.awayShotProfile;
+  if(h&&a&&h.n>=3&&a.n>=3&&h.volume!=null&&a.volume!=null){
+    const dv=h.volume-a.volume;
+    if(Math.abs(dv)>=2.5){
+      const team=dv>0?d.homeName:d.awayName;
+      add('volume','tiri','Produzione offensiva sbilanciata',
+        narrTeam(team,true)+' produce '+f(Math.max(h.volume,a.volume))+' tiri a gara nel venue della sfida contro '+f(Math.min(h.volume,a.volume))+' dell’altra squadra: '+f(Math.abs(dv))+' conclusioni di scarto.',
+        'Si confrontano i volumi prodotti, non le concessioni difensive: non è una previsione dei tiri di questa gara.',
+        Math.abs(dv)/6,Math.min(h.n,a.n));
+    }
+    if(h.qualita!=null&&a.qualita!=null&&Math.abs(h.qualita-a.qualita)>=.07){
+      const team=h.qualita>a.qualita?d.homeName:d.awayName;
+      add('precisione','precisione','Precisione al tiro da non confondere con il volume',
+        narrTeam(team,true)+' manda in porta il '+Math.round(Math.max(h.qualita,a.qualita)*100)+'% dei propri tiri, contro il '+Math.round(Math.min(h.qualita,a.qualita)*100)+'% dell’avversaria nei rispettivi venue.',
+        'La percentuale di tiri nello specchio non è la qualità delle occasioni né la probabilità di segnare.',
+        Math.abs(h.qualita-a.qualita)/.18,Math.min(h.n,a.n));
+    }
+  }
+  const ph=ppg(v.homeAtHome),pa=ppg(v.awayAtAway);
+  if(ph!=null&&pa!=null&&v.homeAtHome.n>=2&&v.awayAtAway.n>=2&&Math.abs(ph-pa)>=.65){
+    const team=ph>pa?d.homeName:d.awayName;
+    add('venue','rendimento','Il rendimento cambia con il campo',
+      narrTeam(team,true)+' ha ottenuto '+f(Math.max(ph,pa))+' punti per gara '+(ph>pa?'in casa':'in trasferta')+', contro '+f(Math.min(ph,pa))+' dell’altra squadra nel suo venue.',
+      'Il risultato storico è influenzato anche dal calendario degli avversari: non dimostra superiorità nel gioco.',
+      Math.abs(ph-pa)/1.5,Math.min(v.homeAtHome.n,v.awayAtAway.n));
+  }
+  const fh=v.homeRecentForm,fa=v.awayRecentForm;
+  if(fh&&fa&&fh.n>=4&&fa.n>=4&&Math.abs(fh.ppg-fa.ppg)>=.8){
+    const team=fh.ppg>fa.ppg?d.homeName:d.awayName;
+    add('forma','forma','Forma recente in contrasto',
+      narrTeam(team,true)+' nelle ultime gare ha tenuto una media punti superiore di '+f(Math.abs(fh.ppg-fa.ppg))+' a partita rispetto all’avversaria.',
+      'La forma recente include gare in entrambi i venue e avversari di difficoltà diversa.',
+      Math.abs(fh.ppg-fa.ppg)/1.6,Math.min(fh.n,fa.n));
+  }
+  const roles=[
+    {team:d.homeName,opp:d.awayName,weak:c.homeWeak,ratio:c.homeWeakRatio,metric:c.homeWeakMetric,ok:c.homeWeakOppHasRole,n:v.homeAtHome?v.homeAtHome.n:0},
+    {team:d.awayName,opp:d.homeName,weak:c.awayWeak,ratio:c.awayWeakRatio,metric:c.awayWeakMetric,ok:c.awayWeakOppHasRole,n:v.awayAtAway?v.awayAtAway.n:0}
+  ];
+  for(const z of roles){
+    if(!z.weak||z.ok!==true||z.ratio==null||z.ratio<1.15) continue;
+    const role=NARR_ROLE_BARE_ART[z.weak.Posizione_Analitica]||z.weak.Posizione_Analitica;
+    add('role'+z.team,'matchup','Un ruolo avversario da monitorare',
+      narrTeam(z.team,true)+' mostra un valore del '+Math.round((z.ratio-1)*100)+'% sopra la media di lega per '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi a ')+role+'. '+narrTeam(z.opp,true)+' dispone di giocatori di quel ruolo.',
+      'È una concessione per ruolo, non una previsione individuale: verificare titolarità, minuti e linea.',
+      (z.ratio-1)/.65,z.n);
+  }
+  const hc=v.homeCornerCart,ac=v.awayCornerCart;
+  if(hc&&ac&&hc.corner!=null&&ac.corner!=null&&v.homeAtHome&&v.awayAtAway&&v.homeAtHome.n>=2&&v.awayAtAway.n>=2){
+    const diff=hc.corner-ac.corner;
+    if(Math.abs(diff)>=2){
+      const team=diff>0?d.homeName:d.awayName;
+      add('corner','corner','Produzione corner molto diversa',
+        narrTeam(team,true)+' conquista '+f(Math.max(hc.corner,ac.corner))+' corner per partita, contro '+f(Math.min(hc.corner,ac.corner))+' dell’avversaria nei rispettivi venue.',
+        'Sono corner prodotti, non concessi: il confronto da solo non stima i corner della gara.',
+        Math.abs(diff)/4,Math.min(v.homeAtHome.n,v.awayAtAway.n));
+    }
+  }
+  found.sort((x,y)=>y.score-x.score||x.id.localeCompare(y.id));
+  const selected=[],domains=new Set();
+  for(const t of found){
+    if(domains.has(t.domain))continue;
+    selected.push(t);domains.add(t.domain);
+    if(selected.length===3)break;
+  }
+  return selected;
+}
+function narrDynamicPreview(d,temi){
+  if(!temi.length)return [
+    'Nel confronto tra '+narrTeam(d.homeName)+' e '+narrTeam(d.awayName)+' non emergono ancora incroci statistici abbastanza distintivi nei dati disponibili per il venue della partita.',
+    'Meglio non forzare una storia: i matchup individuali e il possibile scenario dipendono anche da formazioni e minuti.'
+  ];
+  const parts=temi.slice(0,2).map(t=>t.evidence+' '+t.limit);
+  const n=Math.min(...temi.map(t=>t.n));
+  parts.push(n<5?
+    'La lettura è esplorativa: uno dei temi utilizza un campione di appena '+n+' partite. Non è una probabilità di vincita né una quota equa.':
+    'Sono tendenze storiche, non una previsione certa. Formazioni, minuti e sviluppo della gara possono cambiare lo scenario.');
+  return parts;
+}
+
 function narrPreview(d) {
   const out = [];
   const ppgGen = (s) => (s && s.pg ? s.pts / s.pg : null);
