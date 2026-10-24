@@ -1829,14 +1829,14 @@ function narrDiscoverThemes(d) {
     const dv=h.volume-a.volume;
     if(Math.abs(dv)>=2.5){
       const team=dv>0?d.homeName:d.awayName;
-      add('volume','tiri','Produzione offensiva sbilanciata',
+      add('volume','tiri','Tiri: '+(dv>0?d.homeName:d.awayName)+' nettamente sopra',
         narrTeam(team,true)+' produce '+f(Math.max(h.volume,a.volume))+' tiri a gara nel venue della sfida contro '+f(Math.min(h.volume,a.volume))+' dell’altra squadra: '+f(Math.abs(dv))+' conclusioni di scarto.',
         'Si confrontano i volumi prodotti, non le concessioni difensive: non è una previsione dei tiri di questa gara.',
         Math.abs(dv)/6,Math.min(h.n,a.n));
     }
     if(h.qualita!=null&&a.qualita!=null&&Math.abs(h.qualita-a.qualita)>=.07){
       const team=h.qualita>a.qualita?d.homeName:d.awayName;
-      add('precisione','precisione','Precisione al tiro da non confondere con il volume',
+      add('precisione','precisione','Tiri in porta: '+(h.qualita>a.qualita?d.homeName:d.awayName)+' più precisa',
         narrTeam(team,true)+' manda in porta il '+Math.round(Math.max(h.qualita,a.qualita)*100)+'% dei propri tiri, contro il '+Math.round(Math.min(h.qualita,a.qualita)*100)+'% dell’avversaria nei rispettivi venue.',
         'La percentuale di tiri nello specchio non è la qualità delle occasioni né la probabilità di segnare.',
         Math.abs(h.qualita-a.qualita)/.18,Math.min(h.n,a.n));
@@ -1845,7 +1845,7 @@ function narrDiscoverThemes(d) {
   const ph=ppg(v.homeAtHome),pa=ppg(v.awayAtAway);
   if(ph!=null&&pa!=null&&v.homeAtHome.n>=2&&v.awayAtAway.n>=2&&Math.abs(ph-pa)>=.65){
     const team=ph>pa?d.homeName:d.awayName;
-    add('venue','rendimento','Il rendimento cambia con il campo',
+    add('venue','rendimento','Rendimento nel venue: '+team+' avanti',
       narrTeam(team,true)+' ha ottenuto '+f(Math.max(ph,pa))+' punti per gara '+(ph>pa?'in casa':'in trasferta')+', contro '+f(Math.min(ph,pa))+' dell’altra squadra nel suo venue.',
       'Il risultato storico è influenzato anche dal calendario degli avversari: non dimostra superiorità nel gioco.',
       Math.abs(ph-pa)/1.5,Math.min(v.homeAtHome.n,v.awayAtAway.n));
@@ -1853,21 +1853,32 @@ function narrDiscoverThemes(d) {
   const fh=v.homeRecentForm,fa=v.awayRecentForm;
   if(fh&&fa&&fh.n>=4&&fa.n>=4&&Math.abs(fh.ppg-fa.ppg)>=.8){
     const team=fh.ppg>fa.ppg?d.homeName:d.awayName;
-    add('forma','forma','Forma recente in contrasto',
-      narrTeam(team,true)+' nelle ultime gare ha tenuto una media punti superiore di '+f(Math.abs(fh.ppg-fa.ppg))+' a partita rispetto all’avversaria.',
-      'La forma recente include gare in entrambi i venue e avversari di difficoltà diversa.',
+    const leader=fh.ppg>fa.ppg?fh:fa,other=fh.ppg>fa.ppg?fa:fh;
+    add('forma','forma','Ultime cinque gare: '+team+' meglio nei risultati',
+      narrTeam(team,true)+' ha raccolto '+leader.w+' vittorie, '+leader.d+' pareggi e '+leader.l+' sconfitte nelle ultime '+leader.n+' gare ('+f(leader.ppg)+' punti/partita); l’avversaria '+other.w+' vittorie, '+other.d+' pareggi e '+other.l+' sconfitte ('+f(other.ppg)+' punti/partita).',
+      'Lo scarto è '+f(Math.abs(fh.ppg-fa.ppg))+' punti/partita, ma include gare sia in casa sia fuori: valutare separatamente il rendimento nel venue della sfida.',
       Math.abs(fh.ppg-fa.ppg)/1.6,Math.min(fh.n,fa.n));
   }
   const roles=[
-    {team:d.homeName,opp:d.awayName,weak:c.homeWeak,ratio:c.homeWeakRatio,metric:c.homeWeakMetric,ok:c.homeWeakOppHasRole,n:v.homeAtHome?v.homeAtHome.n:0},
-    {team:d.awayName,opp:d.homeName,weak:c.awayWeak,ratio:c.awayWeakRatio,metric:c.awayWeakMetric,ok:c.awayWeakOppHasRole,n:v.awayAtAway?v.awayAtAway.n:0}
+    {team:d.homeName,opp:d.awayName,weak:c.homeWeak,ratio:c.homeWeakRatio,metric:c.homeWeakMetric,ok:c.homeWeakOppHasRole,n:v.homeAtHome?v.homeAtHome.n:0,players:c.awayExploiters},
+    {team:d.awayName,opp:d.homeName,weak:c.awayWeak,ratio:c.awayWeakRatio,metric:c.awayWeakMetric,ok:c.awayWeakOppHasRole,n:v.awayAtAway?v.awayAtAway.n:0,players:c.homeExploiters}
   ];
   for(const z of roles){
     if(!z.weak||z.ok!==true||z.ratio==null||z.ratio<1.15) continue;
     const role=NARR_ROLE_A[z.weak.Posizione_Analitica]||('al ruolo '+z.weak.Posizione_Analitica);
-    add('role'+z.team,'matchup','Un ruolo avversario da monitorare',
-      narrTeam(z.team,true)+' mostra un valore del '+Math.round((z.ratio-1)*100)+'% sopra la media di lega per '+(z.metric==='Falli'?'falli commessi ':'tiri concessi ')+role+'. '+narrTeam(z.opp,true)+' dispone di giocatori di quel ruolo.',
-      'È una concessione per ruolo, non una previsione individuale: verificare titolarità, minuti e linea.',
+    const field=z.metric==='Falli'?'FalliSubiti_Ruolo_90':'Tiri_Concessi_90';
+    const value=z.weak[field];
+    const player=z.metric==='Tiri'&&z.players&&z.players.length?z.players[0]:null;
+    const playerNote=player&&player.mu!=null
+      ? ' Tra i possibili interpreti c’è '+player.nome+' ('+f(player.mu)+' tiri stimati dal modello, '+player.min+' minuti stagionali).'
+      : '';
+    const title=z.metric==='Falli'
+      ? z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' e falli contro '+z.team
+      : z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' contro la difesa '+z.team;
+    add('role'+z.team,'matchup',title,
+      narrTeam(z.team,true)+' '+(z.team===d.homeName?'in casa':'in trasferta')+' registra '+f(value)+' '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi ')+role+' a partita: '+Math.round((z.ratio-1)*100)+'% rispetto alla media di riferimento dello stesso ruolo/venue.'+playerNote,
+      player ? 'È un incrocio da approfondire sul mercato tiri di '+player.nome+', verificando formazione, minuti e prezzo; non è una giocata automatica.'
+        : 'Il matchup è riferito al ruolo, non identifica da solo il giocatore su cui puntare. Verificare chi parte titolare e le rispettive linee.',
       (z.ratio-1)/.65,z.n);
   }
   const hc=v.homeCornerCart,ac=v.awayCornerCart;
@@ -1875,7 +1886,7 @@ function narrDiscoverThemes(d) {
     const diff=hc.corner-ac.corner;
     if(Math.abs(diff)>=2){
       const team=diff>0?d.homeName:d.awayName;
-      add('corner','corner','Produzione corner molto diversa',
+      add('corner','corner','Corner prodotti: '+team+' avanti',
         narrTeam(team,true)+' conquista '+f(Math.max(hc.corner,ac.corner))+' corner per partita, contro '+f(Math.min(hc.corner,ac.corner))+' dell’avversaria nei rispettivi venue.',
         'Sono corner prodotti, non concessi: il confronto da solo non stima i corner della gara.',
         Math.abs(diff)/4,Math.min(v.homeAtHome.n,v.awayAtAway.n));
