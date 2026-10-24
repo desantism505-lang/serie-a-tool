@@ -363,6 +363,19 @@
   }
   .excl-mark:hover{color:var(--bad);opacity:1;}
 
+  /* Tooltip Consistenza: piccola, elegante, non invasiva — mostra la serie
+     reale di partite dietro il CV al passaggio del mouse (richiesto da
+     Marco, 25/10, al posto di toccare la formula/il filtro minuti). */
+  .cv-wrap{position:relative;display:inline-block;cursor:help;}
+  .cv-bubble{
+    position:absolute;left:50%;bottom:calc(100% + 7px);transform:translateX(-50%);
+    width:230px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+    border-radius:9px;padding:9px 11px;font-size:11px;line-height:1.5;text-align:left;
+    box-shadow:0 6px 18px rgba(0,0,0,.4);opacity:0;visibility:hidden;
+    transition:opacity .12s ease;z-index:60;pointer-events:none;
+  }
+  .cv-wrap:hover .cv-bubble{opacity:1;visibility:visible;}
+
   .match-title{
     font-size:20px;
     color:var(--accent);
@@ -1238,11 +1251,59 @@ const MARKET_LINES = {
 };
 // Consistenza: CV = deviazione standard / media sul conteggio a partita.
 // Sotto 0.5 = giocatore regolare; 0.5-1 = variabile; sopra 1 = molto incostante.
-function cvBadge(cv){
+const CV_METRIC_EXTRACT = {
+  Tiri_CV: (r) => Number(r.Tiri) || 0,
+  SOT_CV: (r) => Number(r.Tiri_in_porta) || 0,
+  FC_CV: (r) => Number(r.Falli_commessi) || 0,
+  FD_CV: (r) => Number(r.Falli_subiti) || 0,
+  Cart_CV: (r) => (Number(r.Gialli) || 0) + (Number(r.Rossi) || 0),
+};
+const CV_METRIC_UNIT = {
+  TIRI: 'tiri', TIRI_IN_PORTA: 'tiri in porta', FALLI_COMMESSI: 'falli',
+  FALLI_SUBITI: 'falli subiti', CARTELLINO: 'cartellini',
+};
+// Serie grezza (valore, minuti) per quel giocatore/venue/metrica, in ordine
+// cronologico — usata per mostrare nel tooltip COSA c'è dietro il CV, invece
+// di farlo restare un numero astratto (richiesto da Marco, 25/10).
+function cvRawSeries(rowsVenue, cvKey){
+  const extract = CV_METRIC_EXTRACT[cvKey];
+  if (!extract) return [];
+  return [...rowsVenue]
+    .sort((a, b) => (a.PlayerVenue_Seq || 0) - (b.PlayerVenue_Seq || 0))
+    .map((r) => ({ val: extract(r), min: Number(r.Minuti) || 0 }));
+}
+// Tooltip sintetico sulla Consistenza: mostra la sequenza reale di partite
+// dietro il CV (non la formula), con avviso sulle presenze brevi (<60') che
+// pesano sulla variabilità senza essere una prestazione a tutta partita, e
+// l'hit rate sulla linea specifica calcolato solo sulle presenze piene.
+function cvTooltipHtml(r){
+  const series = r.cvSeries;
+  if (!series || series.length < 2 || r.cv == null) return null;
+  const last = series.slice(-8); // non impallare la UI: massimo 8 valori
+  const seq = last.map((x) => x.min < 60 ? `${x.val}*` : `${x.val}`).join(' · ');
+  const hasShort = last.some((x) => x.min < 60);
+  const venueLabel = r.venue === 'HOME' ? 'casa' : 'trasferta';
+  const mean = series.reduce((a, b) => a + b.val, 0) / series.length;
+  const full = series.filter((x) => x.min >= 60);
+  const hitsFull = full.filter((x) => x.val > r.linea).length;
+  const hitPct = full.length ? Math.round(100 * hitsFull / full.length) : null;
+  const unit = CV_METRIC_UNIT[r.mercato] || '';
+  const linea = String(r.linea).replace('.', ',');
+  return `<b>Consistenza: ${r.cv.toFixed(2)}</b><br>`
+    + `Ultime ${last.length} in ${venueLabel}: ${seq}`
+    + (hasShort ? `<br><span style="opacity:.65;font-size:10px;">*presenza &lt;60', pesa sulla variabilità senza essere una partita piena</span>` : '')
+    + `<br>Media ${mean.toFixed(2)} ${unit}/partita · Linea ${linea}: superata ${hitsFull}/${full.length} partite piene`
+    + (hitPct != null ? ` (${hitPct}%)` : '');
+}
+function cvBadge(r){
+  const cv = r.cv;
   if (cv == null) return '<span class="subtle">—</span>';
-  if (cv < 0.5) return `<span class="status-pill status-OK">stabile ${cv.toFixed(2)}</span>`;
-  if (cv < 1) return `<span class="status-pill status-CAMPIONE">variabile ${cv.toFixed(2)}</span>`;
-  return `<span class="status-pill status-NO">incostante ${cv.toFixed(2)}</span>`;
+  const cls = cv < 0.5 ? 'status-OK' : cv < 1 ? 'status-CAMPIONE' : 'status-NO';
+  const label = cv < 0.5 ? 'stabile' : cv < 1 ? 'variabile' : 'incostante';
+  const pill = `<span class="status-pill ${cls}">${label} ${cv.toFixed(2)}</span>`;
+  const tip = cvTooltipHtml(r);
+  if (!tip) return pill;
+  return `<span class="cv-wrap">${pill}<span class="cv-bubble">${tip}</span></span>`;
 }
 const MARKET_LABELS = {
   TIRI: 'Tiri', TIRI_IN_PORTA: 'Tiri in porta', FALLI_COMMESSI: 'Falli commessi',
@@ -1445,6 +1506,7 @@ function runScanGiornata(){
               mediaVenue: mediaV, mediaStag: pTot[avgKey],
               mediaL3: pTot['L3_' + avgKey],
               cv: pVenue[cvKey],
+              cvSeries: cvRawSeries(rowsVenue, cvKey),
               nVenue: hVenue.n,
             });
           }
@@ -1803,7 +1865,7 @@ function renderScan(){
     <td class="num">${lineaLabel(r.linea)}</td>
     <td class="num nw">${fmt(r.mediaVenue)} <span class="subtle">(N=${r.nVenue})</span></td>
     <td class="num">${fmt(r.mediaL3)}</td>
-    <td>${cvBadge(r.cv)}</td>
+    <td>${cvBadge(r)}</td>
     <td class="num"><div class="hitcell">${hitChip(r.hitVenue)}${ciTxt}</div></td>
     <td class="num">${pctColored(r.hitStag)}</td>
     <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" id="scnQuotaInput-${i}" value="${fmtQuotaInput(quota)}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" onkeydown="return scnQuotaTab(event, ${i})" /></td>
@@ -2292,7 +2354,7 @@ function renderScreener(){
       <td class="num">${lineaLabel(r.linea)}</td>
       <td class="num">${fmt(r.mediaVenue)} <span class="subtle">(${r.venue.toLowerCase()}, N=${r.nVenue})</span></td>
       <td class="num">${fmt(r.mediaL3)}</td>
-      <td>${cvBadge(r.cv)}</td>
+      <td>${cvBadge(r)}</td>
       <td class="num">${pctColored(r.hitStag)}</td>
       <td class="num">${hitChip(r.hitVenue)}</td>
       <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" value="${fmtQuotaInput(r.quota)}" style="width:54px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" data-act="quota" data-id="${escAttr(r.id)}" /></td>
