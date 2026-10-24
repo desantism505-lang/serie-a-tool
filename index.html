@@ -550,7 +550,13 @@
   .drawer table{width:100%;border-collapse:collapse;font-size:12px;} .drawer th{color:var(--muted);font-size:10px;text-transform:uppercase;text-align:right;padding:4px 6px;font-weight:600;} .drawer th:first-child,.drawer td:first-child{text-align:left;}
   .drawer td{padding:6px;border-top:1px solid var(--line);text-align:right;color:var(--text-2);} .drawer td:first-child{color:var(--text);font-weight:600;}
   .drawer .note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;}
-  @media (min-width:1500px){ body.drawer-open main{margin-right:500px;max-width:none;} }
+  /* Bug segnalato da Marco, 24/10: con la scheda laterale aperta (drawer-open),
+     "margin-right:500px" sul main sovrascriveva "margin:0 auto", perdendo la
+     centratura — il contenuto si attaccava a sinistra invece di restare
+     centrato nello spazio residuo. Fix: la riserva di spazio per il drawer
+     fissa (480px + margine) va sul BODY come padding, così main continua a
+     centrarsi (margin:0 auto) dentro lo spazio visibile rimanente. */
+  @media (min-width:1500px){ body.drawer-open{padding-right:500px;} }
   .wl{display:inline-block;vertical-align:-3px;}
   .lustatus{font-size:11px;color:var(--muted);margin-left:6px;} .lustatus.ok{color:var(--accent);} .lustatus.err{color:var(--warn);}
 
