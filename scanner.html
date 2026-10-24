@@ -365,18 +365,23 @@
 
   /* Tooltip Consistenza: piccola, elegante, non invasiva — mostra la serie
      reale di partite dietro il CV al passaggio del mouse (richiesto da
-     Marco, 25/10, al posto di toccare la formula/il filtro minuti). */
+     Marco, 25/10, al posto di toccare la formula/il filtro minuti).
+     position:fixed (non absolute): la tabella sta in un contenitore con
+     "overflow-x:auto", che per specifica CSS fa diventare "auto" anche
+     overflow-y (si tagliano entrambi gli assi, non solo quello orizzontale)
+     — con position:absolute la bolla veniva quindi ritagliata/nascosta dal
+     contenitore ogni volta che la riga era vicina al bordo del box
+     scrollabile (es. subito sotto il pannello "Ruoli contro l'avversario").
+     Con position:fixed esce dal contenitore ed è posizionata via JS in
+     coordinate assolute di viewport, quindi non viene più tagliata da nulla. */
   .cv-wrap{position:relative;display:inline-block;cursor:help;}
   .cv-bubble{
-    position:absolute;left:50%;bottom:calc(100% + 7px);transform:translateX(-50%);
-    width:230px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
-    border-radius:9px;padding:9px 11px;font-size:11px;line-height:1.5;text-align:left;
-    box-shadow:0 6px 18px rgba(0,0,0,.4);opacity:0;visibility:hidden;
-    transition:opacity .12s ease;z-index:60;pointer-events:none;
+    position:fixed;width:230px;background:var(--panel-2);color:var(--text);
+    border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:11px;
+    line-height:1.5;text-align:left;box-shadow:0 6px 18px rgba(0,0,0,.4);
+    opacity:0;visibility:hidden;transition:opacity .12s ease;z-index:200;pointer-events:none;
   }
   .cv-wrap:hover .cv-bubble{opacity:1;visibility:visible;}
-  /* applicata via JS quando non c'è spazio sopra (es. prima riga della tabella) */
-  .cv-bubble.cv-below{bottom:auto;top:calc(100% + 7px);}
 
   .match-title{
     font-size:20px;
@@ -1307,18 +1312,26 @@ function cvBadge(r){
   if (!tip) return pill;
   return `<span class="cv-wrap">${pill}<span class="cv-bubble">${tip}</span></span>`;
 }
-// Se la riga è troppo vicina al bordo superiore della finestra, la tooltip
-// sopra uscirebbe dallo schermo (tagliata) — es. la prima riga della
-// tabella. In quel caso la ribalta sotto. Delegation su tutta la pagina:
-// funziona per entrambe le tabelle (Scanner e Preferiti) senza doverla
-// riagganciare a ogni renderScan()/renderScreener().
+// Posiziona la bolla della Consistenza in coordinate fisse di viewport
+// (vedi commento su .cv-bubble: position:fixed per non farla tagliare dal
+// contenitore scrollabile della tabella). Sceglie sopra o sotto la riga in
+// base allo spazio reale disponibile, e tiene la bolla dentro i margini
+// orizzontali della finestra. Delegation su tutta la pagina: funziona per
+// entrambe le tabelle (Scanner e Preferiti) senza doverla riagganciare a
+// ogni renderScan()/renderScreener().
 document.addEventListener('mouseover', (e) => {
   const wrap = e.target.closest && e.target.closest('.cv-wrap');
   if (!wrap) return;
   const bubble = wrap.querySelector('.cv-bubble');
   if (!bubble) return;
-  const spaceAbove = wrap.getBoundingClientRect().top;
-  bubble.classList.toggle('cv-below', spaceAbove < 110);
+  const rect = wrap.getBoundingClientRect();
+  const bh = bubble.offsetHeight || 80;
+  const above = rect.top - bh - 7;
+  const top = above >= 8 ? above : rect.bottom + 7;
+  let left = rect.left + rect.width / 2 - 115; // 115 = metà dei 230px di larghezza della bolla
+  left = Math.max(8, Math.min(left, window.innerWidth - 238));
+  bubble.style.top = top + 'px';
+  bubble.style.left = left + 'px';
 });
 const MARKET_LABELS = {
   TIRI: 'Tiri', TIRI_IN_PORTA: 'Tiri in porta', FALLI_COMMESSI: 'Falli commessi',
