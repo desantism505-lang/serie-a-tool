@@ -2237,9 +2237,14 @@ function narrativeBlock(match) {
   // (articoli di squadra, soglie, framing condizionale al match) invece di
   // ricostruirlo qui con regole duplicate.
   const previewText = N.preview && N.preview.length ? N.preview.join(' ') : '';
-  const previewLead = (N.standings.home && N.standings.away)
-    ? `${esc(homeName)} in casa, ${esc(awayName)} in trasferta: il quadro reale della gara, non solo la classifica.`
-    : null;
+  const previewLead = N.temi && N.temi.length ? esc(N.temi[0].title) : null;
+  // I dettagli numerici restano nella Preview; qui segnaliamo temi aggiuntivi
+  // e limiti del campione senza ripetere le stesse statistiche.
+  const temiHtml = N.temi && N.temi.length
+    ? '<div class="narr-names-grid">' + N.temi.map(t =>
+        '<p><b>' + esc(t.title) + '</b> <span class="narr-hl">N=' + t.n + '</span>. ' + t.limit + '</p>'
+      ).join('') + '</div>'
+    : '<p>Nessuna anomalia sufficientemente distinta con il campione disponibile. Non viene generata una tesi artificiale.</p>';
   const chiaveHtml = N.chiaveHtml || '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
 
   // --- Nomi che contano: ogni giocatore è citato sulla metrica dove è davvero sopra il proprio
@@ -2333,7 +2338,11 @@ function narrativeBlock(match) {
             <p>${previewText}</p>
           </div>
           <div class="narr-sec">
-            <div class="narr-sec-title">Chiave di lettura</div>
+            <div class="narr-sec-title">Temi e anomalie da monitorare</div>
+            ${temiHtml}
+          </div>
+          <div class="narr-sec">
+            <div class="narr-sec-title">Matchup e chiavi di lettura</div>
             ${chiaveHtml}
           </div>
           <div class="narr-sec">
