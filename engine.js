@@ -974,10 +974,46 @@ function shrunkRate90(model, rows, ruolo, m, teamId) {
   return { rate90: (X + (prior * K) / 90) / ((mn + K) / 90), prior90: prior, minutes: mn, wPlayer: mn / (mn + K) };
 }
 
+// Metrica "speculare" di un avversario specifico: quanti falli SUBISCE un
+// giocatore (FD) e' cio' che fa capire quanti falli COMMETTE chi gli gioca
+// contro (FC), e viceversa. Usata per il segnale sui titolari dell'avversario
+// (vedi oppLineupSignal piu' sotto). Nessun mirror per Tiri/SOT/Cart: non c'e'
+// una statistica individuale equivalente di "quanto concedo" per quelle.
+const MIRROR_METRIC = { FC: 'FD', FD: 'FC' };
+
+// Segnale personalizzato sui titolari REALI dell'avversario (richiesto da
+// Marco, 24/10): invece di guardare solo quanto l'avversario concede in
+// media storica per ruolo, guarda quanto i suoi titolari di OGGI, uno per
+// uno, tendono personalmente a subire/commettere falli (stessa pipeline di
+// shrinkage del giocatore che si sta proiettando: shrunkRate90 verso il
+// proprio ruolo, pesata sui propri minuti). Poi aggrega sul minutaggio atteso
+// di ciascuno. Non sostituisce il segnale storico di squadra/ruolo, si somma:
+// combinati piu' sotto, pesati sul proprio campione (minuti personali vs
+// minuti del campione storico), cosi' un titolare con poco storico personale
+// (nuovo, appena rientrato) non azzera il segnale di squadra gia' noto.
+function oppLineupSignal(model, matchLog, oppLineup, m) {
+  const mm = MIRROR_METRIC[m];
+  if (!mm || !oppLineup || !oppLineup.length) return null;
+  let sumMu = 0, sumMin = 0;
+  for (const op of oppLineup) {
+    const rows = playerRows(matchLog, op.id, op.team);
+    const base = shrunkRate90(model, rows, op.ruolo, mm, op.team);
+    if (base.rate90 == null) continue;
+    const expMin = expectedMinutes(model, rows, true);
+    sumMu += base.rate90 * expMin;
+    sumMin += expMin;
+  }
+  if (!sumMin) return null;
+  return { rate90: (sumMu / sumMin) * (90 / 90), minutes: sumMin }; // rate90 = media/90 della formazione avversaria su quella metrica speculare
+}
+
 // Fattore avversario a due livelli. Squadra: quanto l'avversario concede in totale
 // (tutti i ruoli) rispetto alla lega. Ruolo: scostamento ulteriore dello stesso ruolo,
-// molto piu' smorzato. Pesi crescenti col campione (nessuna taratura periodica).
-function opponentFactor(model, oppId, ruolo, m, pv) {
+// molto piu' smorzato, ora raffinato con il segnale sui titolari reali dell'avversario
+// se disponibile (oppLineup/matchLog passati) — storico di ruolo e segnale titolari si
+// combinano in un'unica media pesata sui rispettivi minuti, poi tirata verso la lega con
+// lo stesso K_OPP di prima (nessun nuovo parametro da calibrare).
+function opponentFactor(model, oppId, ruolo, m, pv, matchLog, oppLineup) {
   // pv ('H' | 'A'): se presente usa solo le partite in cui i giocatori affrontavano l'avversario nello stesso venue
   // di questa partita, confrontate con la lega nello stesso venue. Il campione e' piu' piccolo e i pesi
   // (n/(n+K)) si abbassano da soli.
@@ -988,16 +1024,34 @@ function opponentFactor(model, oppId, ruolo, m, pv) {
     wTeam = n / (n + MODEL_PARAMS.K_OPP_TEAM);
     fTeam = 1 + (rTeam - 1) * wTeam;
   }
-  let fRole = 1, rRole = null, wRole = 0, minutes = 0;
+  let fRole = 1, rRole = null, wRole = 0, minutes = 0, rLineup = null, lineupMinutes = 0;
   const a = pv ? model.oppRV[oppId + '|' + ruolo + '|' + pv] : model.opp[oppId + '|' + ruolo], prior = rate90Of(pv ? model.roleV[ruolo + '|' + pv] : model.role[ruolo], m);
   if (a && a.min && prior) {
     rRole = rate90Of(a, m) / prior;
     wRole = a.min / (a.min + MODEL_PARAMS.K_OPP);
-    fRole = 1 + (rRole - 1) * wRole;
     minutes = a.min;
   }
-  return { factor: fTeam * fRole, factorTeam: fTeam, factorRole: fRole, ratio: rRole, ratioTeam: rTeam,
-           minutes, weight: wRole, weightTeam: wTeam, matches: n || 0 };
+  if (matchLog && oppLineup && prior) {
+    const sig = oppLineupSignal(model, matchLog, oppLineup, m);
+    if (sig) { rLineup = sig.rate90 / prior; lineupMinutes = sig.minutes; }
+  }
+  // Combina lo storico di ruolo (rRole, peso su a.min) e il segnale sui titolari
+  // reali (rLineup, peso su lineupMinutes) in un unico rapporto, media pesata sui
+  // rispettivi campioni — nessuno dei due azzera l'altro, pesano in base a quanti
+  // minuti di dati ciascuno porta.
+  let rCombined = rRole, wBasis = minutes;
+  if (rLineup != null) {
+    wBasis = minutes + lineupMinutes;
+    rCombined = rRole != null ? (rRole * minutes + rLineup * lineupMinutes) / wBasis : rLineup;
+  }
+  if (rCombined != null) {
+    const wCombined = wBasis / (wBasis + MODEL_PARAMS.K_OPP);
+    fRole = 1 + (rCombined - 1) * wCombined;
+    wRole = wCombined;
+  }
+  return { factor: fTeam * fRole, factorTeam: fTeam, factorRole: fRole, ratio: rCombined, ratioTeam: rTeam,
+           ratioRoleStorico: rRole, ratioLineup: rLineup, lineupMinutes,
+           minutes: wBasis, weight: wRole, weightTeam: wTeam, matches: n || 0 };
 }
 
 // Minuti attesi: media delle proprie presenze nello stesso ruolo di impiego
@@ -1020,10 +1074,10 @@ function reliabilityOf(minutes) {
 
 // Proiezione completa di un giocatore su una metrica, PER QUESTA PARTITA.
 // player = { id, team, ruolo }; opp = Team_ID avversario; titolare = bool.
-function projectPlayer(model, matchLog, player, oppId, titolare, m, pv) {
+function projectPlayer(model, matchLog, player, oppId, titolare, m, pv, oppLineup) {
   const rows = playerRows(matchLog, player.id, player.team);
   const base = shrunkRate90(model, rows, player.ruolo, m, player.team);
-  const of = opponentFactor(model, oppId, player.ruolo, m, pv);
+  const of = opponentFactor(model, oppId, player.ruolo, m, pv, matchLog, oppLineup);
   const expMin = expectedMinutes(model, rows, titolare);
   const rate90 = base.rate90 == null ? null : base.rate90 * of.factor;
   return {
@@ -1098,12 +1152,12 @@ function probCardFromFouls(expFouls, cardsPerFoul) {
 // Totale squadra da una formazione. players: [{id, team, ruolo}]. Restituisce
 // somma sui titolari, stima con panchina e il CONTEGGIO dei giocatori contati,
 // cosi' un totale incompleto non passa mai inosservato.
-function projectLineupTotal(model, matchLog, players, oppId, m, extraFactor, pv) {
+function projectLineupTotal(model, matchLog, players, oppId, m, extraFactor, pv, oppLineup) {
   const ef = extraFactor == null ? 1 : extraFactor; // es. fattore arbitro per Falli/Cartellini
   let sumStarters = 0, counted = 0, lowRel = 0;
   const rows = [];
   for (const p of players) {
-    const pr = projectPlayer(model, matchLog, p, oppId, true, m, pv);
+    const pr = projectPlayer(model, matchLog, p, oppId, true, m, pv, oppLineup);
     rows.push({ player: p, proj: pr });
     if (pr.mu != null) { sumStarters += pr.mu * ef; counted++; if (pr.affidabilita === 'bassa') lowRel++; }
   }

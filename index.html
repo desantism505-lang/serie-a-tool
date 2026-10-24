@@ -2062,16 +2062,26 @@ function luSummary(match, side) {
 // ---------------------------------------------------------------------------
 // Proiezioni giocatore / squadra
 // ---------------------------------------------------------------------------
-function pData(match, side, p, m, titolare) {
-  const info = sideInfo(match, side);
-  const pr = projectPlayer(MODEL, DB.matchLog, { id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }, info.oppId, titolare, m, scopePv(info));
-  const af = (m === 'FC' || m === 'Cart') ? arbFactor(match, side, m).fattore : 1;
-  return { ...pr, fattoreArbitro: af, rate90Fin: pr.rate90 == null ? null : pr.rate90 * af, muFin: pr.mu == null ? null : pr.mu * af };
-}
 function lineupPlayers(match, side, ids) {
   const info = sideInfo(match, side);
   const list = ids || LU.teams[info.teamId].ids;
   return list.map((id) => DB.rosters.find((r) => r.Player_ID === id)).filter(Boolean);
+}
+// Formazione REALE dell'avversario (lato opposto a `side`), nel formato
+// {id,team,ruolo} che il motore usa — richiesto da Marco, 24/10: il fattore
+// avversario per falli commessi/subiti deve riflettere anche i titolari
+// avversari di oggi, non solo lo storico aggregato per ruolo. Mappata una
+// volta sola per riga (12 titolari max) perche' e' usata ad ogni chiamata
+// di pData/teamProj — costo trascurabile.
+function oppLineupFor(match, side) {
+  const oppSide = side === 'home' ? 'away' : 'home';
+  return lineupPlayers(match, oppSide).map((p) => ({ id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }));
+}
+function pData(match, side, p, m, titolare) {
+  const info = sideInfo(match, side);
+  const pr = projectPlayer(MODEL, DB.matchLog, { id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }, info.oppId, titolare, m, scopePv(info), oppLineupFor(match, side));
+  const af = (m === 'FC' || m === 'Cart') ? arbFactor(match, side, m).fattore : 1;
+  return { ...pr, fattoreArbitro: af, rate90Fin: pr.rate90 == null ? null : pr.rate90 * af, muFin: pr.mu == null ? null : pr.mu * af };
 }
 function teamProj(match, side, key, ids, forceBench) {
   const info = sideInfo(match, side);
@@ -2085,7 +2095,7 @@ function teamProj(match, side, key, ids, forceBench) {
   }
   const players = lineupPlayers(match, side, ids).map((p) => ({ id: p.Player_ID, team: p.Team_ID_Rif, ruolo: p.Posizione_Analitica }));
   const af = (key === 'FC' || key === 'Cart') ? arbFactor(match, side, key).fattore : 1;
-  const R = projectLineupTotal(MODEL, DB.matchLog, players, info.oppId, key, af, scopePv(info));
+  const R = projectLineupTotal(MODEL, DB.matchLog, players, info.oppId, key, af, scopePv(info), oppLineupFor(match, side));
   const useBench = forceBench || S.bench;
   return { total: useBench ? R.withBench : R.startersTotal, withBench: R.withBench, benchOn: useBench, starters: R.startersTotal, own, nVenue: vals.length, counted: R.counted, expected: players.length, complete: R.complete, af, lowRel: R.lowReliability, kind: 'formazione' };
 }
