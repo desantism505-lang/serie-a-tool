@@ -849,13 +849,16 @@ function rankArbitriFacts(matchLog, arbitri, calendar, minPartite) {
   for (const [col, label, metricKind, lato] of ARBITRO_RANK_METRICS) {
     const eligible = all.filter((a) => a.N_Partite >= minPartite && a[col] != null);
     if (eligible.length < 6) continue; // stesso minimo "eleggibili" usato altrove in Fatti salienti
+    // Media di lega sullo stesso pool di eleggibili — richiesta da Marco,
+    // 24/10, per mostrare "media X vs media di lega Y" nel testo del fatto.
+    const leagueAvg = eligible.reduce((a, x) => a + x[col], 0) / eligible.length;
     const sorted = [...eligible].sort((a, b) => b[col] - a[col]);
     sorted.forEach((a, idx) => {
       const rank = idx + 1;
       const top = rank <= 3, bottom = rank > sorted.length - 3;
       if (!top && !bottom) return;
       (out[a.Arbitro] || (out[a.Arbitro] = [])).push({
-        col, label, metricKind, lato, rank, eligible: sorted.length, value: a[col], top, n: a.N_Partite,
+        col, label, metricKind, lato, rank, eligible: sorted.length, value: a[col], top, n: a.N_Partite, leagueAvg,
       });
     });
   }

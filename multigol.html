@@ -371,7 +371,7 @@ function arbitroFactTextMultigol(e, nomeKey){
     ? `le sue partite producono ${dir} gol complessivi di quelle di qualsiasi altro arbitro della Serie A`
     : `le sue partite sono tra quelle che producono ${dir} gol complessivi della Serie A`;
   else clausola = `ha ${dir} ${e.label} ${qualifier}`;
-  return `${nomeKey} ${clausola} — media <strong>${e.value.toFixed(2)}</strong> a partita (${e.n} partite dirette) — ${e.rank}° su ${e.eligible} arbitri idonei`;
+  return `${nomeKey} ${clausola} (media <strong>${e.value.toFixed(2)}</strong> vs media di lega ${e.leagueAvg.toFixed(2)}), ${e.rank}° su ${e.eligible} arbitri idonei (${e.n} partite dirette)`;
 }
 
 function factsSalientiMultigol(m){

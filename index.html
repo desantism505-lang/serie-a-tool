@@ -1659,7 +1659,10 @@ function arbitroFactTextV2(e, nomeKey){
     ? `Le partite dirette da ${nomeKey} producono ${direzione} gol complessivi di quelle di qualsiasi altro arbitro della Serie A`
     : `Le partite dirette da ${nomeKey} sono tra quelle che producono ${direzione} gol complessivi della Serie A`;
   else clausola = `${nomeKey} ha ${direzione} ${e.label} ${qualifier}`;
-  return `${clausola} — media ${e.value.toFixed(2)} a partita, ${e.rank}° su ${e.eligible} arbitri idonei (${e.n} partite dirette)`;
+  // Formulazione esatta richiesta da Marco, 24/10: media del singolo arbitro
+  // confrontata con la media di lega dello stesso pool di eleggibili, poi
+  // il rank — niente più "— media X a partita," prima del rank.
+  return `${clausola} (media ${e.value.toFixed(2)} vs media di lega ${e.leagueAvg.toFixed(2)}), ${e.rank}° su ${e.eligible} arbitri idonei (${e.n} partite dirette)`;
 }
 function arbitroFactsForSide(match, side, venueLabel){
   const arbitriEff = arbitriEffettivi();
@@ -1730,7 +1733,12 @@ function renderNotableFactsPanel(match){
     return `<ul class="facts-list" style="margin:0;padding-left:16px;list-style:none;">${facts.map(f => {
       // Arbitro/Linea gol non sono rank comparativi tra squadre: nessun badge
       // di posizione "1°/ultimo", solo l'icona della metrica.
-      const isNonRank = f.tag === 'Arbitro' || f.tag === 'Linea gol';
+      // Badge di rank mostrato anche per Arbitro (è un rank comparativo vero,
+      // tra arbitri) — richiesto da Marco, 24/10. Solo Linea gol resta senza
+      // badge: è una frequenza "sempre sopra/sotto" per quella squadra, non
+      // un confronto rank tra squadre (quello è il fatto "media gol vs lega",
+      // tag Squadra, che il badge lo mostra già di default).
+      const isNonRank = f.tag === 'Linea gol';
       const badge = isNonRank
         ? `<span style="display:inline-flex;align-items:center;gap:5px;min-width:50px;color:var(--text-2);">${f.icon || ''}</span>`
         : factBadge(f.rank, f.eligible, f.icon || '');
