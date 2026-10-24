@@ -632,6 +632,7 @@
         </div>
         <button id="scnFClear" class="secondary">Pulisci filtri</button>
         <span id="scnJumpRoleBadge" style="display:none;"></span>
+        <span id="scnExclList"></span>
       </div>
 
       <div style="margin:18px 0 14px;padding-top:14px;border-top:1px solid var(--line);">
@@ -881,6 +882,7 @@ function loadWorkbook(wb){
   document.getElementById('dataStatus').textContent =
     `${rosters.length} giocatori · ${calendar.length} partite · ${matchLog.length} presenze`;
   populateGiornate();
+  renderScnExclList(); // mostra subito la lista indisponibili salvata, anche prima di scansionare
 }
 
 function loadFromJSON(D){
@@ -895,6 +897,7 @@ function loadFromJSON(D){
   document.getElementById('dataStatus').textContent =
     `${rosters.length} giocatori · ${calendar.length} partite · ${matchLog.length} presenze (dati inclusi)`;
   populateGiornate();
+  renderScnExclList(); // mostra subito la lista indisponibili salvata, anche prima di scansionare
 }
 
 // Al caricamento della pagina, prova a leggere data.json dalla stessa cartella
@@ -1252,6 +1255,40 @@ const MARKET_LABELS = {
 // in tabella, con l'ordinamento corrente.
 // ---------------------------------------------------------------------------
 let scanResults = [];
+
+// ---------------------------------------------------------------------------
+// INDISPONIBILI (infortunati/squalificati/fuori rosa) — richiesto da Marco,
+// 24/10: i dati non hanno un campo infortunio (solo Attivo_SerieA, che indica
+// se il giocatore è nella rosa attiva, non se è disponibile per la prossima
+// partita), quindi è una lista manuale, salvata sul browser come le formazioni
+// e le quote. Chi è in lista viene escluso GIÀ in fase di scansione (non
+// comparirà più finché non lo rimetti), non solo filtrato in tabella.
+// ---------------------------------------------------------------------------
+const SCN_EXCL_KEY = 'sa_scn_excl_v1';
+function loadScnExcl(){
+  try { const raw = localStorage.getItem(SCN_EXCL_KEY); return raw ? new Set(JSON.parse(raw)) : new Set(); }
+  catch (e) { return new Set(); }
+}
+function saveScnExcl(){ try { localStorage.setItem(SCN_EXCL_KEY, JSON.stringify([...scnExcl])); } catch (e) {} }
+let scnExcl = loadScnExcl();
+function toggleScnExcl(playerId){
+  if (scnExcl.has(playerId)) scnExcl.delete(playerId); else scnExcl.add(playerId);
+  saveScnExcl();
+  scanResults = scanResults.filter((r) => !scnExcl.has(r.player.Player_ID));
+  renderScnExclList();
+  applySortAndRender();
+}
+function renderScnExclList(){
+  const el = document.getElementById('scnExclList');
+  if (!el) return;
+  if (!scnExcl.size) { el.innerHTML = ''; return; }
+  const names = [...scnExcl].map((id) => {
+    const p = DB && DB.rosters.find((x) => x.Player_ID === id);
+    return { id, name: p ? p.Nome_completo : id };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+  el.innerHTML = `<details style="display:inline-block;margin-left:10px;vertical-align:middle;"><summary style="cursor:pointer;color:var(--opp);">Indisponibili (${names.length})</summary>
+    <div style="margin-top:6px;min-width:220px;">${names.map((n) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;"><span>${n.name}</span><a href="javascript:void(0)" onclick="toggleScnExcl('${n.id}')" style="color:var(--opp);white-space:nowrap;">rimetti disponibile</a></div>`).join('')}</div></details>`;
+}
 const SCAN_QUOTES_KEY = 'sa_scan_quotes_v1';
 function loadScanQuotes(){
   try { const raw = localStorage.getItem(SCAN_QUOTES_KEY); return raw ? JSON.parse(raw) : {}; }
@@ -1351,7 +1388,7 @@ function runScanGiornata(){
 
   for (const match of matches) {
     for (const [venue, teamId] of [['HOME', match.Home_ID], ['AWAY', match.Away_ID]]) {
-      const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId);
+      const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId && !scnExcl.has(p.Player_ID));
       const venueLetter = venue === 'HOME' ? 'H' : 'A';
       for (const player of players) {
         const pTot = computePlayerStats(DB.matchLog, player.Player_ID, 'TOTALE', null, teamId);
@@ -1394,6 +1431,7 @@ function runScanGiornata(){
   }
   scanResults = results;
   sortState = { key: 'hitVenue', dir: -1 };
+  renderScnExclList();
   applySortAndRender();
   refreshLineups(); // formazioni salvate in Matchup Engine: aggiorna colonna Titolare
 }
@@ -1719,7 +1757,7 @@ function renderScan(){
     const ciTxt = (lo != null) ? `<span class="subtle">±${Math.round((hi - lo) / 2 * 100)}pp</span>` : '';
     const fav = isFavorited(r);
     return `<tr>
-    <td class="metricname">${r.player.Nome_completo}<div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
+    <td class="metricname">${r.player.Nome_completo} <button class="rowdel" title="Segna come indisponibile (infortunato/squalificato/fuori lista): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto" onclick="toggleScnExcl('${r.player.Player_ID}')" style="color:var(--bad);font-size:13px;vertical-align:1px;">🚫</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
     <td class="num">${lineupBadge(r)}</td>
     <td>${MARKET_LABELS[r.mercato]}</td>
