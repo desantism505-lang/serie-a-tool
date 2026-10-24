@@ -1261,33 +1261,50 @@ let scanResults = [];
 // 24/10: i dati non hanno un campo infortunio (solo Attivo_SerieA, che indica
 // se il giocatore è nella rosa attiva, non se è disponibile per la prossima
 // partita), quindi è una lista manuale, salvata sul browser come le formazioni
-// e le quote. Chi è in lista viene escluso GIÀ in fase di scansione (non
-// comparirà più finché non lo rimetti), non solo filtrato in tabella.
+// e le quote. SCOPED PER GIORNATA (corretto il 24/10 su segnalazione di
+// Marco): un infortunio di oggi non deve restare segnato per sempre, o un
+// giocatore rientrato sparirebbe in automatico dalle giornate successive
+// senza che te ne accorgi. La lista è quindi un oggetto {giornata: [id,...]},
+// non un unico Set globale — segnarlo vale solo per la giornata che stai
+// scansionando in quel momento.
 // ---------------------------------------------------------------------------
-const SCN_EXCL_KEY = 'sa_scn_excl_v1';
-function loadScnExcl(){
-  try { const raw = localStorage.getItem(SCN_EXCL_KEY); return raw ? new Set(JSON.parse(raw)) : new Set(); }
-  catch (e) { return new Set(); }
+const SCN_EXCL_KEY = 'sa_scn_excl_v2';
+function loadScnExclAll(){
+  try { const raw = localStorage.getItem(SCN_EXCL_KEY); return raw ? JSON.parse(raw) : {}; }
+  catch (e) { return {}; }
 }
-function saveScnExcl(){ try { localStorage.setItem(SCN_EXCL_KEY, JSON.stringify([...scnExcl])); } catch (e) {} }
-let scnExcl = loadScnExcl();
-function toggleScnExcl(playerId){
-  if (scnExcl.has(playerId)) scnExcl.delete(playerId); else scnExcl.add(playerId);
-  saveScnExcl();
-  scanResults = scanResults.filter((r) => !scnExcl.has(r.player.Player_ID));
+function saveScnExclAll(){ try { localStorage.setItem(SCN_EXCL_KEY, JSON.stringify(scnExclAll)); } catch (e) {} }
+let scnExclAll = loadScnExclAll();
+function scnCurrentGiornata(){
+  const el = document.getElementById('scnGiornata');
+  return el && el.value ? el.value : null;
+}
+function scnExclSet(giornata){
+  return new Set(scnExclAll[giornata] || []);
+}
+function toggleScnExcl(playerId, giornata){
+  const g = giornata || scnCurrentGiornata();
+  if (!g) return;
+  const set = scnExclSet(g);
+  if (set.has(playerId)) set.delete(playerId); else set.add(playerId);
+  scnExclAll[g] = [...set];
+  saveScnExclAll();
+  scanResults = scanResults.filter((r) => !scnExclSet(g).has(r.player.Player_ID) || String(r.match.Giornata) !== String(g));
   renderScnExclList();
   applySortAndRender();
 }
 function renderScnExclList(){
   const el = document.getElementById('scnExclList');
   if (!el) return;
-  if (!scnExcl.size) { el.innerHTML = ''; return; }
-  const names = [...scnExcl].map((id) => {
+  const g = scnCurrentGiornata();
+  const set = g ? scnExclSet(g) : new Set();
+  if (!set.size) { el.innerHTML = ''; return; }
+  const names = [...set].map((id) => {
     const p = DB && DB.rosters.find((x) => x.Player_ID === id);
     return { id, name: p ? p.Nome_completo : id };
   }).sort((a, b) => a.name.localeCompare(b.name));
-  el.innerHTML = `<details style="display:inline-block;margin-left:10px;vertical-align:middle;"><summary style="cursor:pointer;color:var(--opp);">Indisponibili (${names.length})</summary>
-    <div style="margin-top:6px;min-width:220px;">${names.map((n) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;"><span>${n.name}</span><a href="javascript:void(0)" onclick="toggleScnExcl('${n.id}')" style="color:var(--opp);white-space:nowrap;">rimetti disponibile</a></div>`).join('')}</div></details>`;
+  el.innerHTML = `<details style="display:inline-block;margin-left:10px;vertical-align:middle;"><summary style="cursor:pointer;color:var(--opp);">Indisponibili giornata ${g} (${names.length})</summary>
+    <div style="margin-top:6px;min-width:220px;">${names.map((n) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;"><span>${n.name}</span><a href="javascript:void(0)" onclick="toggleScnExcl('${n.id}','${g}')" style="color:var(--opp);white-space:nowrap;">rimetti disponibile</a></div>`).join('')}</div></details>`;
 }
 const SCAN_QUOTES_KEY = 'sa_scan_quotes_v1';
 function loadScanQuotes(){
@@ -1385,10 +1402,11 @@ function runScanGiornata(){
   let matches = DB.calendar.filter(m => m.Giornata === giornata);
   if (matchFilter !== 'ALL') matches = matches.filter(m => m.Match_ID === matchFilter);
   const results = [];
+  const exclGiornata = scnExclSet(giornata); // solo indisponibili segnati per QUESTA giornata
 
   for (const match of matches) {
     for (const [venue, teamId] of [['HOME', match.Home_ID], ['AWAY', match.Away_ID]]) {
-      const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId && !scnExcl.has(p.Player_ID));
+      const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId && !exclGiornata.has(p.Player_ID));
       const venueLetter = venue === 'HOME' ? 'H' : 'A';
       for (const player of players) {
         const pTot = computePlayerStats(DB.matchLog, player.Player_ID, 'TOTALE', null, teamId);
@@ -1757,7 +1775,7 @@ function renderScan(){
     const ciTxt = (lo != null) ? `<span class="subtle">±${Math.round((hi - lo) / 2 * 100)}pp</span>` : '';
     const fav = isFavorited(r);
     return `<tr>
-    <td class="metricname">${r.player.Nome_completo} <button class="rowdel" title="Segna come indisponibile (infortunato/squalificato/fuori lista): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto" onclick="toggleScnExcl('${r.player.Player_ID}')" style="color:var(--bad);font-size:13px;vertical-align:1px;">🚫</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
+    <td class="metricname">${r.player.Nome_completo} <button class="rowdel" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')" style="color:var(--bad);font-size:13px;vertical-align:1px;">🚫</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
     <td class="num">${lineupBadge(r)}</td>
     <td>${MARKET_LABELS[r.mercato]}</td>
