@@ -357,16 +357,21 @@ function bttsTable(rows){
 // Testo direzionale per i fatti arbitro, stesso linguaggio di index.html
 // (arbitroFactTextV2) — duplicato qui perché multigol.html non carica le
 // funzioni di index.html, solo engine.js.
+function isAbsoluteRankMultigol(top, rank, eligible){ return top ? rank === 1 : rank === eligible; }
 function arbitroFactTextMultigol(e, nomeKey){
   const dir = e.top ? 'più' : 'meno';
-  const verbo = {
-    Falli_Totali_Medi: `fischia ${dir} falli a partita della stagione`,
-    Falli_Casa_Medi: `fischia ${dir} falli alla squadra di casa della stagione`,
-    Falli_Trasferta_Medi: `fischia ${dir} falli alla squadra in trasferta della stagione`,
-    Cartellini_Totali_Medi: `assegna ${dir} cartellini a partita della stagione`,
-    Gol_Medi: `le sue partite hanno in media ${dir === 'più' ? 'più' : 'meno'} gol complessivi rispetto agli altri arbitri`,
-  }[e.col] || `ha ${dir} ${e.label} della stagione`;
-  return `${nomeKey} ${verbo} — media <strong>${e.value.toFixed(2)}</strong> (${e.n} partite dirette) — ${e.rank}° su ${e.eligible} arbitri idonei`;
+  const abs = isAbsoluteRankMultigol(e.top, e.rank, e.eligible);
+  const qualifier = abs ? 'di qualsiasi altro arbitro della Serie A' : 'della maggior parte degli arbitri della Serie A';
+  let clausola;
+  if (e.col === 'Falli_Totali_Medi') clausola = `fischia ${dir} falli a partita ${qualifier}`;
+  else if (e.col === 'Falli_Casa_Medi') clausola = `fischia ${dir} falli alla squadra di casa ${qualifier}`;
+  else if (e.col === 'Falli_Trasferta_Medi') clausola = `fischia ${dir} falli alla squadra in trasferta ${qualifier}`;
+  else if (e.col === 'Cartellini_Totali_Medi') clausola = `assegna ${dir} cartellini a partita ${qualifier}`;
+  else if (e.col === 'Gol_Medi') clausola = abs
+    ? `le sue partite producono ${dir} gol complessivi di quelle di qualsiasi altro arbitro della Serie A`
+    : `le sue partite sono tra quelle che producono ${dir} gol complessivi della Serie A`;
+  else clausola = `ha ${dir} ${e.label} ${qualifier}`;
+  return `${nomeKey} ${clausola} — media <strong>${e.value.toFixed(2)}</strong> a partita (${e.n} partite dirette) — ${e.rank}° su ${e.eligible} arbitri idonei`;
 }
 
 function factsSalientiMultigol(m){

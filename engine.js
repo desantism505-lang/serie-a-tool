@@ -619,18 +619,32 @@ function teamGoalMatches(calendar, teamId, venue) {
     return { fatti, subiti, totale: fatti + subiti };
   });
 }
-// Testo in stile mercato Over/Under — richiesto da Marco, 24/10 ("non si
-// capisce cosa significa"): la vecchia formulazione descrittiva ("ha
-// sempre segnato più di X gol") risultava ambigua. Per la soglia 0,5 (il
-// caso "mai una gara senza gol/mai una gara a secco") viene aggiunta una
-// frase in chiaro, perché è la linea più comune e la più intuitiva da
-// leggere in un colpo d'occhio.
-function goalLineOverText(label, verboAlSecco, n, venueLabel, lowL, mn) {
-  const base = `Over ${String(lowL).replace('.', ',')} ${label} in tutte le ${n} partite ${venueLabel} (minimo registrato: ${mn})`;
-  return lowL === 0.5 ? `${base} — mai una gara ${verboAlSecco}` : base;
+// Testo diretto, comparativo e immediatamente comprensibile — richiesto da
+// Marco, 24/10: via le formulazioni burocratiche/ambigue ("ha sempre
+// segnato più di 0,5 gol fatti... minimo 1"), dentro linguaggio naturale di
+// frequenza ("in tutte le X partite" / "in nessuna delle X partite") con
+// l'etichetta Over/Under mantenuta in testa, perché è quella che rende la
+// riga immediatamente riconoscibile come mercato di scommessa. Il campione
+// (n/n partite) resta sempre visibile: un 3/3 è un dato storico, non una
+// garanzia per la prossima partita.
+function fmtLinea(x) { return String(x).replace('.', ','); }
+function goalLineOverText(col, label, n, venueLabel, lowL, mn) {
+  const tag = `Over ${fmtLinea(lowL)} ${label}`;
+  if (lowL === 0.5) {
+    if (col === 'fatti') return `${tag}: non è mai rimasta a secco ${venueLabel}, in tutte le ${n} partite (minimo registrato: ${mn})`;
+    if (col === 'subiti') return `${tag}: ha sempre subito almeno un gol ${venueLabel}, in tutte le ${n} partite (minimo registrato: ${mn})`;
+    return `${tag}: tutte le ${n} partite ${venueLabel} hanno prodotto almeno un gol complessivo (minimo registrato: ${mn})`;
+  }
+  if (col === 'fatti') return `${tag}: ha sempre segnato più di ${fmtLinea(lowL)} gol in tutte le ${n} partite ${venueLabel} (minimo registrato: ${mn})`;
+  if (col === 'subiti') return `${tag}: ha sempre subito più di ${fmtLinea(lowL)} gol in tutte le ${n} partite ${venueLabel} (minimo registrato: ${mn})`;
+  return `${tag}: tutte le ${n} partite ${venueLabel} hanno sempre superato ${fmtLinea(lowL)} gol complessivi (minimo registrato: ${mn})`;
 }
-function goalLineUnderText(label, n, venueLabel, highL, mx) {
-  return `Under ${String(highL).replace('.', ',')} ${label} in tutte le ${n} partite ${venueLabel} (massimo registrato: ${mx})`;
+function goalLineUnderText(col, label, n, venueLabel, highL, mx) {
+  const tag = `Under ${fmtLinea(highL)} ${label}`;
+  const soglia = Math.floor(highL);
+  if (col === 'fatti') return `${tag}: non ha mai segnato più di ${soglia} ${soglia === 1 ? 'gol' : 'gol'} in nessuna delle ${n} partite ${venueLabel} (massimo registrato: ${mx})`;
+  if (col === 'subiti') return `${tag}: non ha mai subito più di ${soglia} gol in nessuna delle ${n} partite ${venueLabel} (massimo registrato: ${mx})`;
+  return `${tag}: nessuna delle ${n} partite ${venueLabel} ha superato i ${soglia} gol complessivi (massimo registrato: ${mx})`;
 }
 function computeGoalLineFacts(calendar, teamId, venue, venueLabel, minSample) {
   minSample = minSample == null ? GOAL_LINE_MIN_SAMPLE : minSample;
@@ -638,22 +652,22 @@ function computeGoalLineFacts(calendar, teamId, venue, venueLabel, minSample) {
   if (matches.length < minSample) return [];
   const facts = [];
   const metrics = [
-    ['fatti', 'gol segnati', 'a secco'],
-    ['subiti', 'gol subiti', 'senza subire gol'],
-    ['totale', 'gol totali (entrambe le squadre)', 'senza gol'],
+    ['fatti', 'gol fatti'],
+    ['subiti', 'gol subiti'],
+    ['totale', 'gol totali'],
   ];
-  for (const [col, label, alSecco] of metrics) {
+  for (const [col, label] of metrics) {
     const vs = matches.map((m) => m[col]);
     const mn = Math.min(...vs), mx = Math.max(...vs);
     const n = vs.length;
     const lowL = Math.ceil(mn) - 0.5, highL = Math.floor(mx) + 0.5;
     if (mn >= 1) {
       facts.push({ type: 'goalLine', col, over: true, line: lowL, n, min: mn,
-        txt: goalLineOverText(label, alSecco, n, venueLabel, lowL, mn) });
+        txt: goalLineOverText(col, label, n, venueLabel, lowL, mn) });
     }
     if (mx <= 4) { // sopra 4 la soglia "sempre sotto" diventa poco interessante come linea di mercato
       facts.push({ type: 'goalLine', col, over: false, line: highL, n, max: mx,
-        txt: goalLineUnderText(label, n, venueLabel, highL, mx) });
+        txt: goalLineUnderText(col, label, n, venueLabel, highL, mx) });
     }
   }
   return facts;

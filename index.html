@@ -982,65 +982,61 @@ function factBadge(rank, eligible, iconHtml){
   return `<span style="display:inline-flex;align-items:center;gap:5px;min-width:50px;">${factsRankBadgeV2(rank, eligible)}<span style="display:inline-flex;color:var(--text-2);">${iconHtml}</span></span>`;
 }
 
-function factsTeamMetricTextV2(label, top, venueLabel){
-  const map = {
-    'tiri fatti': top
-      ? `Produce più tiri di ogni altra squadra della Serie A ${venueLabel}`
-      : `Produce meno tiri di ogni altra squadra della Serie A ${venueLabel}`,
-    'tiri concessi': top
-      ? `Concede più tiri di ogni altra squadra della Serie A ${venueLabel}`
-      : `Limita più di ogni altra squadra della Serie A i tiri avversari ${venueLabel}`,
-    'tiri in porta fatti': top
-      ? `Produce più tiri in porta di ogni altra squadra della Serie A ${venueLabel}`
-      : `Produce meno tiri in porta di ogni altra squadra della Serie A ${venueLabel}`,
-    'tiri in porta concessi': top
-      ? `Concede più tiri in porta di ogni altra squadra della Serie A ${venueLabel}`
-      : `Limita più di ogni altra squadra della Serie A i tiri in porta avversari ${venueLabel}`,
-    'falli commessi': top
-      ? `Commette più falli di ogni altra squadra della Serie A ${venueLabel}`
-      : `Commette meno falli di ogni altra squadra della Serie A ${venueLabel}`,
-    'falli subiti': top
-      ? `Subisce più falli di ogni altra squadra della Serie A ${venueLabel}`
-      : `Subisce meno falli di ogni altra squadra della Serie A ${venueLabel}`,
-    'cartellini': top
-      ? `Riceve più cartellini di ogni altra squadra della Serie A ${venueLabel}`
-      : `Riceve meno cartellini di ogni altra squadra della Serie A ${venueLabel}`,
-    'corner fatti': top
-      ? `Conquista più corner di ogni altra squadra della Serie A ${venueLabel}`
-      : `Conquista meno corner di ogni altra squadra della Serie A ${venueLabel}`,
-    'corner concessi': top
-      ? `Concede più corner di ogni altra squadra della Serie A ${venueLabel}`
-      : `Concede meno corner di ogni altra squadra della Serie A ${venueLabel}`,
-    'gol fatti': top
-      ? `Segna più gol di ogni altra squadra della Serie A ${venueLabel}`
-      : `Segna meno gol di ogni altra squadra della Serie A ${venueLabel}`,
-    'gol subiti': top
-      ? `Subisce più gol di ogni altra squadra della Serie A ${venueLabel}`
-      : `Subisce meno gol di ogni altra squadra della Serie A ${venueLabel}`,
-    'gol totali di partita': top
-      ? `Le sue partite producono più gol complessivi di ogni altra squadra della Serie A ${venueLabel}`
-      : `Le sue partite producono meno gol complessivi di ogni altra squadra della Serie A ${venueLabel}`,
-  };
-  return map[label] || `${top ? 'Valore più alto' : 'Valore più basso'} della Serie A per ${label} ${venueLabel}`;
+// Primato ASSOLUTO (1° o ultimo posto) vs RELATIVO (2°/3° o terzultimo/
+// penultimo) — richiesto da Marco, 24/10: "«Segna meno gol di ogni altra
+// squadra» non può corrispondere al 19° posto su 20". Solo rank===1 (top)
+// o rank===eligible (bottom) sono primati assoluti; il resto va descritto
+// come "tra le squadre che" — mai spacciato per record assoluto.
+function isAbsoluteRank(top, rank, eligible){
+  return top ? rank === 1 : rank === eligible;
 }
 
-function factsRoleTextV2(teamName, label, top, role, venueLabel){
+function factsTeamMetricTextV2(label, top, venueLabel, rank, eligible){
+  const dir = top ? 'più' : 'meno';
+  const abs = isAbsoluteRank(top, rank, eligible);
+  // sing/plur: forma usata nella frase assoluta ("Produce più...") vs in
+  // quella relativa ("È tra le squadre che producono più...").
+  const SPECS = {
+    'tiri fatti': ['Produce', 'producono', 'tiri'],
+    'tiri concessi': ['Concede', 'concedono', 'tiri'],
+    'tiri in porta fatti': ['Produce', 'producono', 'tiri in porta'],
+    'tiri in porta concessi': ['Concede', 'concedono', 'tiri in porta'],
+    'falli commessi': ['Commette', 'commettono', 'falli'],
+    'falli subiti': ['Subisce', 'subiscono', 'falli'],
+    'cartellini': ['Riceve', 'ricevono', 'cartellini'],
+    'corner fatti': ['Conquista', 'conquistano', 'corner'],
+    'corner concessi': ['Concede', 'concedono', 'corner'],
+    'gol fatti': ['Segna', 'segnano', 'gol'],
+    'gol subiti': ['Subisce', 'subiscono', 'gol'],
+  };
+  if (label === 'gol totali di partita') {
+    return abs
+      ? `Le sue partite producono ${dir} gol complessivi di qualsiasi altra squadra della Serie A ${venueLabel}`
+      : `Le sue partite sono tra quelle che producono ${dir} gol complessivi della Serie A ${venueLabel}`;
+  }
+  const s = SPECS[label];
+  if (!s) return `${abs ? (top ? 'Valore più alto' : 'Valore più basso') : (top ? 'Tra i valori più alti' : 'Tra i valori più bassi')} della Serie A per ${label} ${venueLabel}`;
+  const [sing, plur, obj] = s;
+  return abs
+    ? `${sing} ${dir} ${obj} di qualsiasi altra squadra della Serie A ${venueLabel}`
+    : `È tra le squadre che ${plur} ${dir} ${obj} della Serie A ${venueLabel}`;
+}
+
+function factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible){
   const subject = FACTS_ROLE_SUBJECT_V2[role] || role.toLowerCase();
   const teamArt = art(teamName);
-
-  if (label === 'falli') {
-    return `Contro ${teamArt}, ${subject} commettono ${top ? 'più' : 'meno'} falli che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
-  }
-  if (label === 'falli subiti') {
-    return `Contro ${teamArt}, ${subject} subiscono ${top ? 'più' : 'meno'} falli che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
-  }
-  if (label === 'cartellini') {
-    return `Contro ${teamArt}, ${subject} ricevono ${top ? 'più' : 'meno'} cartellini che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
-  }
-  if (label === 'tiri in porta') {
-    return `Contro ${teamArt}, ${subject} effettuano ${top ? 'più' : 'meno'} tiri in porta che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
-  }
-  return `Contro ${teamArt}, ${subject} effettuano ${top ? 'più' : 'meno'} tiri che contro qualsiasi altra squadra della Serie A quando ${teamArt} gioca ${venueLabel}`;
+  const dir = top ? 'più' : 'meno';
+  const abs = isAbsoluteRank(top, rank, eligible);
+  const qualifier = abs ? 'che contro qualsiasi altra squadra della Serie A' : 'che contro la maggior parte delle squadre della Serie A';
+  const SPECS = {
+    falli: ['commettono', 'falli'],
+    'falli subiti': ['subiscono', 'falli'],
+    cartellini: ['ricevono', 'cartellini'],
+    'tiri in porta': ['effettuano', 'tiri in porta'],
+    tiri: ['effettuano', 'tiri'],
+  };
+  const [verbo, oggetto] = SPECS[label] || ['effettuano', label];
+  return `Contro ${teamArt}, ${subject} ${verbo} ${dir} ${oggetto} ${qualifier} quando ${teamArt} gioca ${venueLabel}`;
 }
 
 // oppTeamId: l'avversario REALE di questa partita per la squadra `teamId` —
@@ -1075,7 +1071,7 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
       facts.push({
         tag: 'Squadra',
         icon: metricIcon(label),
-        text: `${factsTeamMetricTextV2(label, top, venueLabel)} — ${rank}° su ${eligible} squadre idonee`,
+        text: `${factsTeamMetricTextV2(label, top, venueLabel, rank, eligible)} — ${rank}° su ${eligible} squadre idonee`,
         rank, eligible,
       });
     }
@@ -1095,7 +1091,7 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
       facts.push({
         tag: 'Squadra',
         icon: metricIcon(label),
-        text: `${factsTeamMetricTextV2(label, top, venueLabel)} — ${rank}° su ${eligible} squadre idonee`,
+        text: `${factsTeamMetricTextV2(label, top, venueLabel, rank, eligible)} — ${rank}° su ${eligible} squadre idonee`,
         rank, eligible,
       });
     }
@@ -1122,7 +1118,7 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
       facts.push({
         tag: 'Squadra',
         icon: metricIcon('gol'),
-        text: `${factsTeamMetricTextV2(label, top, venueLabel)} (media ${me.value.toFixed(2)}) — ${rank}° su ${eligible} squadre idonee`,
+        text: `${factsTeamMetricTextV2(label, top, venueLabel, rank, eligible)} (media ${me.value.toFixed(2)}) — ${rank}° su ${eligible} squadre idonee`,
         rank, eligible,
       });
     }
@@ -1165,7 +1161,7 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
-          text: `${factsRoleTextV2(teamName, label, top, role, venueLabel)} — ${rank}° su ${eligible} squadre idonee`,
+          text: `${factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible)} — ${rank}° su ${eligible} squadre idonee`,
           rank, eligible,
         });
       }
@@ -1238,7 +1234,7 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
-          text: `${factsRoleTextV2(oppName, label, top, role, oppVenueWord)} — ${rank}° su ${eligible} squadre idonee. Per ${art(teamName)} il matchup riguarda: ${sameRole.join(', ')}.`,
+          text: `${factsRoleTextV2(oppName, label, top, role, oppVenueWord, rank, eligible)} — ${rank}° su ${eligible} squadre idonee. Per ${art(teamName)} il matchup riguarda: ${sameRole.join(', ')}.`,
           rank, eligible,
         });
       }
@@ -1646,16 +1642,24 @@ function computeSignalStrength(teamId, teamKey, venue, proiezione, proiezioneOpp
 // Testo direzionale per i fatti arbitro — richiesto da Marco, 24/10: come
 // per le squadre (factsTeamMetricTextV2), serve dire se la sua media è PIÙ
 // ALTA o PIÙ BASSA rispetto agli altri arbitri, non solo "ha una media di X".
+// Stile diretto richiesto da Marco, 24/10: niente "è tra gli arbitri che",
+// soggetto+verbo in forma attiva ("Bonacina fischia/assegna..."), e distinzione
+// primato assoluto (1°/ultimo) vs relativo (2°/3° o terzultimo/penultimo) —
+// stessa regola di isAbsoluteRank usata per i fatti Squadra/Matchup ruolo.
 function arbitroFactTextV2(e, nomeKey){
-  const dir = e.top ? 'più' : 'meno';
-  const verbo = {
-    Falli_Totali_Medi: `È tra gli arbitri che fischiano ${dir} falli a partita della stagione`,
-    Falli_Casa_Medi: `È tra gli arbitri che fischiano ${dir} falli alla squadra di casa della stagione`,
-    Falli_Trasferta_Medi: `È tra gli arbitri che fischiano ${dir} falli alla squadra in trasferta della stagione`,
-    Cartellini_Totali_Medi: `È tra gli arbitri che assegnano ${dir} cartellini a partita della stagione`,
-    Gol_Medi: `Le partite che dirige hanno ${dir === 'più' ? 'in media più' : 'in media meno'} gol complessivi rispetto alla media degli altri arbitri della stagione`,
-  }[e.col] || `È tra gli arbitri con ${dir} ${e.label} della stagione`;
-  return `L'arbitro ${nomeKey}: ${verbo} (media ${e.value.toFixed(2)}, ${e.n} partite dirette) — ${e.rank}° su ${e.eligible} arbitri idonei`;
+  const direzione = e.top ? 'più' : 'meno';
+  const abs = isAbsoluteRank(e.top, e.rank, e.eligible);
+  const qualifier = abs ? 'di qualsiasi altro arbitro della Serie A' : 'della maggior parte degli arbitri della Serie A';
+  let clausola;
+  if (e.col === 'Falli_Totali_Medi') clausola = `${nomeKey} fischia ${direzione} falli a partita ${qualifier}`;
+  else if (e.col === 'Falli_Casa_Medi') clausola = `${nomeKey} fischia ${direzione} falli alla squadra di casa ${qualifier}`;
+  else if (e.col === 'Falli_Trasferta_Medi') clausola = `${nomeKey} fischia ${direzione} falli alla squadra in trasferta ${qualifier}`;
+  else if (e.col === 'Cartellini_Totali_Medi') clausola = `${nomeKey} assegna ${direzione} cartellini a partita ${qualifier}`;
+  else if (e.col === 'Gol_Medi') clausola = abs
+    ? `Le partite dirette da ${nomeKey} producono ${direzione} gol complessivi di quelle di qualsiasi altro arbitro della Serie A`
+    : `Le partite dirette da ${nomeKey} sono tra quelle che producono ${direzione} gol complessivi della Serie A`;
+  else clausola = `${nomeKey} ha ${direzione} ${e.label} ${qualifier}`;
+  return `${clausola} — media ${e.value.toFixed(2)} a partita, ${e.rank}° su ${e.eligible} arbitri idonei (${e.n} partite dirette)`;
 }
 function arbitroFactsForSide(match, side, venueLabel){
   const arbitriEff = arbitriEffettivi();
