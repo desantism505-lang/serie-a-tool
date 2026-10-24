@@ -347,6 +347,10 @@
 
   /* ===================== Pannello "Analisi partita" — testo discorsivo ===================== */
   .narr-body{padding:26px 28px;}
+  .narr-theme-item{padding:11px 13px;border-left:2px solid var(--accent-dim);background:var(--panel-2);border-radius:0 8px 8px 0;}
+  .narr-theme-item p{margin:0 0 7px;}
+  .narr-theme-item p:last-child{margin-bottom:0;}
+
   .narr-sec{padding:20px 0;border-top:1px solid var(--line);}
   .narr-sec:first-child{border-top:none;padding-top:0;}
   .narr-sec-title{
@@ -2241,10 +2245,12 @@ function narrativeBlock(match) {
   // I dettagli numerici restano nella Preview; qui segnaliamo temi aggiuntivi
   // e limiti del campione senza ripetere le stesse statistiche.
   const temiHtml = N.temi && N.temi.length
-    ? '<div class="narr-names-grid">' + N.temi.map(t =>
-        '<p><b>' + esc(t.title) + '</b> <span class="narr-hl">N=' + t.n + '</span>. ' + t.limit + '</p>'
+    ? '<div class="narr-names-grid">' + N.temi.map((t, idx) =>
+        '<div class="narr-theme-item"><p><b>' + esc(t.title) + '</b> <span class="narr-hl">N=' + t.n + '</span></p>' +
+        '<p>' + t.evidence + '</p>' +
+        '<p class="subtle"><b>Lettura:</b> ' + t.limit + '</p></div>'
       ).join('') + '</div>'
-    : '<p>Nessuna anomalia sufficientemente distinta con il campione disponibile. Non viene generata una tesi artificiale.</p>';
+    : '<p>Nei dati attuali non emergono incroci abbastanza distintivi: meglio evitare una lettura forzata della partita.</p>';
   const chiaveHtml = N.chiaveHtml || '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
 
   // --- Nomi che contano: ogni giocatore è citato sulla metrica dove è davvero sopra il proprio
