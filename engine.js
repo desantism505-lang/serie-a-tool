@@ -1910,7 +1910,7 @@ function narrDynamicPreview(d,temi){
   const second=temi.length>1?temi[1]:null;
   const opening=principal.evidence;
   const paragraphs=[opening];
-  if(second) paragraphs.push('C’è però un secondo elemento che completa il quadro: '+second.evidence);
+  if(second) paragraphs.push('Un altro dato da mettere in relazione con questo matchup: '+second.evidence);
   if(principal.domain==='matchup') {
     paragraphs.push('Il dato riguarda una concessione del reparto avversario, non un evento certo: la verifica decisiva passa da ruolo reale, titolarità e minuti del giocatore citato.');
   } else if(principal.domain==='tiri'||principal.domain==='precisione') {
