@@ -1855,7 +1855,7 @@ function narrDiscoverThemes(d) {
     const team=fh.ppg>fa.ppg?d.homeName:d.awayName;
     const leader=fh.ppg>fa.ppg?fh:fa,other=fh.ppg>fa.ppg?fa:fh;
     add('forma','forma','Ultime cinque gare: '+team+' meglio nei risultati',
-      narrTeam(team,true)+' ha raccolto '+leader.w+' vittorie, '+leader.d+' pareggi e '+leader.l+' sconfitte nelle ultime '+leader.n+' gare ('+f(leader.ppg)+' punti/partita); l’avversaria '+other.w+' vittorie, '+other.d+' pareggi e '+other.l+' sconfitte ('+f(other.ppg)+' punti/partita).',
+      narrTeam(team,true)+' ha raccolto '+leader.w+'V, '+leader.d+'N e '+leader.l+'P nelle ultime '+leader.n+' gare ('+f(leader.ppg)+' punti/partita); l’avversaria '+other.w+'V, '+other.d+'N e '+other.l+'P ('+f(other.ppg)+' punti/partita).',
       'Lo scarto è '+f(Math.abs(fh.ppg-fa.ppg))+' punti/partita, ma include gare sia in casa sia fuori: valutare separatamente il rendimento nel venue della sfida.',
       Math.abs(fh.ppg-fa.ppg)/1.6,Math.min(fh.n,fa.n));
   }
@@ -1876,7 +1876,7 @@ function narrDiscoverThemes(d) {
       ? z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' e falli contro '+z.team
       : z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' contro la difesa '+z.team;
     add('role'+z.team,'matchup',title,
-      narrTeam(z.team,true)+' '+(z.team===d.homeName?'in casa':'in trasferta')+' registra '+f(value)+' '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi ')+role+' a partita: '+Math.round((z.ratio-1)*100)+'% rispetto alla media di riferimento dello stesso ruolo/venue.'+playerNote,
+      narrTeam(z.team,true)+' '+(z.team===d.homeName?'in casa':'in trasferta')+' registra '+f(value)+' '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi ')+role+' a partita: '+Math.round((z.ratio-1)*100)+'% sopra la media di riferimento dello stesso ruolo/venue.'+playerNote,
       player ? 'È un incrocio da approfondire sul mercato tiri di '+player.nome+', verificando formazione, minuti e prezzo; non è una giocata automatica.'
         : 'Il matchup è riferito al ruolo, non identifica da solo il giocatore su cui puntare. Verificare chi parte titolare e le rispettive linee.',
       (z.ratio-1)/.65,z.n);
