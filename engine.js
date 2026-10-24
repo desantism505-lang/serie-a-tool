@@ -631,20 +631,20 @@ function fmtLinea(x) { return String(x).replace('.', ','); }
 function goalLineOverText(col, label, n, venueLabel, lowL, mn) {
   const tag = `Over ${fmtLinea(lowL)} ${label}`;
   if (lowL === 0.5) {
-    if (col === 'fatti') return `${tag}: non è mai rimasta a secco ${venueLabel}, in tutte le ${n} partite (minimo registrato: ${mn})`;
-    if (col === 'subiti') return `${tag}: ha sempre subito almeno un gol ${venueLabel}, in tutte le ${n} partite (minimo registrato: ${mn})`;
-    return `${tag}: tutte le ${n} partite ${venueLabel} hanno prodotto almeno un gol complessivo (minimo registrato: ${mn})`;
+    if (col === 'fatti') return `${tag}: non è mai rimasta a secco ${venueLabel}, in tutte le ${n} partite (min. registrato: ${mn})`;
+    if (col === 'subiti') return `${tag}: ha sempre subito almeno un gol ${venueLabel}, in tutte le ${n} partite (min. registrato: ${mn})`;
+    return `${tag}: tutte le ${n} partite ${venueLabel} hanno prodotto almeno un gol complessivo (min. registrato: ${mn})`;
   }
-  if (col === 'fatti') return `${tag}: ha sempre segnato più di ${fmtLinea(lowL)} gol in tutte le ${n} partite ${venueLabel} (minimo registrato: ${mn})`;
-  if (col === 'subiti') return `${tag}: ha sempre subito più di ${fmtLinea(lowL)} gol in tutte le ${n} partite ${venueLabel} (minimo registrato: ${mn})`;
-  return `${tag}: tutte le ${n} partite ${venueLabel} hanno sempre superato ${fmtLinea(lowL)} gol complessivi (minimo registrato: ${mn})`;
+  if (col === 'fatti') return `${tag}: ha sempre segnato più di ${fmtLinea(lowL)} gol in tutte le ${n} partite ${venueLabel} (min. registrato: ${mn})`;
+  if (col === 'subiti') return `${tag}: ha sempre subito più di ${fmtLinea(lowL)} gol in tutte le ${n} partite ${venueLabel} (min. registrato: ${mn})`;
+  return `${tag}: tutte le ${n} partite ${venueLabel} hanno sempre superato ${fmtLinea(lowL)} gol complessivi (min. registrato: ${mn})`;
 }
 function goalLineUnderText(col, label, n, venueLabel, highL, mx) {
   const tag = `Under ${fmtLinea(highL)} ${label}`;
   const soglia = Math.floor(highL);
-  if (col === 'fatti') return `${tag}: non ha mai segnato più di ${soglia} ${soglia === 1 ? 'gol' : 'gol'} in nessuna delle ${n} partite ${venueLabel} (massimo registrato: ${mx})`;
-  if (col === 'subiti') return `${tag}: non ha mai subito più di ${soglia} gol in nessuna delle ${n} partite ${venueLabel} (massimo registrato: ${mx})`;
-  return `${tag}: nessuna delle ${n} partite ${venueLabel} ha superato i ${soglia} gol complessivi (massimo registrato: ${mx})`;
+  if (col === 'fatti') return `${tag}: non ha mai segnato più di ${soglia} ${soglia === 1 ? 'gol' : 'gol'} in nessuna delle ${n} partite ${venueLabel} (max. registrato: ${mx})`;
+  if (col === 'subiti') return `${tag}: non ha mai subito più di ${soglia} gol in nessuna delle ${n} partite ${venueLabel} (max. registrato: ${mx})`;
+  return `${tag}: nessuna delle ${n} partite ${venueLabel} ha superato i ${soglia} gol complessivi (max. registrato: ${mx})`;
 }
 function computeGoalLineFacts(calendar, teamId, venue, venueLabel, minSample) {
   minSample = minSample == null ? GOAL_LINE_MIN_SAMPLE : minSample;
