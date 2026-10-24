@@ -2854,10 +2854,10 @@ function convBox(match, Pb) {
     const items = c.srcs.map((q) => `<div style="display:flex;gap:8px;margin:3px 0;"><span style="min-width:84px;color:var(--muted);font-weight:600;">${q.v >= 1 ? '✓' : q.v >= 0.5 ? '◐' : '–'} ${ico[q.k]}</span><span>${q.txt}</span></div>`).join('');
     return `<div style="${big ? '' : 'margin-top:12px;padding-top:10px;border-top:1px solid var(--line);'}"><div style="font-size:${big ? 16 : 13}px;color:#fff;font-weight:700;">${big ? 'Segnale più forte: ' : ''}${c.over ? 'Over' : 'Under'} ${String(c.L).replace('.', ',')} ${esc(c.x.label)} · ${esc(c.df.who)} <span class="pill">${c.agree}/${c.nSrc} fonti concordi</span></div>
       <div style="margin-top:6px;">${items}</div>
-      <div style="margin-top:6px;">Modello (sempre con panchina): probabilità <b>${pc(c.pl.p)}</b> · quota minima <b>${qm(c.pl.p)}</b>${c.over ? '' : ' · giocata Under: verifica che il book la quoti'}</div></div>`;
+      <div style="margin-top:6px;">Modello (${S.bench ? 'con panchina' : 'solo titolari'}): probabilità <b>${pc(c.pl.p)}</b> · quota minima <b>${qm(c.pl.p)}</b>${c.over ? '' : ' · giocata Under: verifica che il book la quoti'}</div></div>`;
   };
   return `<div class="infobox" style="border-color:#5BA8E8;">${row(picks[0], true)}${picks.length > 1 ? `<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--opp);">Altre convergenze (${picks.length - 1})</summary>${picks.slice(1).map((c) => row(c, false)).join('')}</details>` : ''}
-    <div class="subtle" style="margin-top:8px;">✓ fonte pienamente d'accordo · ◐ d'accordo in parte · –  nessuna indicazione (campione insufficiente). Un segnale compare solo con almeno 3 fonti d'accordo (2 per il totale partita) e nessuna in contrasto; la forza è la quota di peso d'accordo. Probabilità e linea usano sempre il totale con panchina, quindi la spunta panchina non cambia la scelta. Confronta la quota minima con il prezzo del book.</div></div>`;
+    <div class="subtle" style="margin-top:8px;">✓ fonte pienamente d'accordo · ◐ d'accordo in parte · –  nessuna indicazione (campione insufficiente). Un segnale compare solo con almeno 3 fonti d'accordo (2 per il totale partita) e nessuna in contrasto; la forza è la quota di peso d'accordo. Probabilità e linea seguono la stessa spunta «con panchina» della tabella sopra. Confronta la quota minima con il prezzo del book.</div></div>`;
 }
 
 // ---- Fatti salienti sulle linee (stessi dati e stesso campione dell'interruttore) ----
@@ -2948,7 +2948,10 @@ function projBlock(match, P, Pb) {
   };
   const rows = computed.map((r) => `<tr><td class="num">${cell(r.h, best.label === r.label && best.side === 'home')[0] ? '' : ''}</td></tr>`); // placeholder (sostituito sotto)
   const body = computed.map((r) => `<tr>${cell(r.h, best.label === r.label && best.side === 'home', false, 'home', r.tk)}<td style="text-align:center;font-weight:600;color:var(--text);">${r.mk === 'FC' ? ic('falli') : ic(r.tk === 'SOT' ? 'tiri in porta' : r.tk === 'Cart' ? 'cartellini' : r.tk === 'Corner' ? 'corner' : 'tiri')} ${r.label}</td>${cell(r.a, best.label === r.label && best.side === 'away', true, 'away', r.tk)}</tr>`).join('');
-  const bestBox = convBox(match, Pb || P);
+  // "Segnale più forte" ora usa P (rispetta la spunta "con panchina"), non più sempre
+  // Pb — richiesto da Marco, 24/10: il box deve rapportarsi allo stesso numero mostrato
+  // in tabella sopra, non a un totale diverso e invisibile.
+  const bestBox = convBox(match, P);
   const anyIncomplete = ['home', 'away'].some((s) => TM.some(([mk]) => P[s][mk].counted != null && !P[s][mk].complete));
   return `
   <div class="card"><h3>Proiezione partita <span class="tag">somma dei titolari scelti (ciascuno con minuti attesi)${S.bench ? ' + stima panchina' : ''} · Corner a livello squadra · sotto ogni valore: cosa produce la squadra e cosa concede l'altra</span>${benchToggle()}${scopeToggle()}</h3>
