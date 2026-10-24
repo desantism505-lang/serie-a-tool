@@ -1460,6 +1460,22 @@ function runScanGiornata(){
 }
 document.getElementById('scnRun').addEventListener('click', runScanGiornata);
 
+// Tab dalla cella Quota salta alla prossima cella Quota VUOTA nella tabella
+// (non alla prossima cella del DOM, che sarebbe il "✕ indisponibile" della
+// riga successiva) — richiesto da Marco, 24/10. Se non ce ne sono più dopo
+// quella corrente, lascia fare al browser il comportamento normale (esce
+// dalla tabella).
+function scnQuotaTab(e, i){
+  if (e.key !== 'Tab' || e.shiftKey) return true;
+  const inputs = [...document.querySelectorAll('input[id^="scnQuotaInput-"]')];
+  const idx = inputs.findIndex((el) => el.id === `scnQuotaInput-${i}`);
+  if (idx < 0) return true;
+  for (let k = idx + 1; k < inputs.length; k++) {
+    if (!inputs[k].value) { e.preventDefault(); inputs[k].focus(); inputs[k].select(); return false; }
+  }
+  return true;
+}
+
 // Bug corretto (18/10): prima qui si chiamava renderScan(), che ricostruisce
 // TUTTA la tabella (body.innerHTML = ...) e quindi distrugge e ricrea ogni
 // singolo campo quota — incluso quello su cui stavi scrivendo in un'altra
@@ -1780,7 +1796,7 @@ function renderScan(){
     const ciTxt = (lo != null) ? `<span class="subtle">±${Math.round((hi - lo) / 2 * 100)}pp</span>` : '';
     const fav = isFavorited(r);
     return `<tr>
-    <td class="metricname">${r.player.Nome_completo}<button class="excl-mark" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')">✕</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
+    <td class="metricname">${r.player.Nome_completo}<button class="excl-mark" tabindex="-1" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')">✕</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
     <td class="num">${lineupBadge(r)}</td>
     <td>${MARKET_LABELS[r.mercato]}</td>
@@ -1790,7 +1806,7 @@ function renderScan(){
     <td>${cvBadge(r.cv)}</td>
     <td class="num"><div class="hitcell">${hitChip(r.hitVenue)}${ciTxt}</div></td>
     <td class="num">${pctColored(r.hitStag)}</td>
-    <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" id="scnQuotaInput-${i}" value="${fmtQuotaInput(quota)}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" /></td>
+    <td class="num"><input type="text" inputmode="decimal" placeholder="1.85" id="scnQuotaInput-${i}" value="${fmtQuotaInput(quota)}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" onkeydown="return scnQuotaTab(event, ${i})" /></td>
     <td class="num" id="scnProb-${i}">${prob != null ? pct(prob) : '—'}</td>
     <td class="num ${edge != null && edge > 0 ? 'verdict-fav' : (edge != null ? 'verdict-nofav' : '')}" id="scnEdge-${i}">${edge != null ? (edge>0?'+':'') + (edge*100).toFixed(1)+'pp' : '—'}</td>
     <td class="num ${ev != null && ev > 0 ? 'verdict-fav' : (ev != null ? 'verdict-nofav' : '')}" id="scnEv-${i}">${ev != null ? (ev>0?'+':'') + ev.toFixed(2)+'€' : '—'}</td>
