@@ -1601,7 +1601,11 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
   function withMuTiri(list, teamId, oppId, pv) {
     return list.map((p) => {
       const pr = projectPlayer(modelEarly, matchLog, { id: p.id, team: teamId, ruolo: p.ruolo }, oppId, true, 'Tiri', pv);
-      return { ...p, mu: pr.mu };
+      const venueRows = matchLog.filter(x => x.Player_ID === p.id && x.Team_ID === teamId && x.Venue === pv);
+      const venueMinutes = venueRows.reduce((total,x)=>total+(Number(x.Minuti)||0),0);
+      const venueShots = venueRows.reduce((total,x)=>total+(Number(x.Tiri)||0),0);
+      return { ...p, mu: pr.mu, venueMinutes, venueShots,
+        venueGames: venueRows.length, venueTiri90: venueMinutes >= 90 ? 90*venueShots/venueMinutes : null };
     }).sort((a, b) => (b.mu || 0) - (a.mu || 0));
   }
   const awayExploiters = homeWeak ? withMuTiri(narrPlayersInRole(rosters, matchLog, awayId, homeWeak.Posizione_Analitica, 300), awayId, homeId, 'A') : [];
@@ -1859,18 +1863,20 @@ function narrDiscoverThemes(d) {
     const role=NARR_ROLE_A[z.weak.Posizione_Analitica]||('al ruolo '+z.weak.Posizione_Analitica);
     const field=z.metric==='Falli'?'FalliSubiti_Ruolo_90':'Tiri_Concessi_90';
     const value=z.weak[field];
-    const player=z.metric==='Tiri'&&z.players&&z.players.length?z.players[0]:null;
-    const playerNote=player&&player.mu!=null
-      ? ' Per '+z.opp+' il candidato è '+player.nome+' ('+f(player.mu)+' tiri stimati dal modello sull’intero storico, '+player.min+' minuti stagionali).'
+    const player=z.metric==='Tiri'&&z.players&&z.players.length
+      ? z.players.filter(p=>p.venueMinutes>=120&&p.venueShots>=1)
+          .sort((a,b)=>(b.venueTiri90||0)-(a.venueTiri90||0))[0]||null : null;
+    const playerNote=player
+      ? ' Nel venue di questa gara, '+player.nome+' ('+z.opp+') ha prodotto '+player.venueShots+' tiri in '+player.venueGames+' partite ('+player.venueMinutes+' minuti, '+f(player.venueTiri90)+' tiri/90).'
       : '';
     const title=z.metric==='Falli'
       ? z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' e falli contro '+z.team
       : z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' contro la difesa '+z.team;
     add('role'+z.team,'matchup',title,
       'Squadra che concede: '+z.team+' '+(z.team===d.homeName?'in casa':'in trasferta')+'. Squadra che può beneficiare: '+z.opp+'. '+narrTeam(z.team,true)+' registra '+f(value)+' '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi ')+role+' a partita nel proprio venue: +'+Math.round((z.ratio-1)*100)+'% sulla media di riferimento per lo stesso ruolo/venue.'+playerNote,
-      player ? 'È un incrocio da approfondire sul mercato tiri di '+player.nome+', verificando formazione, minuti e prezzo; non è una giocata automatica.'
-        : 'Il matchup è riferito al ruolo, non identifica da solo il giocatore su cui puntare. Verificare chi parte titolare e le rispettive linee.',
-      Math.min(1,(z.ratio-1)/.65)*(player&&player.mu!=null?Math.min(1.25,Math.max(.25,player.mu/1.4)):0.35),z.n);
+      player ? 'L’incrocio merita verifica sui tiri di '+player.nome+' solo se confermato in quel ruolo e con minuti sufficienti; nessuna indicazione di valore senza quota.'
+        : 'Il segnale di reparto non è sostenuto da un interprete con volume di tiri sufficiente nel venue: non promuoverlo a opportunità individuale.',
+      Math.min(1,(z.ratio-1)/.65)*(player?Math.min(1.25,Math.max(.25,player.venueTiri90/1.4)):0.25),z.n);
   }
   const hc=v.homeCornerCart,ac=v.awayCornerCart;
   if(hc&&ac&&hc.corner!=null&&ac.corner!=null&&v.homeAtHome&&v.awayAtAway&&v.homeAtHome.n>=2&&v.awayAtAway.n>=2){
