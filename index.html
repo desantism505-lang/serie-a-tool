@@ -596,6 +596,10 @@
   .m4 .barsx i{flex:1;max-width:34px;border-radius:5px 5px 0 0;position:relative}
   .m4 .barsx i.o{background:linear-gradient(180deg,#D4FF6B,#8FA83E)}.m4 .barsx i.u{background:linear-gradient(180deg,#e8735b,#7a2f22)}
   .m4 .barsx i em{position:absolute;top:-15px;left:0;right:0;text-align:center;font-style:normal;font-size:10px;color:var(--text-2);font-weight:600}
+  .m4 .barsx i .tt{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:14px;background:#16241D;border:1px solid var(--accent-dim);border-radius:8px;padding:6px 8px;font-size:10.5px;line-height:1.35;color:var(--text-2);white-space:normal;text-align:center;width:max-content;max-width:110px;box-shadow:0 4px 10px rgba(0,0,0,.4);z-index:5;pointer-events:none}
+  .m4 .barsx i .tt b{display:block;color:#fff;font-size:11px;font-weight:700;margin-bottom:2px}
+  .m4 .barsx i:hover .tt{display:block}
+  .m4 .barsx i:hover{z-index:6}
   .m4 .barsx .lk{position:absolute;left:0;right:0;border-top:1.5px dashed var(--warn)}
   .m4 .center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:radial-gradient(circle at 50% 40%,rgba(212,255,107,.10),transparent 70%);border-left:1px solid var(--line);border-right:1px solid var(--line);padding:10px 6px}
   .m4 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.m4 .chip2{background:#0c140f;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:11px}.m4 .chip2 b{color:#fff}
@@ -2987,7 +2991,8 @@ function gmMatches(teamId, ownVenue) {
   const cal = Object.fromEntries(DB.calendar.map((c) => [c.Match_ID, c]));
   const rows = computeTeamDuelTotals(DB.matchLog, teamId, 'TOTALE', DB.calendar).map((d) => {
     const c = cal[d.Match_ID] || {};
-    return { id: d.Match_ID, date: c.Data || '', inVenue: ownVenue === 'HOME' ? c.Home_ID === teamId : c.Away_ID === teamId, own: d.own, opp: d.opp };
+    const isHome = c.Home_ID === teamId;
+    return { id: d.Match_ID, date: c.Data || '', inVenue: ownVenue === 'HOME' ? isHome : c.Away_ID === teamId, own: d.own, opp: d.opp, oppName: (isHome ? c.Away : c.Home) || '?', venueLabel: isHome ? 'casa' : 'trasferta' };
   }).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   return (_gmData[k] = rows);
 }
@@ -2998,7 +3003,7 @@ function gmVals(teamId, ownVenue, tk, kind, onlyVenue) { // kind: own | opp | to
   return rows.map((r) => {
     const a = r.own[tk], b = r.opp ? r.opp[tk] : null;
     const v = kind === 'own' ? a : kind === 'opp' ? b : (a != null && b != null ? a + b : null);
-    return v == null ? null : { v, inV: r.inVenue };
+    return v == null ? null : { v, inV: r.inVenue, opp: r.oppName, venue: r.venueLabel };
   }).filter(Boolean);
 }
 const scopeSet = (teamId, ownVenue, tk, kind) => gmVals(teamId, ownVenue, tk, kind, S.scope === 'venue');
@@ -3034,7 +3039,7 @@ function gmGauge(p) {
 function gmBars(vs, line) {
   if (!vs.length) return '<div class="barsx" style="align-items:center;justify-content:center;color:var(--muted);font-size:12px;">nessuna partita</div>';
   const mx = Math.max(...vs.map((x) => x.v), line) * 1.18 || 1, h = 88;
-  return `<div class="barsx">${vs.map((x) => `<i class="${x.v > line ? 'o' : 'u'}" style="height:${Math.max(3, (x.v / mx) * h).toFixed(0)}px;${x.inV ? '' : 'opacity:.5'}"><em>${x.v}</em></i>`).join('')}<span class="lk" style="bottom:${((line / mx) * h).toFixed(0)}px"></span></div>`;
+  return `<div class="barsx">${vs.map((x) => `<i class="${x.v > line ? 'o' : 'u'}" style="height:${Math.max(3, (x.v / mx) * h).toFixed(0)}px;${x.inV ? '' : 'opacity:.5'}"><em>${x.v}</em><span class="tt"><b>vs ${esc(x.opp)}</b>${x.venue} · ${x.v}</span></i>`).join('')}<span class="lk" style="bottom:${((line / mx) * h).toFixed(0)}px"></span></div>`;
 }
 function gmSide(title, sub, vsScope, vsOther, line, accent) {
   const n = vsScope.length, o = vsScope.filter((x) => x.v > line).length;
