@@ -564,7 +564,7 @@
           <option value="5">campione min. 5 partite</option>
         </select>
         <button id="scnRun">Scansiona</button>
-        <button id="scnExport" class="btn-export">⬇ Scarica Excel</button>
+        <button id="scnExport" class="btn-export" disabled>⬇ Scarica Excel</button>
       </div>
 
       <div class="filter-group" style="margin-bottom:6px;">
@@ -2010,6 +2010,7 @@ function renderScan(){
   const body = document.getElementById('scnBody');
   const empty = document.getElementById('scnEmpty');
   const filtered = applyScnFilters(scanResults);
+  updateScnExport(filtered.length, scanResults.length);
   if (!scanResults.length){
     body.innerHTML = '';
     empty.style.display = 'block';
@@ -2086,36 +2087,111 @@ function toggleFavorite(i){
   renderScreener();
 }
 
-document.getElementById('scnExport').addEventListener('click', () => {
-  if (!scanResults.length) return;
-  const rows = scanResults.map(r => {
-    const { quota, prob, edge } = derived(r);
-    return {
-      Giocatore: r.player.Nome_completo,
-      Squadra: r.player.Squadra_Rif,
-      Ruolo: r.player.Posizione_Analitica,
-      Partita: `${r.match.Home} - ${r.match.Away}`,
-      Giornata: r.match.Giornata,
-      Venue: r.venue,
-      Titolare: ({ Y: 'confermato', Yh: 'ipotetico', N: 'no', U: 'n/d' })[lineupState(r)],
-      Mercato: MARKET_LABELS[r.mercato],
-      Linea: lineaLabel(r.linea),
-      'Media venue /90': r.mediaVenue,
-      'N venue': r.nVenue,
-      'Consistenza (CV)': r.cv,
-      'Hit venue': r.hitVenue,
-      'Hit stagione': r.hitStag,
-      Quota: quota,
-      'Prob. implicita': prob,
-      'Edge': edge,
-    };
+// Export Scanner in Excel (richiesta Marco, 25/10: "come c'è in Preferiti").
+// Scarica le righe COME LE VEDI A SCHERMO (stessi filtri, stesso
+// ordinamento) — prima scaricava sempre tutta la scansione, ignorando i
+// filtri attivi. Stesso livello di dettaglio dell'export Preferiti: tutte
+// le colonne, quota inclusa, formati numerici, autofiltro e un foglio
+// Legenda.
+const SCN_XLS_COLS = [
+  { h: 'Giornata', w: 10, z: '0', note: 'Numero della giornata scansionata.' },
+  { h: 'Partita', w: 34, note: 'Squadra di casa – squadra ospite.' },
+  { h: 'Giocatore', w: 26, note: 'Nome del giocatore.' },
+  { h: 'Squadra', w: 20, note: 'Squadra di appartenenza del giocatore.' },
+  { h: 'Ruolo', w: 20, note: 'Ruolo analitico. Se seguito da sx/dx/centro, è il lato prevalente del giocatore in quel ruolo (solo per ruoli dove il lato è rilevante e con campione sufficiente).' },
+  { h: 'Venue', w: 11, note: 'Casa o Trasferta: dove gioca LUI in questa partita (può differire dal venue della squadra se gioca per quella ospite).' },
+  { h: 'Titolare', w: 13, note: 'Dalla formazione salvata in Matchup Engine: confermato, ipotetico, no, o n/d se nessuna formazione salvata.' },
+  { h: 'Mercato', w: 16, note: "La statistica su cui si basa la linea. Es.: 'Falli commessi' conta solo i falli FATTI da lui, non quelli subiti." },
+  { h: 'Linea', w: 8, note: "La soglia Over da valutare, mostrata come '2+' ecc. (0,5=1+ · 1,5=2+ · 2,5=3+ · 3,5=4+)." },
+  { h: 'Media venue /90', w: 15, z: '0.00', note: 'Media a partita in quel venue, sulle presenze reali giocate lì.' },
+  { h: 'N venue', w: 10, z: '0', note: 'Numero di presenze giocate in questo venue su cui si basa la media venue.' },
+  { h: 'Media L3 /90', w: 13, z: '0.00', note: 'Media nelle ultime 3 presenze giocate, qualunque venue.' },
+  { h: 'Consistenza', w: 13, note: 'Etichetta del CV: stabile (sotto 0,5), variabile (0,5–1), incostante (sopra 1).' },
+  { h: 'CV', w: 8, z: '0.00', note: 'Coefficiente di variazione, calcolato solo sulle presenze nello stesso venue.' },
+  { h: 'Hit venue', w: 11, z: '0%', note: 'Quante volte ha superato questa esatta linea, in questo venue.' },
+  { h: 'Hit stagione', w: 13, z: '0%', note: 'Come Hit venue ma su tutta la stagione, senza distinguere casa/trasferta.' },
+  { h: 'Quota', w: 8, z: '0.00', note: "Quota inserita manualmente nella colonna omonima dello Scanner. Vuota se non l'hai inserita." },
+  { h: 'Prob. impl.', w: 12, z: '0.0%', note: 'Probabilità implicita nella quota = 1 / quota.' },
+  { h: 'Edge (pp)', w: 11, z: '+0.0" pp";-0.0" pp";0.0" pp"', note: 'Hit venue meno probabilità implicita, in punti percentuali.' },
+  { h: 'EV /1€', w: 10, z: '+0.00" €";-0.00" €";0.00" €"', note: 'Valore atteso per 1€ puntato: (hit venue × quota) − 1.' },
+];
+function updateScnExport(shown, total){
+  const b = document.getElementById('scnExport');
+  if (!b) return;
+  b.disabled = !shown;
+  b.title = !total ? 'Esegui prima una scansione'
+    : !shown ? 'Nessuna riga visibile con i filtri attuali'
+    : shown < total ? `Scarica Excel delle righe visibili (${shown} di ${total}, filtri attivi)`
+    : `Scarica Excel di tutte le righe scansionate (${total})`;
+}
+function exportScannerXlsx(){
+  if (typeof XLSX === 'undefined') { alert('Libreria Excel non caricata: controlla la connessione e riprova.'); return; }
+  const rows = applyScnFilters(scanResults); // stessi filtri e ordinamento di quello che vedi in tabella
+  if (!rows.length) return;
+
+  const aoa = [SCN_XLS_COLS.map(c => c.h)];
+  rows.forEach(r => {
+    const { quota, prob, edge, ev } = derived(r);
+    const lato = scnLatoLabel(r.player); // es. " · sx" oppure ''
+    aoa.push([
+      r.match.Giornata,
+      `${r.match.Home} - ${r.match.Away}`,
+      r.player.Nome_completo,
+      r.player.Squadra_Rif,
+      r.player.Posizione_Analitica + (lato || ''),
+      r.venue === 'HOME' ? 'Casa' : 'Trasferta',
+      ({ Y: 'confermato', Yh: 'ipotetico', N: 'no', U: 'n/d' })[lineupState(r)],
+      MARKET_LABELS[r.mercato] || r.mercato,
+      lineaLabel(r.linea),
+      r.mediaVenue ?? null,
+      r.nVenue ?? null,
+      r.mediaL3 ?? null,
+      cvLabel(r.cv),
+      r.cv ?? null,
+      r.hitVenue ?? null,
+      r.hitStag ?? null,
+      quota ?? null,
+      prob,
+      edge != null ? edge * 100 : null,
+      ev,
+    ]);
   });
-  const ws = XLSX.utils.json_to_sheet(rows);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  SCN_XLS_COLS.forEach((c, ci) => {
+    const head = ws[XLSX.utils.encode_cell({ r: 0, c: ci })];
+    if (head) { head.c = [{ a: 'Scanner', t: c.note }]; head.c.hidden = true; }
+    if (c.z) {
+      for (let ri = 1; ri < aoa.length; ri++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: ri, c: ci })];
+        if (cell && cell.t === 'n') cell.z = c.z;
+      }
+    }
+  });
+  ws['!cols'] = SCN_XLS_COLS.map(c => ({ wch: c.w }));
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: SCN_XLS_COLS.length - 1 } }) };
+
+  const p2 = n => String(n).padStart(2, '0');
+  const now = new Date();
+  const day = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
+  const giornata = document.getElementById('scnGiornata').value;
+  const legend = [
+    ['Scanner — legenda colonne', ''],
+    ['Esportato il', `${p2(now.getDate())}/${p2(now.getMonth() + 1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`],
+    ['Righe esportate', `${rows.length} di ${scanResults.length}${rows.length < scanResults.length ? ' (filtri attivi)' : ''}`],
+    ['', ''],
+    ['Colonna', 'Cosa significa'],
+    ...SCN_XLS_COLS.map(c => [c.h, c.note]),
+  ];
+  const wl = XLSX.utils.aoa_to_sheet(legend);
+  wl['!cols'] = [{ wch: 22 }, { wch: 140 }];
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Scanner');
-  const giornata = document.getElementById('scnGiornata').value;
-  XLSX.writeFile(wb, `scanner_giornata_${giornata}.xlsx`);
-});
+  XLSX.utils.book_append_sheet(wb, wl, 'Legenda');
+  XLSX.writeFile(wb, `scanner_giornata_${giornata}_${day}.xlsx`);
+}
+document.getElementById('scnExport').addEventListener('click', exportScannerXlsx);
 
 const SCR_STORAGE_KEY = 'sa_screener_rows_v1';
 const SB_URL = 'https://bcvpqrxcdzzcnomlwtum.supabase.co';
