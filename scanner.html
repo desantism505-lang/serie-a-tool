@@ -1117,6 +1117,13 @@ const SCN_METRIC_VERBO = {
   'Tiri': 'tirano', 'Tiri_in_porta': 'tirano in porta', 'Falli_commessi': 'commettono falli',
   'Falli_subiti': 'subiscono falli', 'Cartellini': 'prendono cartellini',
 };
+// Nome della statistica dal lato dell'avversario che la CONCEDE/SUBISCE (richiesta
+// Marco 25/10): serve a dire esplicitamente "Lecce è 1° per falli subiti dai
+// centrali", non lasciare il rank ambiguo subito dopo la frase sulla squadra
+// che attacca.
+const SCN_METRIC_SUBITO = {
+  'Tiri': 'tiri concessi', 'Tiri_in_porta': 'tiri in porta concessi', 'Falli_commessi': 'falli subiti',
+};
 // Mappa la metrica del fatto saliente al mercato dello Scanner, per il click-to-filter.
 const SCN_METRIC_TO_MERCATO = {
   'Tiri': 'TIRI', 'Tiri_in_porta': 'TIRI_IN_PORTA', 'Falli_commessi': 'FALLI_COMMESSI',
@@ -1142,13 +1149,19 @@ function scnJumpToStat(metricKey, venueSide, ruolo){
 function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdInFocus, opponentName, opponentId, opponentVenueLetter){
   // Stessi criteri di Fatti salienti (index.html): vedi fattiRuoloVsAvversario() in engine.js.
   // Solo i fatti "più" (l'avversario concede molto al ruolo): quelli "meno" non suggeriscono giocate Over.
+  // Dal 25/10 fattiRuoloVsAvversario filtra già a monte i fatti senza un vero
+  // incrocio a doppio estremo (teamIdInFocus NON tra le prime 3 di lega in
+  // produzione per quel ruolo/metrica/venue): qui non resta che mostrarlo,
+  // non c'è più nulla da escludere oltre al filtro .top già presente.
   const top = fattiRuoloVsAvversario(matchLog, rosters, teamIdInFocus, opponentId, opponentVenueLetter).filter(r => r.top).slice(0, 8);
   if (!top.length) return { teamName, venueWord, lines: [] };
   const oppVenueWord = opponentVenueLetter === 'H' ? 'in casa' : 'in trasferta';
+  const teamVenueWord = venueWord === 'casa' ? 'in casa' : 'in trasferta';
   const focusVenueSide = venueWord === 'casa' ? 'HOME' : 'AWAY';
   const lines = top.map(r => {
     const ruoloPlur = SCN_ROLE_PLURAL[r.ruolo] || r.ruolo;
     const verbo = SCN_METRIC_VERBO[r.metricKey] || 'producono';
+    const subitoNoun = SCN_METRIC_SUBITO[r.metricKey] || r.metricLabel;
     // Confronto: l'avversario contro le altre squadre della lega nello stesso campo.
     const altre = r.totale - 1;
     const n = r.top ? r.sotto : r.sopra; // quante altre squadre hanno un valore strettamente inferiore (piu') / superiore (meno)
@@ -1159,7 +1172,16 @@ function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdIn
     // per ruoli non larghi, campione sotto soglia, o dataset senza Lato_Campo
     // (es. UCL finché non avrà quella colonna): in quel caso non si aggiunge nulla.
     const latoTxt = r.lato ? ` (${r.lato.totale} ${r.metricLabel} totali: ${r.lato.sinistra} da sinistra, ${r.lato.destra} da destra${r.lato.centro ? `, ${r.lato.centro} centro` : ''})` : '';
-    const testo = `Contro ${escAttr(opponentName)} ${oppVenueWord}, <b>${ruoloPlur}</b> ${verbo} ${confronto} — <b>${r.rank}°</b> su ${r.totale} squadre idonee (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).${latoTxt}`;
+    // Rank dell'AVVERSARIO reso esplicito col suo nome (richiesta Marco 25/10:
+    // "devi dire che Lecce prima per falli subiti da centrali" — non lasciare
+    // il "1°/20" subito dopo la frase sulla squadra che attacca, ambiguo su chi
+    // dei due sia 1°).
+    const oppRankTxt = `<b>${escAttr(opponentName)}</b> è <b>${r.rank}°</b> su ${r.totale} squadre idonee per ${subitoNoun} da ${ruoloPlur} ${oppVenueWord} (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).`;
+    // Rank della squadra in focus sul lato PRODUZIONE, stesso ruolo/metrica nel
+    // proprio venue reale — è il secondo lato dell'incrocio a doppio estremo
+    // già garantito dal filtro in fattiRuoloVsAvversario, qui solo mostrato.
+    const prodRankTxt = ` <b>${escAttr(teamName)}</b> è a sua volta <b>${r.prodRank}°</b> su ${r.prodEligible} di lega per quanto ${verbo} con quel ruolo ${teamVenueWord}: un vero incrocio a doppio estremo.`;
+    const testo = `Contro ${escAttr(opponentName)} ${oppVenueWord}, <b>${ruoloPlur}</b> ${verbo} ${confronto}. ${oppRankTxt}${prodRankTxt}${latoTxt}`;
     return `<a href="javascript:void(0)" onclick="scnJumpToStat('${r.metricKey}','${focusVenueSide}','${r.ruolo}')" style="color:inherit;text-decoration:none;cursor:pointer;" title="Clic per filtrare la tabella su questa squadra, questo ruolo e questa statistica">${testo} <span style="color:var(--accent);">▸ filtra tabella</span></a>`;
   });
   return { teamName, venueWord, lines };

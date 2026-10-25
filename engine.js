@@ -1601,8 +1601,14 @@ const FATTI_RUOLO_METRICS = [
 ];
 // oppVenueLetter: campo in cui gioca l'avversario ('H' casa, 'A' trasferta).
 // minSample opzionale: serve solo ai test di allineamento con index.html.
+// Mappa metricKey → colonna di PRODUZIONE lega, stessa identica coppia prod/conc
+// già definita in CROSS_EXTREME_METRICS per l'incrocio a doppio estremo di
+// index.html — non una soglia o una colonna nuova, solo riuso.
+const FATTI_RUOLO_PROD_COL = { Tiri: 'Tiri_Prodotti_90', Tiri_in_porta: 'SOT_Prodotti_90', Falli_commessi: 'Falli_Dal_Ruolo_90' };
+
 function fattiRuoloVsAvversario(matchLog, rosters, teamId, oppId, oppVenueLetter, minSample = FATTI_RUOLO_MIN_SAMPLE_VENUE) {
   const oppVenue = oppVenueLetter === 'H' ? 'HOME' : 'AWAY';
+  const attVenueLetter = oppVenueLetter === 'H' ? 'A' : 'H'; // venue reale di teamId in questa partita, l'opposto di oppVenueLetter
   const teamsAll = [...new Set(rosters.map((r) => r.Team_ID_Rif))];
   const roles = [...new Set(rosters.filter((p) => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId).map((p) => p.Posizione_Analitica))]
     .filter((r) => r !== 'Portiere');
@@ -1618,6 +1624,17 @@ function fattiRuoloVsAvversario(matchLog, rosters, teamId, oppId, oppVenueLetter
       const me = list.find((x) => x.key === oppId);
       if (rank === 'N/D' || eligible < 6) continue;
       if (rank > 3) continue; // solo top3 (concede di più): mai "meno" in questa categoria, suggerirebbe Under
+      // INCROCIO A DOPPIO ESTREMO (richiesta Marco 25/10): non basta che oppId
+      // conceda molto — serve che teamId produca davvero quella stat col ruolo,
+      // ai vertici di lega, nel proprio venue reale. Stessa soglia top3/eligible>=6
+      // già in uso per il lato concessione qui sopra e per computeRoleCrossExtremes.
+      const prodCol = FATTI_RUOLO_PROD_COL[m.key];
+      const prodR = roleMetricLeagueRank(matchLog, teamsAll, ruolo, attVenueLetter, prodCol, 'produzione');
+      if (!prodR.rank || prodR.eligible < 6) continue; // produzione non misurabile a sufficienza: niente incrocio
+      const prodIdx = prodR.rank.findIndex((x) => x.team === teamId);
+      if (prodIdx < 0) continue; // teamId non eligible per quella metrica/ruolo/venue
+      const prodRank = prodIdx + 1;
+      if (prodRank > 3) continue; // teamId non è tra le prime 3 squadre di lega in PRODUZIONE: non è un vero incrocio
       const pool = list.filter((x) => x.partite >= minSample && x.value != null);
       if (pool.filter((x) => x.value === me.value).length > FATTI_MAX_TIE) continue;
       const top = rank <= (eligible - rank + 1); // = isTopEnd() di index.html
@@ -1627,6 +1644,7 @@ function fattiRuoloVsAvversario(matchLog, rosters, teamId, oppId, oppVenueLetter
         sotto: pool.filter((x) => x.value < me.value).length, // squadre con valore strettamente minore
         sopra: rank - 1,                                      // squadre con valore strettamente maggiore
         lato: roleConcessionsSideBreakdown(matchLog, oppId, oppVenue, ruolo, m.key), // null se ruolo non largo / sotto soglia / dataset senza Lato_Campo
+        prodRank, prodEligible: prodR.eligible, prodValue: prodR.rank[prodIdx].value, // lato produzione (teamId), per evidenziare l'incrocio in entrambe le direzioni
       });
     }
   }
