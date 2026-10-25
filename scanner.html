@@ -1142,7 +1142,13 @@ function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdIn
     const altre = r.totale - 1;
     const n = r.top ? r.sotto : r.sopra; // quante altre squadre hanno un valore strettamente inferiore (piu') / superiore (meno)
     const confronto = `${r.top ? 'più' : 'meno'} che contro ${n >= altre ? 'qualsiasi altra squadra' : `${n} delle altre ${altre} squadre`} della lega ${oppVenueWord}`;
-    const testo = `Contro ${escAttr(opponentName)} ${oppVenueWord}, <b>${ruoloPlur}</b> ${verbo} ${confronto} — <b>${r.rank}°</b> su ${r.totale} squadre idonee (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).`;
+    // Scomposizione per lato (Lato_Campo), richiesta Marco 25/10: solo numeri
+    // grezzi del totale che già sostiene il fatto, mai un secondo rank — vedi
+    // commento su roleConcessionsSideBreakdown() in engine.js. r.lato è null
+    // per ruoli non larghi, campione sotto soglia, o dataset senza Lato_Campo
+    // (es. UCL finché non avrà quella colonna): in quel caso non si aggiunge nulla.
+    const latoTxt = r.lato ? ` (${r.lato.totale} ${r.metricLabel} totali: ${r.lato.sinistra} da sinistra, ${r.lato.destra} da destra${r.lato.centro ? `, ${r.lato.centro} centro` : ''})` : '';
+    const testo = `Contro ${escAttr(opponentName)} ${oppVenueWord}, <b>${ruoloPlur}</b> ${verbo} ${confronto} — <b>${r.rank}°</b> su ${r.totale} squadre idonee (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).${latoTxt}`;
     return `<a href="javascript:void(0)" onclick="scnJumpToStat('${r.metricKey}','${focusVenueSide}','${r.ruolo}')" style="color:inherit;text-decoration:none;cursor:pointer;" title="Clic per filtrare la tabella su questa squadra, questo ruolo e questa statistica">${testo} <span style="color:var(--accent);">▸ filtra tabella</span></a>`;
   });
   return { teamName, venueWord, lines };

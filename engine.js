@@ -280,6 +280,43 @@ function computeRoleConcessions(matchLog, team, segmento, ruolo, teamPartite) {
 }
 
 // ---------------------------------------------------------------------------
+// SCOMPOSIZIONE PER LATO (Lato_Campo) — richiesta Marco, 25/10. NON è un
+// secondo rank: il campione per-lato (dimezzato/triplicato) non reggerebbe
+// un confronto a 20 squadre, farebbe lo stesso errore di pareggio di massa
+// già corretto altrove. È solo la scomposizione in numeri grezzi del totale
+// che già sostiene un fatto "Matchup ruolo" esistente (computeRoleConcessions
+// / fattiRuoloVsAvversario) — un arricchimento del fatto, non un fatto nuovo.
+// Applicabile solo ai ruoli strutturalmente larghi: per i ruoli centrali
+// Lato_Campo è un artefatto di dove si è trovato il giocatore in quel
+// momento, non un tratto stabile del ruolo — non va mai mostrato lì.
+// Ritorna null (il chiamante allora non mostra nulla, mai un N/D forzato) se:
+// ruolo non largo, totale sotto soglia minima, o il dataset non ha affatto
+// Lato_Campo valorizzato (es. UCL finché non avrà quella colonna — il motore
+// resta identico tra le repo, la funzione si attiva da sola quando i dati
+// arrivano, senza bisogno di una seconda modifica).
+const WIDE_ROLES_LATO = ['Esterno offensivo', 'Terzino', 'Esterno/Quinto'];
+const LATO_MIN_SAMPLE = 5; // sotto questa soglia, scomporre il totale è rumore, non informazione
+function roleConcessionsSideBreakdown(matchLog, team, segmento, ruolo, rawCol) {
+  if (!WIDE_ROLES_LATO.includes(ruolo)) return null;
+  let rows = filterRows(matchLog, (r) => r.Opp_ID === team && r.Posizione_Analitica === ruolo);
+  if (segmento !== 'TOTALE') {
+    const v = segmento === 'HOME' ? 'A' : 'H';
+    rows = rows.filter((r) => r.Venue === v);
+  }
+  const hasLato = rows.some((r) => r.Lato_Campo === 'Sinistra' || r.Lato_Campo === 'Destra' || r.Lato_Campo === 'Centro');
+  if (!hasLato) return null;
+  const by = { Sinistra: 0, Destra: 0, Centro: 0 };
+  let totale = 0;
+  for (const r of rows) {
+    const v = Number(r[rawCol]) || 0;
+    totale += v;
+    if (by[r.Lato_Campo] != null) by[r.Lato_Campo] += v;
+  }
+  if (totale < LATO_MIN_SAMPLE) return null;
+  return { totale, sinistra: by.Sinistra, destra: by.Destra, centro: by.Centro };
+}
+
+// ---------------------------------------------------------------------------
 // BASELINE — media pesata Stagione 40% / Venue 30% / L10 20% / L5 10%,
 // normalizzata sui soli pesi delle componenti disponibili.
 // ---------------------------------------------------------------------------
@@ -1448,6 +1485,7 @@ function fattiRuoloVsAvversario(matchLog, rosters, teamId, oppId, oppVenueLetter
         mediaLega: pool.reduce((a, x) => a + x.value, 0) / pool.length,
         sotto: pool.filter((x) => x.value < me.value).length, // squadre con valore strettamente minore
         sopra: rank - 1,                                      // squadre con valore strettamente maggiore
+        lato: roleConcessionsSideBreakdown(matchLog, oppId, oppVenue, ruolo, m.key), // null se ruolo non largo / sotto soglia / dataset senza Lato_Campo
       });
     }
   }
@@ -2200,6 +2238,7 @@ if (typeof module !== 'undefined') {
     computeTeamStats,
     rankDesc,
     computeRoleConcessions,
+    roleConcessionsSideBreakdown,
     computeBaseline,
     rankProvisional,
     wilsonInterval,

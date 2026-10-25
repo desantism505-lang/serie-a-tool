@@ -881,6 +881,20 @@ const MAX_TIE_FOR_FACT = 2;
 // computePlayerVsOpponentFacts — usate per evitare di mostrare lo stesso
 // fatto due volte (una per squadra, una per giocatore vs avversario).
 const ROLE_FACT_DUP_METRICS = ['tiri', 'tiri in porta', 'falli'];
+// Mappa dalla colonna per90 (computeRoleConcessions) alla colonna grezza
+// di MATCH_LOG, per la scomposizione per lato (roleConcessionsSideBreakdown
+// in engine.js lavora su conteggi grezzi, non su tassi per90).
+const METRIC_RAW_COL = {
+  'Tiri_Concessi_90': 'Tiri', 'SOT_Concessi_90': 'Tiri_in_porta',
+  'Falli_Contro_Ruolo_90': 'Falli_commessi', 'FalliSubiti_Ruolo_90': 'Falli_subiti',
+};
+function latoBreakdownTxt(team, venue, role, col, label) {
+  const raw = METRIC_RAW_COL[col];
+  if (!raw) return '';
+  const lato = roleConcessionsSideBreakdown(DB.matchLog, team, venue, role, raw);
+  if (!lato) return '';
+  return ` (${lato.totale} ${label} totali: ${lato.sinistra} da sinistra, ${lato.destra} da destra${lato.centro ? `, ${lato.centro} centro` : ''})`;
+}
 
 // Vero/falso: il rank è più vicino alla cima (valore più alto della lega) o
 // al fondo (valore più basso)? Usato per scrivere la frase nella direzione
@@ -1195,10 +1209,11 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
       const dedupByPlayerSide = ROLE_FACT_DUP_METRICS.includes(label) && rank !== 'N/D' && rank <= 3;
       if (!dedupByPlayerSide && rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
         const top = isTopEnd(rank, eligible);
+        const latoTxt = latoBreakdownTxt(teamId, venue, role, col, label);
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
-          text: `${factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible)} — ${rank}° su ${eligible} squadre idonee`,
+          text: `${factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible)} — ${rank}° su ${eligible} squadre idonee${latoTxt}`,
           rank, eligible,
         });
       }
@@ -1268,10 +1283,11 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
       const me = list.find(x => x.key === oppTeamId);
       if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT && rank <= 3) {
         const top = isTopEnd(rank, eligible);
+        const latoTxt = latoBreakdownTxt(oppTeamId, oppVenue, role, col, label);
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
-          text: `${factsRoleTextV2(oppName, label, top, role, oppVenueWord, rank, eligible)} — ${rank}° su ${eligible} squadre idonee. Per ${art(teamName)} il matchup riguarda: ${sameRole.join(', ')}.`,
+          text: `${factsRoleTextV2(oppName, label, top, role, oppVenueWord, rank, eligible)} — ${rank}° su ${eligible} squadre idonee${latoTxt}. Per ${art(teamName)} il matchup riguarda: ${sameRole.join(', ')}.`,
           rank, eligible,
         });
       }
