@@ -296,6 +296,16 @@ function computeRoleConcessions(matchLog, team, segmento, ruolo, teamPartite) {
 // arrivano, senza bisogno di una seconda modifica).
 const WIDE_ROLES_LATO = ['Esterno offensivo', 'Terzino', 'Esterno/Quinto'];
 const LATO_MIN_SAMPLE = 5; // sotto questa soglia, scomporre il totale è rumore, non informazione
+// Soglia di dominanza — aggiunta 25/10/2026 dopo segnalazione di Marco: un
+// fatto reale (Frosinone esterni offensivi, 6 tiri in porta: 3 sinistra/3
+// destra/0 centro) mostrava una scomposizione perfettamente in pareggio,
+// zero segnale su quale lato attaccare — lo stesso errore di principio
+// della regola anti-pareggio sui Fatti salienti (MAX_TIE_FOR_FACT), qui non
+// coperto perché quella regola agisce sul confronto fra squadre, non sulla
+// scomposizione interna di un singolo totale. Senza un lato chiaramente
+// dominante, la scomposizione non è un'informazione azionabile: va omessa,
+// non mostrata con un pareggio che il lettore deve scoprire da solo.
+const LATO_SKEW_MIN = 0.6; // il lato dominante deve coprire almeno il 60% del totale
 function roleConcessionsSideBreakdown(matchLog, team, segmento, ruolo, rawCol) {
   if (!WIDE_ROLES_LATO.includes(ruolo)) return null;
   let rows = filterRows(matchLog, (r) => r.Opp_ID === team && r.Posizione_Analitica === ruolo);
@@ -313,6 +323,8 @@ function roleConcessionsSideBreakdown(matchLog, team, segmento, ruolo, rawCol) {
     if (by[r.Lato_Campo] != null) by[r.Lato_Campo] += v;
   }
   if (totale < LATO_MIN_SAMPLE) return null;
+  const dominante = Math.max(by.Sinistra, by.Destra, by.Centro);
+  if (dominante / totale < LATO_SKEW_MIN) return null; // nessun lato chiaramente prevalente: niente da segnalare
   return { totale, sinistra: by.Sinistra, destra: by.Destra, centro: by.Centro };
 }
 
