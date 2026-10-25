@@ -2065,6 +2065,17 @@ function arbFactor(match, side, m) {
   return _arb[k];
 }
 function teamsAllIds() { return [...new Set(DB.rosters.map((r) => r.Team_ID_Rif))]; }
+// Rank di UNA squadra in classifica di lega per ruolo/metrica/venue (richiesta Marco 25/10:
+// le card devono mostrare il numero di classifica che sostiene il dato, non solo lo scarto in
+// %). Riusa roleMetricLeagueRank di engine.js — stesso identico calcolo degli incroci forti,
+// nessun rank nuovo o inventato.
+function roleRankInfo(ruolo, venueLetter, metricCol, side, teamId) {
+  if (!ruolo || !teamId) return { rank: null, eligible: 0 };
+  const r = roleMetricLeagueRank(DB.matchLog, teamsAllIds(), ruolo, venueLetter, metricCol, side);
+  if (!r.rank) return { rank: null, eligible: r.eligible };
+  const idx = r.rank.findIndex((x) => x.team === teamId);
+  return idx < 0 ? { rank: null, eligible: r.eligible } : { rank: idx + 1, eligible: r.eligible };
+}
 function leagueAvgTeam(tkey) {
   if (!(tkey in _lgTeam)) _lgTeam[tkey] = leagueAverageMetric(DB.matchLog, teamsAllIds(), 'TOTALE', tkey, DB.calendar);
   return _lgTeam[tkey];
@@ -2520,12 +2531,12 @@ function narrativeBlock(match) {
   const mainId = N.temi && N.temi[0] ? N.temi[0].id : null;
   const matchupRows = [];
   const matchupSides = [
-    {team:homeName, opponent:awayName, weak:N.chiaveLettura.homeWeak, ratio:N.chiaveLettura.homeWeakRatio,
+    {team:homeName, teamId:match.Home_ID, opponent:awayName, opponentId:match.Away_ID, weak:N.chiaveLettura.homeWeak, ratio:N.chiaveLettura.homeWeakRatio,
      metric:N.chiaveLettura.homeWeakMetric, present:N.chiaveLettura.homeWeakOppHasRole,
-     candidates:N.chiaveLettura.awayExploiters, skipId:'role'+homeName, venue:'in casa', lato:N.chiaveLettura.homeWeakLato},
-    {team:awayName, opponent:homeName, weak:N.chiaveLettura.awayWeak, ratio:N.chiaveLettura.awayWeakRatio,
+     candidates:N.chiaveLettura.awayExploiters, skipId:'role'+homeName, venue:'in casa', venueLetter:'H', lato:N.chiaveLettura.homeWeakLato},
+    {team:awayName, teamId:match.Away_ID, opponent:homeName, opponentId:match.Home_ID, weak:N.chiaveLettura.awayWeak, ratio:N.chiaveLettura.awayWeakRatio,
      metric:N.chiaveLettura.awayWeakMetric, present:N.chiaveLettura.awayWeakOppHasRole,
-     candidates:N.chiaveLettura.homeExploiters, skipId:'role'+awayName, venue:'in trasferta', lato:N.chiaveLettura.awayWeakLato}
+     candidates:N.chiaveLettura.homeExploiters, skipId:'role'+awayName, venue:'in trasferta', venueLetter:'A', lato:N.chiaveLettura.awayWeakLato}
   ];
   for (const side of matchupSides) {
     if (!side.weak || side.skipId === mainId || side.ratio == null || side.ratio < 1.15 || !side.present) continue;
@@ -2539,8 +2550,20 @@ function narrativeBlock(match) {
       ? ' Possibile interprete: <b>' + esc(player.nome) + '</b>, ' + fmt1(player.mu) + ' tiri stimati dal modello.'
       : '';
     const pct = Math.round((side.ratio - 1) * 100);
+    // Stessa grafica "N° vs N°" degli incroci forti, non solo lo scarto in % (richiesta Marco 25/10:
+    // card coerenti anche per i matchup di ruolo secondari). Solo sui tiri: per i falli non abbiamo
+    // qui un rank di produzione comparabile già calcolato, meglio nessun numero che uno inventato.
+    let visualTop = '<div class="cross-vs"><span class="hi">+' + pct + '%</span></div>';
+    if (side.metric === 'Tiri') {
+      const prodVenueLetter = side.venueLetter === 'H' ? 'A' : 'H';
+      const concInfo = roleRankInfo(side.weak.Posizione_Analitica, side.venueLetter, 'Tiri_Concessi_90', 'concessione', side.teamId);
+      const prodInfo = roleRankInfo(side.weak.Posizione_Analitica, prodVenueLetter, 'Tiri_Prodotti_90', 'produzione', side.opponentId);
+      if (concInfo.rank != null && prodInfo.rank != null) {
+        visualTop = '<div class="cross-vs"><span class="lo">' + prodInfo.rank + '°</span><span class="sep">vs</span><span class="hi">' + concInfo.rank + '°</span></div>';
+      }
+    }
     matchupRows.push('<div class="cross-card">'
-      + '<div class="cross-visual"><div class="cross-vs"><span class="hi">+' + pct + '%</span></div>'
+      + '<div class="cross-visual">' + visualTop
         + '<div class="cross-visual-role">' + esc(role) + ' · ' + esc(unit.split(' ')[0]) + '</div></div>'
       + '<div class="cross-body">'
         + '<div class="cross-headline">' + esc(artCap(side.opponent)) + ' contro ' + esc(art(side.team)) + ' (' + side.venue + ')</div>'
@@ -2579,11 +2602,23 @@ function narrativeBlock(match) {
   // debole della PROPRIA squadra, non quello dell'avversario che difende).
   const homeLeadFav = aw && N.nomi.homeLead && aw.Posizione_Analitica === N.nomi.homeLead.ruolo;
   const awayLeadFav = hw && N.nomi.awayLead && hw.Posizione_Analitica === N.nomi.awayLead.ruolo;
+  // Statistica di sostegno al "matchup favorevole" (richiesta Marco 25/10: "continui a non
+  // scrivere stats che lo portano a essere matchup affidabile") — valore di concessione del
+  // ruolo + rank di lega, stesso rank mostrato negli incroci forti, non un giudizio senza numeri.
+  function weakRoleStatTxt(weak, ratio, rankInfo) {
+    if (!weak || weak.Tiri_Concessi_90 == null) return '';
+    const pct = ratio != null ? Math.round((ratio - 1) * 100) : null;
+    const rankTxt = rankInfo && rankInfo.rank != null ? rankInfo.rank + '°/' + rankInfo.eligible + ' di lega' : null;
+    const bits = [rankTxt, pct != null ? '+' + pct + '% sulla media' : null].filter(Boolean).join(', ');
+    return ' ' + fmt1(weak.Tiri_Concessi_90) + ' tiri concessi a partita a quel ruolo' + (bits ? ' (' + bits + ')' : '') + '.';
+  }
+  const awayWeakRankInfo = roleRankInfo(aw ? aw.Posizione_Analitica : null, 'A', 'Tiri_Concessi_90', 'concessione', match.Away_ID);
+  const homeWeakRankInfo = roleRankInfo(hw ? hw.Posizione_Analitica : null, 'H', 'Tiri_Concessi_90', 'concessione', match.Home_ID);
   if (N.nomi.homeLead) nameCards.push(nameCard(N.nomi.homeLead, homeName, awayName,
-    homeLeadFav ? `Gioca nel ruolo più concesso dalla difesa ospite — <span class="narr-hl">matchup favorevole</span>.` : '',
+    homeLeadFav ? `Gioca nel ruolo più concesso dalla difesa ospite — <span class="narr-hl">matchup favorevole</span>.${weakRoleStatTxt(aw, N.chiaveLettura.awayWeakRatio, awayWeakRankInfo)}` : '',
     homeLeadFav ? N.chiaveLettura.awayWeakLato : null));
   if (N.nomi.awayLead) nameCards.push(nameCard(N.nomi.awayLead, awayName, homeName,
-    awayLeadFav ? `Gioca nel ruolo più concesso dalla difesa di casa — <span class="narr-hl">matchup favorevole</span>.` : '',
+    awayLeadFav ? `Gioca nel ruolo più concesso dalla difesa di casa — <span class="narr-hl">matchup favorevole</span>.${weakRoleStatTxt(hw, N.chiaveLettura.homeWeakRatio, homeWeakRankInfo)}` : '',
     awayLeadFav ? N.chiaveLettura.homeWeakLato : null));
   if (N.nomi.cautelaAway && N.nomi.cautelaAway !== N.nomi.awayLead) nameCards.push(nameCard(N.nomi.cautelaAway, awayName, homeName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(homeName)} in casa.`, null));
   if (N.nomi.cautelaHome && N.nomi.cautelaHome !== N.nomi.homeLead) nameCards.push(nameCard(N.nomi.cautelaHome, homeName, awayName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(awayName)} in trasferta.`, null));
