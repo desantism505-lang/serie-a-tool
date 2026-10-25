@@ -996,6 +996,31 @@ const TEAM_ARTICLE = {
   'Udinese': "l'Udinese", 'Venezia': 'il Venezia',
 };
 function art(nome){ return TEAM_ARTICLE[nome] || nome; }
+function artCap(nome){ const a = art(nome); return a.charAt(0).toUpperCase() + a.slice(1); }
+// Forma possessiva ("della Lazio", "del Parma", "dell'Inter") per frasi come
+// "la difesa del Parma" o "l'attacco dell'Inter".
+const TEAM_ARTICLE_OF = {
+  'Atalanta': "dell'Atalanta", 'Bologna': 'del Bologna', 'Cagliari': 'del Cagliari',
+  'Como': 'del Como', 'Fiorentina': 'della Fiorentina', 'Frosinone': 'del Frosinone',
+  'Genoa': 'del Genoa', 'Inter': "dell'Inter", 'Juventus': 'della Juventus',
+  'Lazio': 'della Lazio', 'Lecce': 'del Lecce', 'Milan': 'del Milan',
+  'Monza': 'del Monza', 'Napoli': 'del Napoli', 'Parma': 'del Parma',
+  'Roma': 'della Roma', 'Sassuolo': 'del Sassuolo', 'Torino': 'del Torino',
+  'Udinese': "dell'Udinese", 'Venezia': 'del Venezia',
+};
+function artOf(nome){ return TEAM_ARTICLE_OF[nome] || nome; }
+// Forma agente ("dalla Lazio", "dal Parma", "dall'Inter") per frasi come
+// "concessi dal Parma" o "prodotti dall'Inter".
+const TEAM_ARTICLE_DA = {
+  'Atalanta': "dall'Atalanta", 'Bologna': 'dal Bologna', 'Cagliari': 'dal Cagliari',
+  'Como': 'dal Como', 'Fiorentina': 'dalla Fiorentina', 'Frosinone': 'dal Frosinone',
+  'Genoa': 'dal Genoa', 'Inter': "dall'Inter", 'Juventus': 'dalla Juventus',
+  'Lazio': 'dalla Lazio', 'Lecce': 'dal Lecce', 'Milan': 'dal Milan',
+  'Monza': 'dal Monza', 'Napoli': 'dal Napoli', 'Parma': 'dal Parma',
+  'Roma': 'dalla Roma', 'Sassuolo': 'dal Sassuolo', 'Torino': 'dal Torino',
+  'Udinese': "dall'Udinese", 'Venezia': 'dal Venezia',
+};
+function artDa(nome){ return TEAM_ARTICLE_DA[nome] || nome; }
 
 const FACTS_ROLE_SUBJECT_V2 = {
   'Centrale difensivo': 'i centrali difensivi',
@@ -2375,7 +2400,7 @@ const CROSS_SHOWN_DEFAULT = 4;
 // Frase di motivazione per riga (richiesta Marco 25/10: "spiega bene le motivazioni delle
 // scelte, anche con dato testuale") - interprete quando c'e', lato campo quando disponibile
 // (richiesta: "ricordati di tenere a mente lato-posizione in confronto"), altrimenti nota onesta.
-function crossWhyHtml(c, attName) {
+function crossWhyHtml(c, attName, difName) {
   const metricUnit = { Tiri: 'tiri', Tiri_in_porta: 'tiri in porta', Falli_commessi: 'falli' }[c.metricKey] || c.metricLabel;
   const parts = [];
   if (c.interprete) {
@@ -2387,7 +2412,7 @@ function crossWhyHtml(c, attName) {
   if (c.lato) {
     const tot = c.lato.totale, dom = Math.max(c.lato.sinistra, c.lato.destra, c.lato.centro);
     const latoLabel = c.lato.sinistra === dom ? 'sinistra' : (c.lato.destra === dom ? 'destra' : 'centro');
-    parts.push('<span class="lato">Dato di lato campo: su ' + tot + ' episodi storici di quel ruolo contro ' + esc(attName) + ', <b>' + dom + ' sono partiti da ' + latoLabel + '</b> - non un caso isolato.</span>');
+    parts.push('<span class="lato">Sul lato: ' + dom + ' degli ' + tot + ' episodi concessi ' + esc(artDa(difName)) + ' in quel ruolo in questo venue sono arrivati da <b>' + latoLabel + '</b> \u2014 una tendenza netta, non un episodio isolato.</span>');
   }
   return parts.join(' ');
 }
@@ -2401,8 +2426,8 @@ function crossCardHtml(c, homeId, homeName, awayName) {
       + '<div class="cross-visual-role">' + esc(c.ruolo) + ' \u00b7 ' + esc(metricUnit) + '</div>'
     + '</div>'
     + '<div class="cross-body">'
-      + '<div class="cross-headline">Il <b>' + esc(c.ruolo.toLowerCase()) + '</b> ' + esc(attName) + ' (' + c.prodRank + '\u00b0/' + c.prodEligible + ' di lega in produzione) trova la difesa ' + esc(difName) + ' che ne concede di piu\' (' + c.concRank + '\u00b0/' + c.concEligible + ')</div>'
-      + '<div class="cross-why">' + crossWhyHtml(c, attName) + '</div>'
+      + '<div class="cross-headline">Il <b>' + esc(c.ruolo.toLowerCase()) + '</b> ' + esc(artOf(attName)) + ' (' + c.prodRank + '\u00b0/' + c.prodEligible + ' di lega in produzione) trova la difesa ' + esc(artOf(difName)) + ' che ne concede di piu\' (' + c.concRank + '\u00b0/' + c.concEligible + ')</div>'
+      + '<div class="cross-why">' + crossWhyHtml(c, attName, difName) + '</div>'
     + '</div>'
   + '</div>';
 }
@@ -2414,13 +2439,13 @@ function crossHeroHtml(top, homeId, homeName, awayName) {
   const difPct = (top.concRank / top.concEligible) * 100;
   return '<div class="cross-hero">'
     + '<div class="cross-hero-eyebrow">Il punto della partita</div>'
-    + '<h4>Il <b>' + esc(top.ruolo.toLowerCase()) + '</b> ' + esc(attName) + ' trova la difesa ' + esc(difName) + ' piu\' permeabile a quel ruolo</h4>'
-    + '<p>' + esc(attName) + ' e\' ' + (top.prodRank === 1 ? 'la squadra che produce piu\' ' + esc(metricUnit) + ' in assoluto' : (top.prodRank + '\u00aa squadra per ' + esc(metricUnit) + ' prodotti')) + ' col ' + esc(top.ruolo.toLowerCase()) + ' (' + top.prodRank + '\u00b0/' + top.prodEligible + ' di lega), e ' + esc(difName) + ' e\' ' + (top.concRank === 1 ? 'la difesa che ne concede di piu\'' : (top.concRank + '\u00aa difesa per concessione')) + ' a quel ruolo (' + top.concRank + '\u00b0/' + top.concEligible + ') - un doppio estremo raro nello stesso ruolo/metrica/venue reale di questa gara.</p>'
-    + '<p class="cross-hero-why">' + crossWhyHtml(top, attName) + '</p>'
+    + '<h4>Il <b>' + esc(top.ruolo.toLowerCase()) + '</b> ' + esc(artOf(attName)) + ' trova la difesa ' + esc(artOf(difName)) + ' piu\' permeabile a quel ruolo</h4>'
+    + '<p>' + esc(artCap(attName)) + ' e\' ' + (top.prodRank === 1 ? 'la squadra che produce piu\' ' + esc(metricUnit) + ' in assoluto' : (top.prodRank + '\u00aa squadra per ' + esc(metricUnit) + ' prodotti')) + ' col ' + esc(top.ruolo.toLowerCase()) + ' (' + top.prodRank + '\u00b0/' + top.prodEligible + ' di lega), e ' + esc(art(difName)) + ' e\' ' + (top.concRank === 1 ? 'la difesa che ne concede di piu\'' : (top.concRank + '\u00aa difesa per concessione')) + ' a quel ruolo (' + top.concRank + '\u00b0/' + top.concEligible + ') - un doppio estremo raro nello stesso ruolo/metrica/venue reale di questa gara.</p>'
+    + '<p class="cross-hero-why">' + crossWhyHtml(top, attName, difName) + '</p>'
     + '<div class="cross-hero-scale">'
-      + '<span class="end">' + esc(attName) + ' produce</span>'
+      + '<span class="end">' + esc(artCap(attName)) + ' produce</span>'
       + '<div class="cross-hero-track"><div class="cross-hero-mark att" style="left:' + attPct.toFixed(0) + '%;"></div><div class="cross-hero-mark dif" style="left:' + difPct.toFixed(0) + '%;"></div></div>'
-      + '<span class="end r">' + esc(difName) + ' concede</span>'
+      + '<span class="end r">' + esc(artCap(difName)) + ' concede</span>'
     + '</div>'
   + '</div>';
 }
@@ -2456,8 +2481,8 @@ function lineCardHtml(c, homeId, homeName, awayName) {
       + '<div class="cross-visual-role">' + esc(metricUnit) + '</div>'
     + '</div>'
     + '<div class="cross-body">'
-      + '<div class="cross-headline">' + esc(attName) + ' (' + c.prodRank + '\u00b0/' + c.prodEligible + ' di lega per ' + esc(metricUnit) + ' prodotti) incontra ' + esc(difName) + ' che ne concede di pi\u00f9 (' + c.concRank + '\u00b0/' + c.concEligible + ')</div>'
-      + '<div class="cross-why">Non un ruolo specifico, ma la squadra nel suo complesso: ' + fmt1(c.prodValue) + ' ' + esc(metricUnit) + ' a partita prodotti da ' + esc(attName) + ' contro ' + fmt1(c.concValue) + ' concessi in media da ' + esc(difName) + ' nello stesso venue.</div>'
+      + '<div class="cross-headline">' + esc(artCap(attName)) + ' (' + c.prodRank + '\u00b0/' + c.prodEligible + ' di lega per ' + esc(metricUnit) + ' prodotti) incontra ' + esc(art(difName)) + ' che ne concede di pi\u00f9 (' + c.concRank + '\u00b0/' + c.concEligible + ')</div>'
+      + '<div class="cross-why">Non un ruolo specifico, ma la squadra nel suo complesso: ' + fmt1(c.prodValue) + ' ' + esc(metricUnit) + ' a partita prodotti ' + esc(artDa(attName)) + ' contro ' + fmt1(c.concValue) + ' concessi in media ' + esc(artDa(difName)) + ' nello stesso venue.</div>'
     + '</div>'
   + '</div>';
 }
@@ -2485,15 +2510,10 @@ function narrativeBlock(match) {
   const homeName = match.Home, awayName = match.Away;
   const hw = N.chiaveLettura.homeWeak, aw = N.chiaveLettura.awayWeak;
 
-  // --- Preview e Chiave di lettura: testo interamente generato in engine.js
-  // (narrPreview/narrChiaveHtml), per avere un'unica fonte di lessico corretto
-  // (articoli di squadra, soglie, framing condizionale al match) invece di
-  // ricostruirlo qui con regole duplicate.
-  const previewLead = N.temi && N.temi.length ? esc(N.temi[0].title) : null;
-  const previewHtml = N.preview && N.preview.length
-    ? N.preview.map(part => '<p>' + part + '</p>').join('')
-    : '<p>Dati insufficienti per una lettura dettagliata.</p>';
-  // Approfondimenti esclusivi: non ripetere il mismatch principale già spiegato nella Preview.
+  // Preview eliminata (richiesta Marco 25/10): il contenuto che la riguardava —
+  // il mismatch principale — è già trattato per intero nell'hero "Il punto della
+  // partita" sopra; non serve ripeterlo in una sezione separata.
+  // Approfondimenti esclusivi: non ripetere il mismatch principale già mostrato nell'hero.
   const mainId = N.temi && N.temi[0] ? N.temi[0].id : null;
   const matchupRows = [];
   const matchupSides = [
@@ -2524,9 +2544,7 @@ function narrativeBlock(match) {
         + '<div class="cross-why">' + fmt1(value) + ' ' + unit + ' ' + role.toLowerCase() + ' per gara, <b>+' + pct + '%</b> sulla media del medesimo ruolo/venue.' + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + '</div>'
       + '</div></div>');
   }
-  const matchupHtml = matchupRows.length
-    ? '<div class="cross-grid">' + matchupRows.join('') + '</div>'
-    : '<p>Nessun altro mismatch di ruolo sufficientemente distinto dalla tesi principale. Gli approfondimenti individuali restano nella sezione successiva.</p>';
+  const matchupHtml = matchupRows.length ? '<div class="cross-grid">' + matchupRows.join('') + '</div>' : '';
 
   // --- Nomi che contano: ogni giocatore è citato sulla metrica dove è davvero sopra il proprio
   // ruolo (tiri, tiri in porta, falli commessi o falli subiti), con soglia proporzionale al suo
@@ -2549,9 +2567,13 @@ function narrativeBlock(match) {
   if (N.nomi.sfavoritoAway) nameCards.push(nameCard(N.nomi.sfavoritoAway, awayName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso ${narrTeamDa(homeName)} in casa.`));
   // I match-up individuali su falli e cartellini sono nel testo di N.chiaveHtml (Chiave di lettura),
   // per non duplicarli qui con lo stesso contenuto in due sezioni diverse.
-  const nomiHtml = nameCards.length
-    ? `<div class="narr-names-grid">${nameCards.slice(0, 6).join('')}</div>`
-    : '<p>Nessun giocatore con minutaggio sufficiente per una proiezione individuale affidabile.</p>';
+  const nomiHtml = nameCards.length ? `<div class="narr-names-grid">${nameCards.slice(0, 6).join('')}</div>` : '';
+  // "Nomi che contano" e "Altri matchup di ruolo" confluiscono in un'unica sezione
+  // (richiesta Marco 25/10): i nomi sono già supportati da un confronto con l'avversario,
+  // quindi non serve un header separato per contenuto che si sovrappone.
+  const matchupESNomiHtml = (matchupHtml || nomiHtml)
+    ? matchupHtml + nomiHtml
+    : '<p>Nessun altro mismatch di ruolo o nome sufficientemente distinto dalla tesi principale.</p>';
 
   // --- Multigol --- (richiesta Marco 25/10: la fascia può riguardare anche UNA SOLA
   // delle due squadre, non solo il totale partita — vedi narrGoalBandaPiuPlausibile in engine.js)
@@ -2623,17 +2645,8 @@ function narrativeBlock(match) {
         <div class="narr-body">
           ${crossHtml}
           <div class="narr-sec">
-            <div class="narr-sec-title">Preview</div>
-            ${previewLead ? `<p class="narr-lead">${previewLead}</p>` : ''}
-            ${previewHtml}
-          </div>
-          <div class="narr-sec">
             <div class="narr-sec-title">Altri matchup di ruolo</div>
-            ${matchupHtml}
-          </div>
-          <div class="narr-sec">
-            <div class="narr-sec-title">Nomi che contano</div>
-            ${nomiHtml}
+            ${matchupESNomiHtml}
           </div>
           <div class="narr-sec">
             <div class="narr-sec-title">Multigol</div>
