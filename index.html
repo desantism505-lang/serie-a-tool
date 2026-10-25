@@ -2417,7 +2417,7 @@ function latoContestoHtml(lato, difName) {
   if (!lato) return '';
   const tot = lato.totale, dom = Math.max(lato.sinistra, lato.destra, lato.centro);
   const latoLabel = lato.sinistra === dom ? 'sinistra' : (lato.destra === dom ? 'destra' : 'centro');
-  return ' <span class="lato">Dato di contesto: su ' + tot + ' tiri storici di quel ruolo contro ' + esc(art(difName)) + ', <b>' + dom + ' sono partiti da ' + latoLabel + '</b> \u2014 non un caso isolato.</span>';
+  return ' <span class="lato">Dato di contesto: su ' + tot + ' tiri storici di quel ruolo contro ' + esc(art(difName)) + ', <b>' + dom + ' sono partiti da ' + latoLabel + '</b>.</span>';
 }
 function crossWhyHtml(c, attName, difName) {
   const metricUnit = { Tiri: 'tiri', Tiri_in_porta: 'tiri in porta', Falli_commessi: 'falli' }[c.metricKey] || c.metricLabel;
@@ -2556,6 +2556,18 @@ function narrativeBlock(match) {
     const playerText = player && player.mu != null
       ? ' Possibile interprete: <b>' + esc(player.nome) + '</b>, ' + fmt1(player.mu) + ' tiri stimati dal modello.'
       : '';
+    // Corrispondenza interprete <-> dato di contesto (richiesta Marco 25/10: "controlli
+    // corrispondenza tra possibile interprete e dati di contesto"): il lato qui è una tendenza
+    // di SQUADRA di chi difende, non del singolo giocatore indicato come possibile interprete.
+    // Se sappiamo (campione sufficiente) che l'interprete gioca prevalentemente dal lato
+    // OPPOSTO, il dato di contesto lo contraddice: meglio ometterlo che mostrarlo insieme a un
+    // nome con cui non corrisponde.
+    let sideLato = side.lato;
+    if (sideLato && player && player.id) {
+      const domSide = sideLato.sinistra >= sideLato.destra && sideLato.sinistra >= sideLato.centro ? 'Sinistra' : (sideLato.destra >= sideLato.centro ? 'Destra' : 'Centro');
+      const playerSide = playerPrevalentSide(DB.matchLog, player.id, side.weak.Posizione_Analitica, side.opponentId);
+      if (playerSide && playerSide !== domSide) sideLato = null;
+    }
     const pct = Math.round((side.ratio - 1) * 100);
     // Stessa grafica "N° vs N°" degli incroci forti, non solo lo scarto in % (richiesta Marco 25/10:
     // card coerenti anche per i matchup di ruolo secondari). Solo sui tiri: per i falli non abbiamo
@@ -2574,7 +2586,7 @@ function narrativeBlock(match) {
         + '<div class="cross-visual-role">' + esc(role) + ' · ' + esc(unit.split(' ')[0]) + '</div></div>'
       + '<div class="cross-body">'
         + '<div class="cross-headline">' + esc(artCap(side.opponent)) + ' contro ' + esc(art(side.team)) + ' (' + side.venue + ')</div>'
-        + '<div class="cross-why">' + fmt1(value) + ' ' + unit + ' ' + role.toLowerCase() + ' per gara, <b>+' + pct + '%</b> sulla media del medesimo ruolo/venue.' + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(side.lato, side.team) + '</div>'
+        + '<div class="cross-why">' + fmt1(value) + ' ' + unit + ' ' + role.toLowerCase() + ' per gara, <b>+' + pct + '%</b> sulla media del medesimo ruolo/venue.' + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(sideLato, side.team) + '</div>'
       + '</div></div>');
   }
   const matchupHtml = matchupRows.length ? '<div class="cross-grid">' + matchupRows.join('') + '</div>' : '';

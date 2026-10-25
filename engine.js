@@ -1679,7 +1679,7 @@ function crossInterpreter(model, matchLog, rosters, attId, ruolo, difId, attVenu
     const player = { id: r.Player_ID, team: attId, ruolo };
     const pr = projectPlayer(model, matchLog, player, difId, true, modelMetric, attVenueLetter);
     if (pr.mu == null) continue;
-    if (!best || pr.mu > best.mu) best = { nome: r.Nome_completo, mu: pr.mu, min, affidabilita: pr.affidabilita };
+    if (!best || pr.mu > best.mu) best = { id: r.Player_ID, nome: r.Nome_completo, mu: pr.mu, min, affidabilita: pr.affidabilita };
   }
   return best;
 }
@@ -1712,12 +1712,25 @@ function crossExtremesOneSide(matchLog, rosters, teamsAll, attId, attVenueLetter
       // ai falli, dove il lato campo non è un dato pertinente (vedi mockup approvato).
       let lato = roleConcessionsSideBreakdown(matchLog, difId, difSegmento, ruolo, m.key);
       if (!lato && m.key !== 'Falli_commessi') lato = roleConcessionsSideBreakdown(matchLog, difId, difSegmento, ruolo, 'Tiri');
+      const interprete = crossInterpreter(model, matchLog, rosters, attId, ruolo, difId, attVenueLetter, m.modelMetric);
+      // Corrispondenza interprete <-> dato di contesto (richiesta Marco 25/10: "controlli
+      // corrispondenza tra possibile interprete e dati di contesto"): il lato è una tendenza
+      // di SQUADRA (da dove chi difende concede di più, storicamente, contro tutti gli
+      // avversari) — non necessariamente il lato in cui gioca l'interprete nominato. Se sappiamo
+      // con campione sufficiente che l'interprete gioca prevalentemente dal lato OPPOSTO, il dato
+      // di contesto lo contraddice: meglio non mostrarlo che affiancarlo a un nome con cui non
+      // corrisponde davvero.
+      if (lato && interprete) {
+        const domSide = lato.sinistra >= lato.destra && lato.sinistra >= lato.centro ? 'Sinistra' : (lato.destra >= lato.centro ? 'Destra' : 'Centro');
+        const playerSide = playerPrevalentSide(matchLog, interprete.id, ruolo, attId);
+        if (playerSide && playerSide !== domSide) lato = null;
+      }
       out.push({
         attId, difId, ruolo, metricKey: m.key, metricLabel: m.label,
         prodRank, prodEligible: prod.eligible, prodValue: prodRows[prodIdx].value,
         concRank, concEligible: conc.eligible, concValue: concRows[concIdx].value,
         combinedScore: (prod.eligible + 1 - prodRank) + (conc.eligible + 1 - concRank), // più alto = più estremo su entrambi i lati
-        interprete: crossInterpreter(model, matchLog, rosters, attId, ruolo, difId, attVenueLetter, m.modelMetric),
+        interprete,
         lato,
       });
     }
