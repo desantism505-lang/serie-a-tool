@@ -2573,20 +2573,36 @@ function narrativeBlock(match) {
     // card coerenti anche per i matchup di ruolo secondari). Solo sui tiri: per i falli non abbiamo
     // qui un rank di produzione comparabile già calcolato, meglio nessun numero che uno inventato.
     let visualTop = '<div class="cross-vs"><span class="hi">+' + pct + '%</span></div>';
+    let prodInfo = null;
     if (side.metric === 'Tiri') {
       const prodVenueLetter = side.venueLetter === 'H' ? 'A' : 'H';
       const concInfo = roleRankInfo(side.weak.Posizione_Analitica, side.venueLetter, 'Tiri_Concessi_90', 'concessione', side.teamId);
-      const prodInfo = roleRankInfo(side.weak.Posizione_Analitica, prodVenueLetter, 'Tiri_Prodotti_90', 'produzione', side.opponentId);
+      prodInfo = roleRankInfo(side.weak.Posizione_Analitica, prodVenueLetter, 'Tiri_Prodotti_90', 'produzione', side.opponentId);
       if (concInfo.rank != null && prodInfo.rank != null) {
         visualTop = '<div class="cross-vs"><span class="lo">' + prodInfo.rank + '°</span><span class="sep">vs</span><span class="hi">' + concInfo.rank + '°</span></div>';
       }
     }
+    // Soggetto esplicito (richiesta Marco 25/10: "non si capisce chi commette,
+    // sarebbe da metterci soggetto"). Il valore è la media stagionale di QUANTO
+    // side.team subisce/concede in quel ruolo contro tutti gli avversari — non
+    // un dato specifico su side.opponent — quindi il soggetto che subisce/concede
+    // è side.team, non side.opponent: scriverlo come se fosse side.opponent a
+    // "commettere" sarebbe un'attribuzione falsa (stesso errore già corretto in
+    // precedenza sul dato di lato/contesto). Dove però abbiamo già un rank di
+    // PRODUZIONE specifico di side.opponent su quel ruolo/metrica (solo sui
+    // tiri, prodInfo sopra), lo diciamo esplicitamente a parole: è l'unico caso
+    // in cui il nesso con l'avversario di questa gara è un dato reale, non supposto.
+    const verbo = side.metric === 'Falli' ? 'subisce' : 'concede';
+    const metricNoun = side.metric === 'Falli' ? 'falli' : 'tiri';
+    const oppClause = (side.metric === 'Tiri' && prodInfo && prodInfo.rank != null)
+      ? (' <b>' + esc(artCap(side.opponent)) + '</b> è <b>' + prodInfo.rank + '°</b> su ' + prodInfo.eligible + ' di lega in produzione con quel ruolo: la squadra meglio posizionata per sfruttarlo.')
+      : (' Dato di squadra nel tempo, non specifico su quanto fa fallire ' + esc(side.opponent) + ' in questo ruolo in questa gara.');
     matchupRows.push('<div class="cross-card">'
       + '<div class="cross-visual">' + visualTop
         + '<div class="cross-visual-role">' + esc(role) + ' · ' + esc(unit.split(' ')[0]) + '</div></div>'
       + '<div class="cross-body">'
-        + '<div class="cross-headline">' + esc(artCap(side.opponent)) + ' contro ' + esc(art(side.team)) + ' (' + side.venue + ')</div>'
-        + '<div class="cross-why">' + fmt1(value) + ' ' + unit + ' ' + role.toLowerCase() + ' per gara, <b>+' + pct + '%</b> sulla media del medesimo ruolo/venue.' + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(sideLato, side.team) + '</div>'
+        + '<div class="cross-headline">' + esc(artCap(side.team)) + ' (' + side.venue + ') sul ruolo ' + esc(role.toLowerCase()) + '</div>'
+        + '<div class="cross-why"><b>' + esc(artCap(side.team)) + '</b> ' + verbo + ' ' + fmt1(value) + ' ' + metricNoun + ' a partita sul ruolo <b>' + esc(role.toLowerCase()) + '</b> quando gioca ' + side.venue + ', <b>+' + pct + '%</b> sulla media lega dello stesso ruolo/venue.' + oppClause + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(sideLato, side.team) + '</div>'
       + '</div></div>');
   }
   const matchupHtml = matchupRows.length ? '<div class="cross-grid">' + matchupRows.join('') + '</div>' : '';
@@ -2617,6 +2633,51 @@ function narrativeBlock(match) {
       + '<div class="mg-tile"><div class="mg-team">' + esc(awayName) + '</div><div class="mg-mu">' + fmt2(N.multigol.muAway) + '</div></div>'
       + '<div class="mg-why">' + (b ? ('Fascia più plausibile: <b>' + ambitoLabel + ' Multigol ' + esc(b.label) + '</b> — ' + Math.round(b.prob * 100) + '% secondo il modello. ' + whyText) : whyText) + '</div>'
       + '</div>';
+    // Doppio incrocio prodotto/concesso nel venue reale di questa gara (richiesta Marco 25/10:
+    // "andrebbe fatto doppio incrocio prodotto concesso tra le due squadre nel venue di
+    // giornata"): sono gli STESSI numeri (homeAttAvg/awayDefAvg/awayAttAvg/homeDefAvg, lgHome/
+    // lgAway) che alimentano lo shrinkage di muHome/muAway qui sopra — non ricalcolati, solo
+    // mostrati, per spiegare perché la mu è quella e non un'altra.
+    const M = N.multigol;
+    function crossGoalRow(attName, attAvg, attN, attLg, attVerbo, difName, difAvg, difN, difLg, difVerbo) {
+      if (attAvg == null || difAvg == null) return '';
+      const attPct = Math.round((attAvg / attLg - 1) * 100);
+      const difPct = Math.round((difAvg / difLg - 1) * 100);
+      return '<div class="cross-card">'
+        + '<div class="cross-visual"><div class="cross-vs"><span class="' + (attPct >= 0 ? 'hi' : 'lo') + '">' + fmt1(attAvg) + '</span><span class="sep">vs</span><span class="' + (difPct >= 0 ? 'hi' : 'lo') + '">' + fmt1(difAvg) + '</span></div><div class="cross-visual-role">gol/partita</div></div>'
+        + '<div class="cross-body">'
+          + '<div class="cross-headline">' + esc(artCap(attName)) + ' attacco vs ' + esc(artOf(difName)) + ' difesa</div>'
+          + '<div class="cross-why"><b>' + esc(attName) + '</b> ' + attVerbo + ' ' + fmt1(attAvg) + ' gol/partita (' + (attPct >= 0 ? '+' : '') + attPct + '% sulla media lega, ' + attN + ' gare), <b>' + esc(difName) + '</b> ' + difVerbo + ' ' + fmt1(difAvg) + ' gol/partita (' + (difPct >= 0 ? '+' : '') + difPct + '% sulla media lega, ' + difN + ' gare).</div>'
+        + '</div></div>';
+    }
+    const crossRows = [
+      crossGoalRow(homeName, M.homeAttAvg, M.homeAtt ? M.homeAtt.n : 0, M.lgHome, 'segna in casa', awayName, M.awayDefAvg, M.awayDef ? M.awayDef.n : 0, M.lgAway, 'concede in trasferta'),
+      crossGoalRow(awayName, M.awayAttAvg, M.awayAtt ? M.awayAtt.n : 0, M.lgAway, 'segna in trasferta', homeName, M.homeDefAvg, M.homeDef ? M.homeDef.n : 0, M.lgHome, 'concede in casa'),
+    ].filter(Boolean);
+    if (crossRows.length) {
+      multigolHtml += '<div class="cross-grid" style="margin-top:12px;">' + crossRows.join('') + '</div>';
+    }
+    // Basi statistiche più importanti e costanti (richiesta Marco 25/10: "spiegata la logica
+    // [...] contestualizzando 2/3 basi statistiche quelle più importanti e costanti che
+    // spiegano la scelta della multigol"): tra i quattro segnali sopra, quelli con lo scarto
+    // maggiore dalla media lega E un campione non minimale (n>=3) — non un'opinione, sono gli
+    // stessi numeri della riga sopra ordinati per quanto pesano sullo shrinkage della mu.
+    const segnali = [
+      { team: homeName, label: 'segna in casa', avg: M.homeAttAvg, n: M.homeAtt ? M.homeAtt.n : 0, lg: M.lgHome },
+      { team: awayName, label: 'concede in trasferta', avg: M.awayDefAvg, n: M.awayDef ? M.awayDef.n : 0, lg: M.lgAway },
+      { team: awayName, label: 'segna in trasferta', avg: M.awayAttAvg, n: M.awayAtt ? M.awayAtt.n : 0, lg: M.lgAway },
+      { team: homeName, label: 'concede in casa', avg: M.homeDefAvg, n: M.homeDef ? M.homeDef.n : 0, lg: M.lgHome },
+    ].filter((s) => s.avg != null && s.n >= 3 && s.lg)
+      .map((s) => ({ ...s, scarto: Math.abs(s.avg / s.lg - 1) }))
+      .sort((a, b) => b.scarto - a.scarto)
+      .slice(0, 3);
+    if (segnali.length) {
+      const basiTxt = segnali.map((s) => {
+        const pct = Math.round((s.avg / s.lg - 1) * 100);
+        return '<b>' + esc(s.team) + '</b> ' + s.label + ' ' + (pct >= 0 ? '+' : '') + pct + '% sulla media lega (' + fmt1(s.avg) + ' vs ' + fmt1(s.lg) + ', ' + s.n + ' gare)';
+      }).join('; ') + '.';
+      multigolHtml += '<div class="mg-why" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);"><b>Basi statistiche più costanti dietro questa proiezione:</b> ' + basiTxt + '</div>';
+    }
     // Statistiche reali nel venue di questa gara, a sostegno della mu (non il modello: i numeri
     // grezzi che il modello smussa con lo shrinkage verso la media di lega).
     function goalStatsRow(teamName, venueLabel, s) {

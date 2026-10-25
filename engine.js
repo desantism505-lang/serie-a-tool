@@ -1881,6 +1881,10 @@ function narrProjectGoals(calendar, homeId, awayId) {
     // dal modello: quante volte ha segnato/subito/tenuto la porta inviolata in quel venue.
     homeGoalStats: narrGoalStatsVenue(calendar, homeId, 'H'),
     awayGoalStats: narrGoalStatsVenue(calendar, awayId, 'A'),
+    // Medie di lega e medie di squadra già usate per le mu (richiesta Marco 25/10: "doppio
+    // incrocio prodotto/concesso tra le due squadre nel venue di giornata"), esposte qui non
+    // ricalcolate in index.html: stessi identici numeri che alimentano lo shrinkage sopra.
+    lgHome, lgAway, homeAttAvg, awayDefAvg, awayAttAvg, homeDefAvg,
   };
 }
 
