@@ -2472,12 +2472,19 @@ function crossExtremeSectionHtml(match) {
       + '<div class="cross-empty">Nessun incrocio a doppio estremo in questa partita: nessun ruolo e\' contemporaneamente tra i primi 3 di lega sia in produzione (chi attacca) sia in concessione (chi difende), nello stesso venue reale della gara.</div></div>';
   }
   const hero = crossHeroHtml(cross[0], match.Home_ID, match.Home, match.Away);
-  const rest = cross.slice(1, CROSS_SHOWN_DEFAULT);
-  const extra = cross.length - 1 - rest.length;
+  // "Nomi che contano" eliminata (richiesta Marco 25/10: "non voglio nomi a caso [...] dovrebbe
+  // essere altri duelli di ruolo, no nomi che contano a caso"): i nomi hanno senso solo se legati
+  // a un incrocio reale (rank di lega su entrambi i lati), quindi qui mostriamo TUTTI gli incroci
+  // restanti che hanno un interprete designato \u2014 stessa card "N\u00b0vs N\u00b0" degli incroci forti, non
+  // un formato diverso per i nomi \u2014 e lasciamo fuori solo quelli senza un giocatore su cui
+  // costruire la proiezione (nessun nome a caso, nessuna card senza interprete).
+  const restAll = cross.slice(1);
+  const rest = restAll.filter((c) => c.interprete).slice(0, CROSS_SHOWN_DEFAULT + 2);
+  const extra = restAll.length - rest.length;
   return hero
-    + (rest.length ? '<div class="narr-sec"><div class="narr-sec-title">Altri incroci forti <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;">\u2014 top3 di lega su entrambi i lati</span></div>'
+    + (rest.length ? '<div class="narr-sec"><div class="narr-sec-title">Altri incroci forti <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;">\u2014 top3 di lega su entrambi i lati, con interprete</span></div>'
       + '<div class="cross-grid">' + rest.map(c => crossCardHtml(c, match.Home_ID, match.Home, match.Away)).join('') + '</div>'
-      + (extra > 0 ? '<div class="cross-empty" style="margin-top:6px;">+' + extra + ' altri incroci a doppio estremo, meno marcati di questi.</div>' : '')
+      + (extra > 0 ? '<div class="cross-empty" style="margin-top:6px;">+' + extra + ' altri incroci a doppio estremo, senza un interprete designato o meno marcati di questi.</div>' : '')
       + '</div>' : '')
     + lineExtremeSectionHtml(match);
 }
@@ -2572,66 +2579,12 @@ function narrativeBlock(match) {
   }
   const matchupHtml = matchupRows.length ? '<div class="cross-grid">' + matchupRows.join('') + '</div>' : '';
 
-  // --- Nomi che contano: ogni giocatore è citato sulla metrica dove è davvero sopra il proprio
-  // ruolo (tiri, tiri in porta, falli commessi o falli subiti), con soglia proporzionale al suo
-  // valore atteso (mu): soglia intera = floor(mu), riga comunicata = soglia - 0,5. ---
-  const NARR_METRIC_LABEL = { Tiri: 'tiri attesi', SOT: 'tiri in porta attesi', FC: 'falli commessi attesi', FD: 'falli subiti attesi' };
-  const NARR_METRIC_PLURAL = { Tiri: 'tiri', SOT: 'tiri in porta', FC: 'falli commessi', FD: 'falli subiti' };
-  // Stessa impostazione grafica dei duelli sopra (cross-card), non più un paragrafo isolato
-  // (richiesta Marco 25/10) — e solo matchup FAVOREVOLI: quelli sfavorevoli sono stati rimossi
-  // su richiesta esplicita ("match up sfavorevoli non li mettere").
-  function nameCard(player, teamLabel, opponentName, note, lato) {
-    if (!player) return '';
-    const parts = [];
-    if (player.metricMu != null) parts.push(`${fmt2(player.metricMu)} ${NARR_METRIC_LABEL[player.metric] || 'tiri attesi'}`);
-    if (player.pSoglia != null) parts.push(`${fmtPct(player.pSoglia)} di arrivare ad almeno <b>${fmt1(player.sogliaLine)}</b> ${NARR_METRIC_PLURAL[player.metric] || 'tiri'}`);
-    const affid = player.affidabilita === 'media' || player.affidabilita === 'bassa'
-      ? `affidabilità <span class="narr-hl-warn">${player.affidabilita}</span> (${player.min}')`
-      : `${player.min}', affidabilità alta`;
-    const why = parts.join(', ') + (parts.length ? ', ' : '') + affid + '.' + (note ? ' ' + note : '') + latoContestoHtml(lato, opponentName);
-    return '<div class="cross-card">'
-      + '<div class="cross-visual"><div class="cross-visual-role">' + esc(player.ruolo) + '</div></div>'
-      + '<div class="cross-body">'
-        + '<div class="cross-headline"><b>' + esc(player.nome) + '</b> (' + esc(teamLabel) + ')</div>'
-        + '<div class="cross-why">' + why + '</div>'
-      + '</div></div>';
-  }
-  const nameCards = [];
-  // Favorevole solo se il ruolo del titolare coincide davvero con quello che la difesa
-  // avversaria concede di più (bug corretto 25/10: prima il controllo guardava il ruolo
-  // debole della PROPRIA squadra, non quello dell'avversario che difende).
-  const homeLeadFav = aw && N.nomi.homeLead && aw.Posizione_Analitica === N.nomi.homeLead.ruolo;
-  const awayLeadFav = hw && N.nomi.awayLead && hw.Posizione_Analitica === N.nomi.awayLead.ruolo;
-  // Statistica di sostegno al "matchup favorevole" (richiesta Marco 25/10: "continui a non
-  // scrivere stats che lo portano a essere matchup affidabile") — valore di concessione del
-  // ruolo + rank di lega, stesso rank mostrato negli incroci forti, non un giudizio senza numeri.
-  function weakRoleStatTxt(weak, ratio, rankInfo) {
-    if (!weak || weak.Tiri_Concessi_90 == null) return '';
-    const pct = ratio != null ? Math.round((ratio - 1) * 100) : null;
-    const rankTxt = rankInfo && rankInfo.rank != null ? rankInfo.rank + '°/' + rankInfo.eligible + ' di lega' : null;
-    const bits = [rankTxt, pct != null ? '+' + pct + '% sulla media' : null].filter(Boolean).join(', ');
-    return ' ' + fmt1(weak.Tiri_Concessi_90) + ' tiri concessi a partita a quel ruolo' + (bits ? ' (' + bits + ')' : '') + '.';
-  }
-  const awayWeakRankInfo = roleRankInfo(aw ? aw.Posizione_Analitica : null, 'A', 'Tiri_Concessi_90', 'concessione', match.Away_ID);
-  const homeWeakRankInfo = roleRankInfo(hw ? hw.Posizione_Analitica : null, 'H', 'Tiri_Concessi_90', 'concessione', match.Home_ID);
-  if (N.nomi.homeLead) nameCards.push(nameCard(N.nomi.homeLead, homeName, awayName,
-    homeLeadFav ? `Gioca nel ruolo più concesso dalla difesa ospite — <span class="narr-hl">matchup favorevole</span>.${weakRoleStatTxt(aw, N.chiaveLettura.awayWeakRatio, awayWeakRankInfo)}` : '',
-    homeLeadFav ? N.chiaveLettura.awayWeakLato : null));
-  if (N.nomi.awayLead) nameCards.push(nameCard(N.nomi.awayLead, awayName, homeName,
-    awayLeadFav ? `Gioca nel ruolo più concesso dalla difesa di casa — <span class="narr-hl">matchup favorevole</span>.${weakRoleStatTxt(hw, N.chiaveLettura.homeWeakRatio, homeWeakRankInfo)}` : '',
-    awayLeadFav ? N.chiaveLettura.homeWeakLato : null));
-  if (N.nomi.cautelaAway && N.nomi.cautelaAway !== N.nomi.awayLead) nameCards.push(nameCard(N.nomi.cautelaAway, awayName, homeName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(homeName)} in casa.`, null));
-  if (N.nomi.cautelaHome && N.nomi.cautelaHome !== N.nomi.homeLead) nameCards.push(nameCard(N.nomi.cautelaHome, homeName, awayName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(awayName)} in trasferta.`, null));
-  // I matchup sfavorevoli (sfavoritoHome/sfavoritoAway) non vengono più mostrati qui
-  // (richiesta Marco 25/10). I match-up individuali su falli e cartellini restano nel
-  // testo di N.chiaveHtml (Chiave di lettura), per non duplicarli in due sezioni diverse.
-  const nomiHtml = nameCards.length ? `<div class="cross-grid">${nameCards.slice(0, 6).join('')}</div>` : '';
-  // "Nomi che contano" e "Altri matchup di ruolo" confluiscono in un'unica sezione
-  // (richiesta Marco 25/10): i nomi sono già supportati da un confronto con l'avversario,
-  // quindi non serve un header separato per contenuto che si sovrappone.
-  const matchupESNomiHtml = (matchupHtml || nomiHtml)
-    ? matchupHtml + nomiHtml
-    : '<p>Nessun altro mismatch di ruolo o nome sufficientemente distinto dalla tesi principale.</p>';
+  // "Nomi che contano" eliminata come sezione a parte (richiesta Marco 25/10: "non voglio nomi
+  // a caso [...] dovrebbe essere altri duelli di ruolo, no nomi che contano a caso"). I nomi con
+  // un vero ancoraggio a un incrocio (rank di lega su entrambi i lati) sono ora dentro "Altri
+  // incroci forti" sopra (stessa card, con interprete); qui resta solo il sistema di "ruolo debole
+  // vs media di lega" (narrWeakestRoleMulti), non ridondante con quello.
+  const matchupESNomiHtml = matchupHtml || '<p>Nessun altro mismatch di ruolo sufficientemente distinto dalla tesi principale.</p>';
 
   // --- Multigol --- (richiesta Marco 25/10: la fascia può riguardare anche UNA SOLA
   // delle due squadre, non solo il totale partita — vedi narrGoalBandaPiuPlausibile in engine.js)
