@@ -2598,12 +2598,15 @@ function narrativeBlock(match) {
   // vs media di lega" (narrWeakestRoleMulti), non ridondante con quello.
   const matchupESNomiHtml = matchupHtml || '<p>Nessun altro mismatch di ruolo sufficientemente distinto dalla tesi principale.</p>';
 
-  // --- Multigol --- (richiesta Marco 25/10: la fascia può riguardare anche UNA SOLA
-  // delle due squadre, non solo il totale partita — vedi narrGoalBandaPiuPlausibile in engine.js)
+  // --- Multigol --- analisi statistica estesa (richiesta Marco 25/10: "spiegare bene nel
+  // dettaglio, con stats su quanto le squadre hanno segnato nei venue rispettivi, medie gol,
+  // statistiche particolari come clean sheet/entrambe a segno"), non solo la mu del modello.
+  // La fascia può riguardare anche UNA SOLA delle due squadre, non solo il totale partita
+  // (narrGoalBandaPiuPlausibile in engine.js).
   let multigolHtml = '<p>Dati insufficienti per una lettura sui gol.</p>';
   if (N.multigol) {
     const b = N.multigol.bandaPiuPlausibile;
-    const ambitoLabel = b ? (b.ambito === 'totale' ? 'Totale partita' : (b.ambito === 'home' ? esc(homeName) : esc(awayName))) : null;
+    const ambitoLabel = b ? (b.ambito === 'totale' ? 'Totale partita' : (b.ambito === 'home' ? esc(artCap(homeName)) : esc(artCap(awayName)))) : null;
     const whyText = !b ? 'Campione insufficiente per stimare una fascia gol affidabile.'
       : (b.ambito === 'totale'
         ? 'Nessuna delle due squadre ha un segnale isolato più netto del totale di partita.'
@@ -2612,9 +2615,25 @@ function narrativeBlock(match) {
       + '<div class="mg-tile"><div class="mg-team">' + esc(homeName) + '</div><div class="mg-mu">' + fmt2(N.multigol.muHome) + '</div></div>'
       + '<div class="mg-plus">+</div>'
       + '<div class="mg-tile"><div class="mg-team">' + esc(awayName) + '</div><div class="mg-mu">' + fmt2(N.multigol.muAway) + '</div></div>'
-      + '<div class="mg-why">' + (b ? ('Fascia più plausibile: <b>' + ambitoLabel + ' Multigol ' + esc(b.label) + '</b> — ' + Math.round(b.prob * 100) + '% secondo il modello. ' + whyText) : whyText)
-      + ' <i style="color:var(--muted);">(modello gol separato dal motore tiri/SOT testato, da trattare con una cautela in più)</i></div>'
+      + '<div class="mg-why">' + (b ? ('Fascia più plausibile: <b>' + ambitoLabel + ' Multigol ' + esc(b.label) + '</b> — ' + Math.round(b.prob * 100) + '% secondo il modello. ' + whyText) : whyText) + '</div>'
       + '</div>';
+    // Statistiche reali nel venue di questa gara, a sostegno della mu (non il modello: i numeri
+    // grezzi che il modello smussa con lo shrinkage verso la media di lega).
+    function goalStatsRow(teamName, venueLabel, s) {
+      if (!s) return '';
+      return '<div class="narr-seq-item">'
+        + '<span class="narr-seq-venue">' + esc(teamName) + ' · ' + esc(venueLabel) + '</span>'
+        + '<div class="narr-seq-num">' + fmt1(s.gfAvg) + '<span class="unit">gol fatti/partita</span></div>'
+        + '<div class="narr-seq-label">' + fmt1(s.gaAvg) + ' subiti/partita · ha segnato nel ' + Math.round(s.scoredPct * 100) + '% delle gare, porta inviolata nel ' + Math.round(s.cleanSheetPct * 100) + '%, entrambe a segno nel ' + Math.round(s.bttsPct * 100) + '% (campione: ' + s.n + ' gare).</div>'
+        + '</div>';
+    }
+    const goalStatsItems = [
+      goalStatsRow(homeName, 'Casa', N.multigol.homeGoalStats),
+      goalStatsRow(awayName, 'Trasferta', N.multigol.awayGoalStats),
+    ].filter(Boolean);
+    if (goalStatsItems.length) {
+      multigolHtml += '<div class="narr-seq-row" style="margin-top:12px;">' + goalStatsItems.join('') + '</div>';
+    }
   }
 
   // --- Statistiche e sequenze in evidenza (per venue) ---

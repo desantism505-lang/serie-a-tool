@@ -1415,6 +1415,31 @@ function narrVenueRecord(calendar, teamId, venue) {
   return { n: rows.length, w, d, l, gf, ga };
 }
 
+// Statistiche reali sui gol nel venue (richiesta Marco 25/10: "analisi statistica professionale"
+// sul pannello Multigol — non solo la mu del modello, ma anche i numeri grezzi che la sostengono:
+// media gol segnati/subiti, % partite in cui ha segnato, clean sheet, entrambe le squadre a segno).
+// Stessa fonte dati di narrVenueRecord (calendar, Home_Score/Away_Score), nessun numero nuovo.
+function narrGoalStatsVenue(calendar, teamId, venue) {
+  const rows = calendar.filter((c) => c.Stato === 'CONCLUSA' && c.Home_Score !== '' && c.Home_Score != null &&
+    (venue === 'H' ? c.Home_ID === teamId : c.Away_ID === teamId));
+  if (!rows.length) return null;
+  let gf = 0, ga = 0, scored = 0, cleanSheet = 0, btts = 0;
+  for (const r of rows) {
+    const isHome = r.Home_ID === teamId;
+    const f = Number(isHome ? r.Home_Score : r.Away_Score), a = Number(isHome ? r.Away_Score : r.Home_Score);
+    gf += f; ga += a;
+    if (f > 0) scored++;
+    if (a === 0) cleanSheet++;
+    if (f > 0 && a > 0) btts++;
+  }
+  const n = rows.length;
+  return {
+    n, gf, ga, gfAvg: gf / n, gaAvg: ga / n,
+    scoredPct: scored / n, failedToScorePct: (n - scored) / n,
+    cleanSheetPct: cleanSheet / n, bttsPct: btts / n,
+  };
+}
+
 // Ruolo più "bucato" di una squadra nel proprio venue di oggi. segmento passato a
 // computeRoleConcessions è l'OPPOSTO del venue reale (stessa inversione di
 // ARCHITECTURE.md: per "cosa concede X mentre gioca in V" serve segmento = not(V)).
@@ -1832,7 +1857,13 @@ function narrProjectGoals(calendar, homeId, awayId) {
   const homeDefAvg = homeDef.n ? homeDef.ga / homeDef.n : null;
   const muHome = lgHome * narrShrink(homeAttAvg, homeAtt.n, lgHome) * narrShrink(awayDefAvg, awayDef.n, lgAway);
   const muAway = lgAway * narrShrink(awayAttAvg, awayAtt.n, lgAway) * narrShrink(homeDefAvg, homeDef.n, lgHome);
-  return { muHome, muAway, homeAtt, awayAtt, homeDef, awayDef, bandaPiuPlausibile: narrGoalBandaPiuPlausibile(muHome, muAway) };
+  return {
+    muHome, muAway, homeAtt, awayAtt, homeDef, awayDef, bandaPiuPlausibile: narrGoalBandaPiuPlausibile(muHome, muAway),
+    // Statistiche grezze sul venue reale di questa gara (richiesta Marco 25/10), non derivate
+    // dal modello: quante volte ha segnato/subito/tenuto la porta inviolata in quel venue.
+    homeGoalStats: narrGoalStatsVenue(calendar, homeId, 'H'),
+    awayGoalStats: narrGoalStatsVenue(calendar, awayId, 'A'),
+  };
 }
 
 // Fasce "multigol" (banda di gol più probabile, in %) derivate dalla stessa mu Poisson
