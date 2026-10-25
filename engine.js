@@ -286,15 +286,27 @@ function computeRoleConcessions(matchLog, team, segmento, ruolo, teamPartite) {
 // già corretto altrove. È solo la scomposizione in numeri grezzi del totale
 // che già sostiene un fatto "Matchup ruolo" esistente (computeRoleConcessions
 // / fattiRuoloVsAvversario) — un arricchimento del fatto, non un fatto nuovo.
-// Applicabile solo ai ruoli strutturalmente larghi: per i ruoli centrali
-// Lato_Campo è un artefatto di dove si è trovato il giocatore in quel
-// momento, non un tratto stabile del ruolo — non va mai mostrato lì.
+// Applicabile ai ruoli strutturalmente larghi (sempre) e a Centrocampista
+// centrale (solo nelle partite-squadra con centrocampo a 3 titolari, vedi
+// sotto) — per tutti gli altri ruoli centrali Lato_Campo resta un artefatto
+// di dove si è trovato il giocatore in quel momento, non va mai mostrato.
 // Ritorna null (il chiamante allora non mostra nulla, mai un N/D forzato) se:
-// ruolo non largo, totale sotto soglia minima, o il dataset non ha affatto
-// Lato_Campo valorizzato (es. UCL finché non avrà quella colonna — il motore
-// resta identico tra le repo, la funzione si attiva da sola quando i dati
-// arrivano, senza bisogno di una seconda modifica).
+// ruolo non idoneo, totale sotto soglia minima, nessun lato chiaramente
+// dominante, o il dataset non ha affatto Lato_Campo valorizzato (es. UCL
+// finché non avrà quella colonna — il motore resta identico tra le repo, la
+// funzione si attiva da sola quando i dati arrivano).
+// Ruoli strutturalmente larghi (sx/dx sempre presente, qualunque modulo):
+// qui il lato è sempre potenzialmente informativo, nessuna condizione extra.
 const WIDE_ROLES_LATO = ['Esterno offensivo', 'Terzino', 'Esterno/Quinto'];
+// Centrocampista centrale: aggiunto 25/10/2026 su richiesta Marco. Qui il
+// lato NON è strutturale come sopra — è reale solo nelle partite in cui
+// quella specifica squadra ha schierato un centrocampo a 3 titolari (verifica
+// sui dati: Inter 7/7 partite con 3 CC titolari, Lato_Campo valorizzato
+// Sinistra/Centro/Destra in modo reale su quelle righe). Con 2 o 4 CC
+// titolari (doppio play, centrocampo a 4) Lato_Campo torna ad essere un
+// artefatto del momento come per ogni altro ruolo centrale — quelle righe
+// vanno escluse dal conteggio, non trattate come se il lato fosse stabile.
+const TRIPLE_CC_ROLE = 'Centrocampista centrale';
 const LATO_MIN_SAMPLE = 5; // sotto questa soglia, scomporre il totale è rumore, non informazione
 // Soglia di dominanza — aggiunta 25/10/2026 dopo segnalazione di Marco: un
 // fatto reale (Frosinone esterni offensivi, 6 tiri in porta: 3 sinistra/3
@@ -306,12 +318,38 @@ const LATO_MIN_SAMPLE = 5; // sotto questa soglia, scomporre il totale è rumore
 // dominante, la scomposizione non è un'informazione azionabile: va omessa,
 // non mostrata con un pareggio che il lettore deve scoprire da solo.
 const LATO_SKEW_MIN = 0.6; // il lato dominante deve coprire almeno il 60% del totale
+// Cache (per riferimento dell'array matchLog, invariato per tutta la durata
+// di una sessione nel browser): set di chiavi Team_ID|Match_ID in cui quella
+// squadra ha schierato esattamente 3 Centrocampista centrale titolari.
+// Costruita una volta sola, non ad ogni chiamata — richiamata potenzialmente
+// decine di volte per scansione (Scanner su una giornata intera).
+const _tripleCCCache = new WeakMap();
+function getTripleCCSet(matchLog) {
+  let set = _tripleCCCache.get(matchLog);
+  if (set) return set;
+  const counts = {};
+  for (const r of matchLog) {
+    if (r.Posizione_Analitica !== TRIPLE_CC_ROLE || r.Titolare !== 'Sì') continue;
+    const key = r.Team_ID + '|' + r.Match_ID;
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  set = new Set();
+  for (const key in counts) {
+    if (counts[key] === 3) set.add(key);
+  }
+  _tripleCCCache.set(matchLog, set);
+  return set;
+}
 function roleConcessionsSideBreakdown(matchLog, team, segmento, ruolo, rawCol) {
-  if (!WIDE_ROLES_LATO.includes(ruolo)) return null;
+  if (!WIDE_ROLES_LATO.includes(ruolo) && ruolo !== TRIPLE_CC_ROLE) return null;
   let rows = filterRows(matchLog, (r) => r.Opp_ID === team && r.Posizione_Analitica === ruolo);
   if (segmento !== 'TOTALE') {
     const v = segmento === 'HOME' ? 'A' : 'H';
     rows = rows.filter((r) => r.Venue === v);
+  }
+  if (ruolo === TRIPLE_CC_ROLE) {
+    const tripleSet = getTripleCCSet(matchLog);
+    rows = rows.filter((r) => tripleSet.has(r.Team_ID + '|' + r.Match_ID));
   }
   const hasLato = rows.some((r) => r.Lato_Campo === 'Sinistra' || r.Lato_Campo === 'Destra' || r.Lato_Campo === 'Centro');
   if (!hasLato) return null;
