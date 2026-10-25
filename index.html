@@ -2400,6 +2400,14 @@ const CROSS_SHOWN_DEFAULT = 4;
 // Frase di motivazione per riga (richiesta Marco 25/10: "spiega bene le motivazioni delle
 // scelte, anche con dato testuale") - interprete quando c'e', lato campo quando disponibile
 // (richiesta: "ricordati di tenere a mente lato-posizione in confronto"), altrimenti nota onesta.
+// Dato di contesto sul lato di campo (richiesta Marco 25/10: deve esserci sempre quando
+// disponibile, stesso lessico in ogni punto del pannello dove compare un dato di lato).
+function latoContestoHtml(lato, difName) {
+  if (!lato) return '';
+  const tot = lato.totale, dom = Math.max(lato.sinistra, lato.destra, lato.centro);
+  const latoLabel = lato.sinistra === dom ? 'sinistra' : (lato.destra === dom ? 'destra' : 'centro');
+  return ' <span class="lato">Dato di contesto: su ' + tot + ' tiri storici di quel ruolo contro ' + esc(art(difName)) + ', <b>' + dom + ' sono partiti da ' + latoLabel + '</b> \u2014 non un caso isolato.</span>';
+}
 function crossWhyHtml(c, attName, difName) {
   const metricUnit = { Tiri: 'tiri', Tiri_in_porta: 'tiri in porta', Falli_commessi: 'falli' }[c.metricKey] || c.metricLabel;
   const parts = [];
@@ -2409,12 +2417,7 @@ function crossWhyHtml(c, attName, difName) {
   } else {
     parts.push('Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione individuale affidabile: il dato di reparto resta, ma senza un nome su cui costruirci sopra.');
   }
-  if (c.lato) {
-    const tot = c.lato.totale, dom = Math.max(c.lato.sinistra, c.lato.destra, c.lato.centro);
-    const latoLabel = c.lato.sinistra === dom ? 'sinistra' : (c.lato.destra === dom ? 'destra' : 'centro');
-    parts.push('<span class="lato">Sul lato: ' + dom + ' degli ' + tot + ' episodi concessi ' + esc(artDa(difName)) + ' in quel ruolo in questo venue sono arrivati da <b>' + latoLabel + '</b> \u2014 una tendenza netta, non un episodio isolato.</span>');
-  }
-  return parts.join(' ');
+  return parts.join(' ') + latoContestoHtml(c.lato, difName);
 }
 function crossCardHtml(c, homeId, homeName, awayName) {
   const attName = c.attId === homeId ? homeName : awayName;
@@ -2519,10 +2522,10 @@ function narrativeBlock(match) {
   const matchupSides = [
     {team:homeName, opponent:awayName, weak:N.chiaveLettura.homeWeak, ratio:N.chiaveLettura.homeWeakRatio,
      metric:N.chiaveLettura.homeWeakMetric, present:N.chiaveLettura.homeWeakOppHasRole,
-     candidates:N.chiaveLettura.awayExploiters, skipId:'role'+homeName, venue:'in casa'},
+     candidates:N.chiaveLettura.awayExploiters, skipId:'role'+homeName, venue:'in casa', lato:N.chiaveLettura.homeWeakLato},
     {team:awayName, opponent:homeName, weak:N.chiaveLettura.awayWeak, ratio:N.chiaveLettura.awayWeakRatio,
      metric:N.chiaveLettura.awayWeakMetric, present:N.chiaveLettura.awayWeakOppHasRole,
-     candidates:N.chiaveLettura.homeExploiters, skipId:'role'+awayName, venue:'in trasferta'}
+     candidates:N.chiaveLettura.homeExploiters, skipId:'role'+awayName, venue:'in trasferta', lato:N.chiaveLettura.awayWeakLato}
   ];
   for (const side of matchupSides) {
     if (!side.weak || side.skipId === mainId || side.ratio == null || side.ratio < 1.15 || !side.present) continue;
@@ -2540,8 +2543,8 @@ function narrativeBlock(match) {
       + '<div class="cross-visual"><div class="cross-vs"><span class="hi">+' + pct + '%</span></div>'
         + '<div class="cross-visual-role">' + esc(role) + ' · ' + esc(unit.split(' ')[0]) + '</div></div>'
       + '<div class="cross-body">'
-        + '<div class="cross-headline">' + esc(side.opponent) + ' contro ' + esc(side.team) + ' (' + side.venue + ')</div>'
-        + '<div class="cross-why">' + fmt1(value) + ' ' + unit + ' ' + role.toLowerCase() + ' per gara, <b>+' + pct + '%</b> sulla media del medesimo ruolo/venue.' + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + '</div>'
+        + '<div class="cross-headline">' + esc(artCap(side.opponent)) + ' contro ' + esc(art(side.team)) + ' (' + side.venue + ')</div>'
+        + '<div class="cross-why">' + fmt1(value) + ' ' + unit + ' ' + role.toLowerCase() + ' per gara, <b>+' + pct + '%</b> sulla media del medesimo ruolo/venue.' + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(side.lato, side.team) + '</div>'
       + '</div></div>');
   }
   const matchupHtml = matchupRows.length ? '<div class="cross-grid">' + matchupRows.join('') + '</div>' : '';
@@ -2551,23 +2554,43 @@ function narrativeBlock(match) {
   // valore atteso (mu): soglia intera = floor(mu), riga comunicata = soglia - 0,5. ---
   const NARR_METRIC_LABEL = { Tiri: 'tiri attesi', SOT: 'tiri in porta attesi', FC: 'falli commessi attesi', FD: 'falli subiti attesi' };
   const NARR_METRIC_PLURAL = { Tiri: 'tiri', SOT: 'tiri in porta', FC: 'falli commessi', FD: 'falli subiti' };
-  function nameCard(player, teamLabel, extra) {
+  // Stessa impostazione grafica dei duelli sopra (cross-card), non più un paragrafo isolato
+  // (richiesta Marco 25/10) — e solo matchup FAVOREVOLI: quelli sfavorevoli sono stati rimossi
+  // su richiesta esplicita ("match up sfavorevoli non li mettere").
+  function nameCard(player, teamLabel, opponentName, note, lato) {
     if (!player) return '';
-    const parts = [`<b>${esc(player.nome)}</b> (${esc(teamLabel)})`];
-    if (player.metricMu != null) parts.push(`<span class="narr-hl">${fmt2(player.metricMu)} ${NARR_METRIC_LABEL[player.metric] || 'tiri attesi'}</span>`);
+    const parts = [];
+    if (player.metricMu != null) parts.push(`${fmt2(player.metricMu)} ${NARR_METRIC_LABEL[player.metric] || 'tiri attesi'}`);
     if (player.pSoglia != null) parts.push(`${fmtPct(player.pSoglia)} di arrivare ad almeno <b>${fmt1(player.sogliaLine)}</b> ${NARR_METRIC_PLURAL[player.metric] || 'tiri'}`);
-    return `<p>${parts.join(', ')}${player.affidabilita === 'media' || player.affidabilita === 'bassa' ? `, affidabilità <span class="narr-hl-warn">${player.affidabilita}</span> (${player.min}')` : ` (${player.min}', affidabilità alta)`}. ${extra || ''}</p>`;
+    const affid = player.affidabilita === 'media' || player.affidabilita === 'bassa'
+      ? `affidabilità <span class="narr-hl-warn">${player.affidabilita}</span> (${player.min}')`
+      : `${player.min}', affidabilità alta`;
+    const why = parts.join(', ') + (parts.length ? ', ' : '') + affid + '.' + (note ? ' ' + note : '') + latoContestoHtml(lato, opponentName);
+    return '<div class="cross-card">'
+      + '<div class="cross-visual"><div class="cross-visual-role">' + esc(player.ruolo) + '</div></div>'
+      + '<div class="cross-body">'
+        + '<div class="cross-headline"><b>' + esc(player.nome) + '</b> (' + esc(teamLabel) + ')</div>'
+        + '<div class="cross-why">' + why + '</div>'
+      + '</div></div>';
   }
   const nameCards = [];
-  if (N.nomi.homeLead) nameCards.push(nameCard(N.nomi.homeLead, homeName, hw ? `Gioca nel ruolo più concesso dalla difesa ospite.` : ''));
-  if (N.nomi.awayLead) nameCards.push(nameCard(N.nomi.awayLead, awayName, aw ? `Gioca nel ruolo più concesso dalla difesa di casa.` : ''));
-  if (N.nomi.cautelaAway && N.nomi.cautelaAway !== N.nomi.awayLead) nameCards.push(nameCard(N.nomi.cautelaAway, awayName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(homeName)} in casa.`));
-  if (N.nomi.cautelaHome && N.nomi.cautelaHome !== N.nomi.homeLead) nameCards.push(nameCard(N.nomi.cautelaHome, homeName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(awayName)} in trasferta.`));
-  if (N.nomi.sfavoritoHome) nameCards.push(nameCard(N.nomi.sfavoritoHome, homeName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso ${narrTeamDa(awayName)} in trasferta.`));
-  if (N.nomi.sfavoritoAway) nameCards.push(nameCard(N.nomi.sfavoritoAway, awayName, `Dato pieno, ma <span class="narr-hl-bad">matchup sfavorevole</span>: è il ruolo meno concesso ${narrTeamDa(homeName)} in casa.`));
-  // I match-up individuali su falli e cartellini sono nel testo di N.chiaveHtml (Chiave di lettura),
-  // per non duplicarli qui con lo stesso contenuto in due sezioni diverse.
-  const nomiHtml = nameCards.length ? `<div class="narr-names-grid">${nameCards.slice(0, 6).join('')}</div>` : '';
+  // Favorevole solo se il ruolo del titolare coincide davvero con quello che la difesa
+  // avversaria concede di più (bug corretto 25/10: prima il controllo guardava il ruolo
+  // debole della PROPRIA squadra, non quello dell'avversario che difende).
+  const homeLeadFav = aw && N.nomi.homeLead && aw.Posizione_Analitica === N.nomi.homeLead.ruolo;
+  const awayLeadFav = hw && N.nomi.awayLead && hw.Posizione_Analitica === N.nomi.awayLead.ruolo;
+  if (N.nomi.homeLead) nameCards.push(nameCard(N.nomi.homeLead, homeName, awayName,
+    homeLeadFav ? `Gioca nel ruolo più concesso dalla difesa ospite — <span class="narr-hl">matchup favorevole</span>.` : '',
+    homeLeadFav ? N.chiaveLettura.awayWeakLato : null));
+  if (N.nomi.awayLead) nameCards.push(nameCard(N.nomi.awayLead, awayName, homeName,
+    awayLeadFav ? `Gioca nel ruolo più concesso dalla difesa di casa — <span class="narr-hl">matchup favorevole</span>.` : '',
+    awayLeadFav ? N.chiaveLettura.homeWeakLato : null));
+  if (N.nomi.cautelaAway && N.nomi.cautelaAway !== N.nomi.awayLead) nameCards.push(nameCard(N.nomi.cautelaAway, awayName, homeName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(homeName)} in casa.`, null));
+  if (N.nomi.cautelaHome && N.nomi.cautelaHome !== N.nomi.homeLead) nameCards.push(nameCard(N.nomi.cautelaHome, homeName, awayName, `<span class="narr-hl-warn">Zero precedenti</span>: nessun giocatore di quel ruolo ha ancora affrontato ${narrTeam(awayName)} in trasferta.`, null));
+  // I matchup sfavorevoli (sfavoritoHome/sfavoritoAway) non vengono più mostrati qui
+  // (richiesta Marco 25/10). I match-up individuali su falli e cartellini restano nel
+  // testo di N.chiaveHtml (Chiave di lettura), per non duplicarli in due sezioni diverse.
+  const nomiHtml = nameCards.length ? `<div class="cross-grid">${nameCards.slice(0, 6).join('')}</div>` : '';
   // "Nomi che contano" e "Altri matchup di ruolo" confluiscono in un'unica sezione
   // (richiesta Marco 25/10): i nomi sono già supportati da un confronto con l'avversario,
   // quindi non serve un header separato per contenuto che si sovrappone.

@@ -1704,15 +1704,21 @@ function crossExtremesOneSide(matchLog, rosters, teamsAll, attId, attVenueLetter
       const concTied = concRows.filter((x) => x.value === concRows[concIdx].value).length;
       if (prodTied > FATTI_MAX_TIE || concTied > FATTI_MAX_TIE) continue;
       const difSegmento = difVenueLetter === 'H' ? 'HOME' : 'AWAY';
+      // Lato campo (richiesta Marco 25/10, rafforzata il 25/10: "deve esserci sempre quando
+      // disponibile") da cui chi difende concede quella metrica a quel ruolo. Sulla colonna
+      // specifica della metrica (es. Tiri_in_porta) il campione è spesso troppo piccolo per
+      // una scomposizione per lato: se così, ripieghiamo sul dato grezzo 'Tiri' (stesso ruolo/
+      // venue/avversario), che è il segnale posizionale più ampio disponibile — non applicato
+      // ai falli, dove il lato campo non è un dato pertinente (vedi mockup approvato).
+      let lato = roleConcessionsSideBreakdown(matchLog, difId, difSegmento, ruolo, m.key);
+      if (!lato && m.key !== 'Falli_commessi') lato = roleConcessionsSideBreakdown(matchLog, difId, difSegmento, ruolo, 'Tiri');
       out.push({
         attId, difId, ruolo, metricKey: m.key, metricLabel: m.label,
         prodRank, prodEligible: prod.eligible, prodValue: prodRows[prodIdx].value,
         concRank, concEligible: conc.eligible, concValue: concRows[concIdx].value,
         combinedScore: (prod.eligible + 1 - prodRank) + (conc.eligible + 1 - concRank), // più alto = più estremo su entrambi i lati
         interprete: crossInterpreter(model, matchLog, rosters, attId, ruolo, difId, attVenueLetter, m.modelMetric),
-        // Lato campo (richiesta Marco 25/10) da cui chi difende concede quella metrica a quel ruolo —
-        // stessa funzione roleConcessionsSideBreakdown già usata altrove, null se ruolo non largo/sotto soglia.
-        lato: roleConcessionsSideBreakdown(matchLog, difId, difSegmento, ruolo, m.key),
+        lato,
       });
     }
   }
