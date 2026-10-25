@@ -1911,6 +1911,29 @@ const MK = [['Tiri', 'Tiri'], ['SOT', 'Tiri in porta'], ['FC', 'Falli commessi']
 const MK_LABEL = Object.fromEntries(MK);
 const MK_ROLECOL = { Tiri: 'Tiri_Concessi_90', SOT: 'SOT_Concessi_90', FC: 'Falli_Contro_Ruolo_90', FD: 'FalliSubiti_Ruolo_90', Cart: 'Cartellini_Ruolo_90' };
 const MK_ICON = { Tiri: 'tiri', SOT: 'tiri in porta', FC: 'falli', FD: 'falli', Cart: 'cartellini' };
+// Coerenza di lato nel Matchup giocatori (richiesta Marco, 25/10). Non è un
+// nuovo numero: il fattore avversario×ruolo resta quello calcolato sempre.
+// Qui si verifica solo se il vantaggio/svantaggio di ruolo che l'avversario
+// concede è concentrato su un lato (roleConcessionsSideBreakdown, soglie
+// LATO_MIN_SAMPLE/LATO_SKEW_MIN già esistenti) e se il lato prevalente del
+// giocatore (playerPrevalentSide) coincide o no con quel lato. Mercati
+// senza colonna grezza di lato (Cartellini: li gestisce l'arbitro, non la
+// posizione) non hanno nota — mai forzata.
+const LATO_SIDE_LABEL = { Sinistra: 'sinistra', Destra: 'destra', Centro: 'centro' };
+function matchupLatoNote(player, ruolo, oppId, oppVenue, mk) {
+  const rawCol = METRIC_RAW_COL[MK_ROLECOL[mk]];
+  if (!rawCol) return '';
+  const oppLato = roleConcessionsSideBreakdown(DB.matchLog, oppId, oppVenue, ruolo, rawCol);
+  if (!oppLato) return '';
+  const dom = oppLato.sinistra >= oppLato.destra && oppLato.sinistra >= oppLato.centro ? 'Sinistra'
+    : oppLato.destra >= oppLato.centro ? 'Destra' : 'Centro';
+  const playerLato = playerPrevalentSide(DB.matchLog, player.Player_ID, ruolo, player.Team_ID_Rif);
+  if (!playerLato) return '';
+  if (playerLato === dom) {
+    return ` <span class="tagok" title="L'avversario concede più ${MK_LABEL[mk].toLowerCase()} al ruolo da ${LATO_SIDE_LABEL[dom]}, e lui gioca prevalentemente da ${LATO_SIDE_LABEL[dom]}: il fattore di ruolo è coerente col suo lato.">✓ lato coerente (${LATO_SIDE_LABEL[dom]})</span>`;
+  }
+  return ` <span class="tagwarn" title="Il vantaggio del ruolo arriva soprattutto dal lato ${LATO_SIDE_LABEL[dom]}, ma lui gioca prevalentemente da ${LATO_SIDE_LABEL[playerLato]}: il fattore di ruolo potrebbe sovrastimarlo per questo giocatore specifico.">⚠ gioca da ${LATO_SIDE_LABEL[playerLato]}, il vantaggio è da ${LATO_SIDE_LABEL[dom]}</span>`;
+}
 // metriche di SQUADRA: [chiave modello, chiave totali squadra, etichetta]
 const TM = [['Tiri', 'Tiri', 'Tiri totali'], ['SOT', 'SOT', 'Tiri in porta'], ['FC', 'Falli', 'Falli'], ['Cart', 'Cart', 'Cartellini'], ['Corner', 'Corner', 'Corner']];
 const ROLE_ORDER = ['Portiere', 'Centrale difensivo', 'Terzino', 'Esterno/Quinto', 'Centrocampista centrale', 'Trequartista', 'Esterno offensivo', 'Punta centrale'];
@@ -3166,7 +3189,7 @@ function secMatchup(match) {
     return `<tr class="prow" onclick="openPlayer('${r.p.Player_ID}')">
       <td><span class="pname">${esc(r.p.Nome_completo)}</span><span class="psub">${esc(r.p.Posizione_Analitica)}${r.starter ? '' : ' · panchina'}</span></td>
       <td class="num"><span class="big">${fmt(d.baseline90)}</span><span class="sm">/90 · ${fmt(d.baseline90 == null ? null : d.baseline90 * d.minutiAttesi / 90)} a partita</span>${(() => { const pv = info.venue === 'HOME' ? 'H' : 'A', v = pVenueStat(r.p.Player_ID, info.teamId, m, pv); return `<span class="sm" style="opacity:.8;" title="Solo informativo: la baseline del modello usa tutta la stagione del giocatore (nei test il venue personale non migliora la previsione)">${pv === 'H' ? 'in casa' : 'in trasf.'} ${v.n ? fmt(v.r90) + '/90 · ' + v.n + ' pres.' : '—'}</span>`; })()}</td>
-      <td class="num c-opp"><span class="fac ${fcls}" title="Fattore totale = squadra × ruolo. Squadra: ${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× grezzo'} su ${d.partiteAvversario} partite${S.scope === 'venue' ? ' (' + (info.oppVenue === 'HOME' ? 'in casa' : 'in trasferta') + ' dell\'avversario)' : ''} (peso ${Math.round((d.pesoSquadra || 0) * 100)}%). Ruolo: ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× grezzo'} (peso ${Math.round((d.pesoRuolo || 0) * 100)}%)">${farr} ${fmt(d.fattoreAvversario, 2)}×</span><span class="sm">squadra ${fmt(d.fattoreSquadra, 2)}× · ruolo ${fmt(d.fattoreRuolo, 2)}×${d.fattoreArbitro !== 1 ? ' · arb. ' + fmt(d.fattoreArbitro, 2) + '×' : ''}</span></td>
+      <td class="num c-opp"><span class="fac ${fcls}" title="Fattore totale = squadra × ruolo. Squadra: ${d.rapportoSquadra == null ? '—' : fmt(d.rapportoSquadra, 2) + '× grezzo'} su ${d.partiteAvversario} partite${S.scope === 'venue' ? ' (' + (info.oppVenue === 'HOME' ? 'in casa' : 'in trasferta') + ' dell\'avversario)' : ''} (peso ${Math.round((d.pesoSquadra || 0) * 100)}%). Ruolo: ${d.rapportoGrezzoAvversario == null ? '—' : fmt(d.rapportoGrezzoAvversario, 2) + '× grezzo'} (peso ${Math.round((d.pesoRuolo || 0) * 100)}%)">${farr} ${fmt(d.fattoreAvversario, 2)}×</span><span class="sm">squadra ${fmt(d.fattoreSquadra, 2)}× · ruolo ${fmt(d.fattoreRuolo, 2)}×${d.fattoreArbitro !== 1 ? ' · arb. ' + fmt(d.fattoreArbitro, 2) + '×' : ''}${matchupLatoNote(r.p, r.p.Posizione_Analitica, info.oppId, info.oppVenue, m)}</span></td>
       <td class="num"><span class="res">${fmt(d.muFin)}</span><span class="sm">a partita · ${fmt(d.rate90Fin)}/90 · ${Math.round(d.minutiAttesi)}'</span></td>
       <td class="num">${relHtml(d.affidabilita)}<span class="sm">${Math.round(d.minutiStagione)}' · ${d.presenze} pres.</span></td>
       <td><button class="btn" onclick="event.stopPropagation();openPlayer('${r.p.Player_ID}')">Scheda</button></td></tr>`;
