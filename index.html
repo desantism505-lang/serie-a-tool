@@ -1776,6 +1776,17 @@ function renderNotableFactsPanel(match){
     ];
     facts.sort((a, b) => Math.min(a.rank, a.eligible + 1 - a.rank) - Math.min(b.rank, b.eligible + 1 - b.rank));
     const top = facts.slice(0, 8);
+    // Ordine di lettura logico (richiesta Marco, 25/10): raggruppa per
+    // categoria invece di mischiarle per sola estremità del rank. NON
+    // cambia quali fatti sono selezionati (resta lo slice sopra), solo
+    // l'ordine con cui compaiono — dentro ogni categoria resta l'ordine
+    // di estremità già calcolato (sort stabile).
+    const FACT_CATEGORY_ORDER = {
+      'Squadra': 0, 'Confronto diretto': 0, 'Serie': 0,
+      'Matchup ruolo': 1,
+      'Giocatore · Serie A': 2, 'Giocatore · ruolo': 2,
+    };
+    top.sort((a, b) => (FACT_CATEGORY_ORDER[a.tag] ?? 9) - (FACT_CATEGORY_ORDER[b.tag] ?? 9));
     // Arbitro e linee gol: aggiunti DOPO il taglio agli 8 fatti più estremi
     // (sono rilevanti di per sé, non competono sullo stesso criterio di
     // estremità rank — sempre visibili quando presenti, senza spiazzare gli
