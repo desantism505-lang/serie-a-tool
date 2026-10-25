@@ -280,6 +280,34 @@ function computeRoleConcessions(matchLog, team, segmento, ruolo, teamPartite) {
 }
 
 // ---------------------------------------------------------------------------
+// ROLE_PRODUCTION — speculare di ROLE_CONCESSIONS: cosa produce la squadra
+// coi PROPRI giocatori di un certo ruolo tattico (venue DIRETTA, non
+// invertita — qui Team_ID è la squadra stessa, non l'avversario come in
+// ROLE_CONCESSIONS). Serve per l'incrocio "chi produce / chi concede" tra le
+// due squadre di una partita (vedi computeRoleCrossExtremes più sotto):
+// prima si guardava solo la concessione (un lato), non se l'avversario di
+// oggi produce davvero in quel ruolo rispetto al resto della lega.
+// ---------------------------------------------------------------------------
+function computeRoleProduction(matchLog, team, segmento, ruolo, teamPartite) {
+  let rows = filterRows(matchLog, (r) => r.Team_ID === team && r.Posizione_Analitica === ruolo);
+  if (segmento !== 'TOTALE') {
+    const v = segmento === 'HOME' ? 'H' : 'A';
+    rows = rows.filter((r) => r.Venue === v);
+  }
+  const nPrestazioni = rows.length;
+  const per90 = (col) => (teamPartite ? sum(rows, col) / teamPartite : null);
+  return {
+    Team_ID: team,
+    Segmento: segmento,
+    Posizione_Analitica: ruolo,
+    N_Prestazioni_Ruolo: nPrestazioni,
+    Tiri_Prodotti_90: per90('Tiri'),
+    SOT_Prodotti_90: per90('Tiri_in_porta'),
+    Falli_Dal_Ruolo_90: per90('Falli_commessi'),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // SCOMPOSIZIONE PER LATO (Lato_Campo) — richiesta Marco, 25/10. NON è un
 // secondo rank: il campione per-lato (dimezzato/triplicato) non reggerebbe
 // un confronto a 20 squadre, farebbe lo stesso errore di pareggio di massa
@@ -1577,8 +1605,128 @@ function fattiRuoloVsAvversario(matchLog, rosters, teamId, oppId, oppVenueLetter
       });
     }
   }
+
   out.sort((a, b) => Math.min(a.rank, a.totale + 1 - a.rank) - Math.min(b.rank, b.totale + 1 - b.rank));
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// INCROCIO A DOPPIO ESTREMO (richiesta Marco, 25/10) — fino a qui il "Matchup
+// ruolo" guardava UN solo lato: quanto la squadra che difende concede a un
+// ruolo (computeRoleConcessions), confrontato con la media di lega. Non
+// diceva se la squadra che attacca in quel ruolo è REALMENTE forte lì
+// (rank di lega sulla PRODUZIONE, computeRoleProduction) o è nella media e
+// il mismatch è solo apparente.
+//
+// computeRoleCrossExtremes guarda ENTRAMBI i lati per lo stesso ruolo/metrica/
+// venue reale della partita e tiene solo le combinazioni dove TUTTE E DUE le
+// squadre sono agli estremi della classifica di lega (rank <= EXTREME_RANK
+// su entrambi i lati, stesso criterio "solo top3" già in uso per i fatti di
+// ruolo in index.html/fattiRuoloVsAvversario — non reinventato). Non
+// un rank nuovo: ESATTAMENTE gli stessi due rank già mostrati separatamente
+// nei pannelli Role matchup (concessione) — qui aggiunta solo la produzione
+// e il confronto incrociato tra i due.
+// ---------------------------------------------------------------------------
+const CROSS_EXTREME_RANK = 3; // = "top3" di fattiRuoloVsAvversario, stessa soglia
+const CROSS_EXTREME_MIN_ELIGIBLE = 6; // = eligible>=6 già richiesto altrove per i fatti di ruolo
+const CROSS_EXTREME_METRICS = [
+  { key: 'Tiri', label: 'tiri', prodCol: 'Tiri_Prodotti_90', concCol: 'Tiri_Concessi_90', modelMetric: 'Tiri' },
+  { key: 'Tiri_in_porta', label: 'tiri in porta', prodCol: 'SOT_Prodotti_90', concCol: 'SOT_Concessi_90', modelMetric: 'SOT' },
+  { key: 'Falli_commessi', label: 'falli commessi', prodCol: 'Falli_Dal_Ruolo_90', concCol: 'Falli_Contro_Ruolo_90', modelMetric: 'FC' },
+];
+const CROSS_INTERPRETER_MIN_MIN = 300; // = soglia minuti già in uso per gli "exploiters" in generateMatchNarrative (withMuTiri/narrPlayersInRole), non nuova
+
+// Possibile interprete (richiesta Marco 25/10): tra i giocatori della squadra
+// che ATTACCA, nel ruolo dell'incrocio, quello con mu più alto dal MODELLO già
+// testato altrove (projectPlayer — stesso usato in "Nomi che contano"), non una
+// media grezza nuova. Nessun numero inventato: se il modello non produce un mu
+// per nessun giocatore di quel ruolo con minuti sufficienti, ritorna null e la
+// card resta senza interprete (meglio nessun nome che un nome debole).
+
+// Rank di una squadra in classifica di lega per una metrica di ruolo (produzione
+// O concessione, stesso identico schema di rankProvisional già in uso) — ritorna
+// anche l'intero elenco ordinato, serve a verificare gli "eligible" per il
+// controllo pareggio (FATTI_MAX_TIE, la stessa regola anti-pareggio-di-massa
+// usata ovunque in questo motore, non una soglia nuova).
+function roleMetricLeagueRank(matchLog, teams, ruolo, venueLetter, metricCol, side) {
+  const segmento = venueLetter === 'H' ? 'HOME' : 'AWAY';
+  const computeFn = side === 'produzione' ? computeRoleProduction : computeRoleConcessions;
+  const minSample = 2; // = minSample HOME/AWAY già in uso ovunque nel motore (vedi rankProvisional/minSample), non una soglia nuova
+  const rows = [];
+  for (const t of teams) {
+    const partite = narrPartiteInVenue(matchLog, t, venueLetter);
+    if (partite < minSample) continue;
+    const c = computeFn(matchLog, t, segmento, ruolo, partite);
+    if (!c || c[metricCol] == null) continue;
+    rows.push({ team: t, value: c[metricCol], partite, nPrestazioni: c.N_Prestazioni_Ruolo });
+  }
+  if (rows.length < CROSS_EXTREME_MIN_ELIGIBLE) return { rank: null, eligible: rows.length, rows };
+  rows.sort((a, b) => b.value - a.value);
+  return { rank: rows, eligible: rows.length, rows };
+}
+
+// Per UNA direzione (squadra che attacca in un ruolo, venue V_att; squadra che
+// difende quello stesso ruolo, venue reale opposto V_dif di questa gara) — tutte
+// le combinazioni ruolo+metrica dove ATTACCANTE è top3 in PRODUZIONE e
+// DIFENDENTE è top3 in CONCESSIONE, contemporaneamente.
+function crossInterpreter(model, matchLog, rosters, attId, ruolo, difId, attVenueLetter, modelMetric) {
+  const roster = rosters.filter((r) => r.Team_ID_Rif === attId && r.Attivo_SerieA === 'SI' && r.Posizione_Analitica === ruolo);
+  let best = null;
+  for (const r of roster) {
+    const rows = matchLog.filter((x) => x.Player_ID === r.Player_ID);
+    const min = rows.reduce((a, x) => a + (Number(x.Minuti) || 0), 0);
+    if (min < CROSS_INTERPRETER_MIN_MIN) continue;
+    const player = { id: r.Player_ID, team: attId, ruolo };
+    const pr = projectPlayer(model, matchLog, player, difId, true, modelMetric, attVenueLetter);
+    if (pr.mu == null) continue;
+    if (!best || pr.mu > best.mu) best = { nome: r.Nome_completo, mu: pr.mu, min, affidabilita: pr.affidabilita };
+  }
+  return best;
+}
+
+function crossExtremesOneSide(matchLog, rosters, teamsAll, attId, attVenueLetter, difId, difVenueLetter, model) {
+  const roles = [...new Set(rosters.filter((p) => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === attId).map((p) => p.Posizione_Analitica))]
+    .filter((r) => r !== 'Portiere');
+  const out = [];
+  for (const ruolo of roles) {
+    for (const m of CROSS_EXTREME_METRICS) {
+      const prod = roleMetricLeagueRank(matchLog, teamsAll, ruolo, attVenueLetter, m.prodCol, 'produzione');
+      const conc = roleMetricLeagueRank(matchLog, teamsAll, ruolo, difVenueLetter, m.concCol, 'concessione');
+      if (prod.eligible < CROSS_EXTREME_MIN_ELIGIBLE || conc.eligible < CROSS_EXTREME_MIN_ELIGIBLE) continue;
+      const prodRows = prod.rank, concRows = conc.rank; // array ordinato desc
+      const prodIdx = prodRows.findIndex((x) => x.team === attId);
+      const concIdx = concRows.findIndex((x) => x.team === difId);
+      if (prodIdx < 0 || concIdx < 0) continue;
+      const prodRank = prodIdx + 1, concRank = concIdx + 1;
+      if (prodRank > CROSS_EXTREME_RANK || concRank > CROSS_EXTREME_RANK) continue;
+      // regola anti-pareggio-di-massa: se troppe squadre condividono lo stesso valore estremo, scarta
+      const prodTied = prodRows.filter((x) => x.value === prodRows[prodIdx].value).length;
+      const concTied = concRows.filter((x) => x.value === concRows[concIdx].value).length;
+      if (prodTied > FATTI_MAX_TIE || concTied > FATTI_MAX_TIE) continue;
+      out.push({
+        attId, difId, ruolo, metricKey: m.key, metricLabel: m.label,
+        prodRank, prodEligible: prod.eligible, prodValue: prodRows[prodIdx].value,
+        concRank, concEligible: conc.eligible, concValue: concRows[concIdx].value,
+        combinedScore: (prod.eligible + 1 - prodRank) + (conc.eligible + 1 - concRank), // più alto = più estremo su entrambi i lati
+        interprete: crossInterpreter(model, matchLog, rosters, attId, ruolo, difId, attVenueLetter, m.modelMetric),
+      });
+    }
+  }
+  return out;
+}
+
+// Entry point per una partita: incroci a doppio estremo in ENTRAMBE le direzioni
+// (casa-attacca/trasferta-difende e trasferta-attacca/casa-difende), ordinati
+// dal più estremo. Venue sempre quella reale della gara (mai TOTALE): un
+// incrocio vale solo nel venue in cui si gioca davvero quella partita.
+function computeRoleCrossExtremes(matchLog, rosters, homeId, awayId) {
+  const teamsAll = [...new Set(rosters.map((r) => r.Team_ID_Rif))];
+  const model = buildLeagueModel(matchLog); // stesso modello di "Nomi che contano", costruito una volta
+  const homeAttacks = crossExtremesOneSide(matchLog, rosters, teamsAll, homeId, 'H', awayId, 'A', model);
+  const awayAttacks = crossExtremesOneSide(matchLog, rosters, teamsAll, awayId, 'A', homeId, 'H', model);
+  const all = [...homeAttacks, ...awayAttacks];
+  all.sort((a, b) => b.combinedScore - a.combinedScore);
+  return all;
 }
 
 function narrShootingEfficiency(matchLog, calendar, teamId, venue) {
@@ -2326,6 +2474,8 @@ if (typeof module !== 'undefined') {
     computeTeamStats,
     rankDesc,
     computeRoleConcessions,
+    computeRoleProduction,
+    computeRoleCrossExtremes,
     roleConcessionsSideBreakdown,
     playerPrevalentSide,
     computeBaseline,
