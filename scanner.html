@@ -435,7 +435,9 @@
   .quota-slider{position:relative;width:220px;height:28px;margin:4px 2px 0;touch-action:none;}
   .quota-slider .qs-track{position:absolute;top:12px;left:9px;right:9px;height:4px;background:var(--line);border-radius:2px;}
   .quota-slider .qs-range{position:absolute;top:12px;height:4px;background:var(--accent);border-radius:2px;}
-  .quota-slider .qs-handle{position:absolute;top:5px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--accent);border:2px solid var(--panel);box-shadow:0 1px 5px rgba(0,0,0,.45);cursor:grab;}
+  .quota-slider .qs-handle{position:absolute;top:5px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--accent);border:2px solid var(--panel);box-shadow:0 1px 5px rgba(0,0,0,.45);cursor:grab;z-index:2;}
+  /* Area cliccabile più grande della pallina visibile, senza cambiarne l'aspetto */
+  .quota-slider .qs-handle::before{content:'';position:absolute;top:-8px;left:-8px;right:-8px;bottom:-8px;}
   .quota-slider .qs-handle:active{cursor:grabbing;}
   .quota-slider .qs-handle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .quota-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-top:6px;font-family:'Inter',sans-serif;}
@@ -1707,6 +1709,18 @@ function quotaSliderInit(prefix){
     const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     return Math.round((QUOTA_RANGE_MIN + pct * (QUOTA_RANGE_MAX - QUOTA_RANGE_MIN)) * 20) / 20;
   };
+  const setNearest = (clientX) => {
+    // Clic sulla traccia (non su una maniglia): muove la maniglia più vicina
+    // al punto cliccato, come su uno slider nativo — prima funzionava solo
+    // trascinando esattamente la maniglia, bersaglio piccolo e facile da
+    // mancare col mouse.
+    const st = quotaState(prefix);
+    const val = step(clientX);
+    if (Math.abs(val - st.lo) <= Math.abs(val - st.hi)) st.lo = Math.min(val, st.hi);
+    else st.hi = Math.max(val, st.lo);
+    quotaSliderRender(prefix);
+    quotaSliderApply(prefix);
+  };
   root.querySelectorAll('.qs-handle').forEach(handle => {
     const which = handle.dataset.h;
     const setFromClientX = (clientX) => {
@@ -1718,6 +1732,7 @@ function quotaSliderInit(prefix){
     };
     handle.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       const move = (ev) => setFromClientX(ev.clientX);
       const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
       document.addEventListener('pointermove', move);
@@ -1733,6 +1748,10 @@ function quotaSliderInit(prefix){
       quotaSliderRender(prefix);
       quotaSliderApply(prefix);
     });
+  });
+  root.addEventListener('pointerdown', (e) => {
+    if (e.target.classList.contains('qs-handle')) return; // già gestito sopra
+    setNearest(e.clientX);
   });
   quotaSliderRender(prefix);
 }
