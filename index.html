@@ -592,6 +592,10 @@
   .chipline{font-size:12px;color:var(--text-2);margin:0 0 12px;line-height:1.9;}
   .tagok{display:inline-block;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;background:var(--accent);color:var(--accent-ink);}
   .tagbad{display:inline-block;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;background:#3a1a14;color:var(--bad);border:1px solid #6b2b20;}
+  .tagok.clickable,.tagbad.clickable{cursor:pointer;}
+  .tagok.clickable:hover,.tagbad.clickable:hover{filter:brightness(1.15);}
+  .mx-cross{margin-bottom:14px;}
+  .mx-cross-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
   .tagwarn{display:inline-block;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;background:#2a2013;color:var(--warn);border:1px solid var(--warn);}
   details.bench{margin-top:12px;} details.bench summary{cursor:pointer;color:var(--muted);font-size:12px;padding:6px 0;}
 
@@ -1134,6 +1138,32 @@ function factsTeamMetricTextV2(label, top, venueLabel, rank, eligible){
     : `È tra le squadre che ${plur} ${dir} ${obj} della Serie A ${venueLabel}`;
 }
 
+// Favorevole/sfavorevole (richiesta Marco 25/10): un fatto "Matchup ruolo" dice solo
+// quanto una squadra CONCEDE a un ruolo — qui aggiungiamo se la squadra che ATTACCA
+// davvero in questa gara è anche realmente forte nel PRODURRE quella stessa metrica in
+// quel ruolo (rank di lega in produzione, stessa soglia eligible>=6 di ovunque nel motore).
+// Nessun numero nuovo: stessa computeRoleProduction già usata da computeRoleCrossExtremes.
+// Solo per le 3 metriche con un equivalente "produzione" nel motore (tiri, tiri in porta,
+// falli commessi) — "falli subiti" e "cartellini" non hanno una metrica di produzione
+// comparabile, quindi niente annotazione inventata per quei due casi.
+const ROLE_FACT_PROD_COL = { tiri: 'Tiri_Prodotti_90', 'tiri in porta': 'SOT_Prodotti_90', falli: 'Falli_Dal_Ruolo_90' };
+function roleFavorabilityTxt(attTeamId, attVenueSegment, role, label){
+  const prodCol = ROLE_FACT_PROD_COL[label];
+  if (!prodCol) return '';
+  const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
+  const minSample = attVenueSegment === 'TOTALE' ? 3 : 2;
+  const list = teamsAll.map(t => {
+    const ts = computeTeamStats(DB.matchLog, t, attVenueSegment);
+    const rp = computeRoleProduction(DB.matchLog, t, attVenueSegment, role, ts.Partite);
+    return { key: t, value: rp ? rp[prodCol] : null, partite: ts.Partite };
+  });
+  const { rank, eligible } = rankProvisional(list, minSample)[attTeamId];
+  if (rank === 'N/D' || eligible < 6) return '';
+  const favorevole = rank <= Math.ceil(eligible / 2);
+  const attName = teamNameOf(attTeamId);
+  return ` — incrocio <b class="${favorevole ? 'narr-hl' : 'narr-hl-warn'}">${favorevole ? 'favorevole' : 'sfavorevole'}</b> per ${esc(attName)} in produzione (${rank}° su ${eligible})`;
+}
+
 function factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible){
   const subject = FACTS_ROLE_SUBJECT_V2[role] || role.toLowerCase();
   const teamArt = art(teamName);
@@ -1156,7 +1186,7 @@ function factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible)
 // mostrato solo se `oppTeamId` ha davvero giocatori attivi in quel ruolo,
 // perché sono loro (i giocatori dell'avversario) a generare quel fatto in
 // campo. Senza oppTeamId (retrocompatibilità) il filtro è disattivato.
-function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
+function computeTeamFacts(teamId, venue, venueLabel, oppTeamId, oppVenue){
   const teamsAll = [...new Set(DB.rosters.map(r => r.Team_ID_Rif))];
   const minSample = venue === 'TOTALE' ? 3 : 2;
   const facts = [];
@@ -1271,10 +1301,11 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId){
       if (!dedupByPlayerSide && rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
         const top = isTopEnd(rank, eligible);
         const latoTxt = latoBreakdownTxt(teamId, venue, role, col, label);
+        const favorTxt = oppTeamId && oppVenue ? roleFavorabilityTxt(oppTeamId, oppVenue, role, label) : '';
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
-          text: `${factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible)} — ${rank}° su ${eligible} squadre idonee${latoTxt}`,
+          text: `${factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible)} — ${rank}° su ${eligible} squadre idonee${latoTxt}${favorTxt}`,
           rank, eligible,
         });
       }
@@ -1345,10 +1376,11 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
       if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT && rank <= 3) {
         const top = isTopEnd(rank, eligible);
         const latoTxt = latoBreakdownTxt(oppTeamId, oppVenue, role, col, label);
+        const favorTxt = roleFavorabilityTxt(teamId, venue, role, label);
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
-          text: `${factsRoleTextV2(oppName, label, top, role, oppVenueWord, rank, eligible)} — ${rank}° su ${eligible} squadre idonee${latoTxt}. Per ${art(teamName)} il matchup riguarda: ${sameRole.join(', ')}.`,
+          text: `${factsRoleTextV2(oppName, label, top, role, oppVenueWord, rank, eligible)} — ${rank}° su ${eligible} squadre idonee${latoTxt}${favorTxt}. Per ${art(teamName)} il matchup riguarda: ${sameRole.join(', ')}.`,
           rank, eligible,
         });
       }
@@ -1828,7 +1860,7 @@ function renderNotableFactsPanel(match){
 
   function sideFacts(teamId, venue, oppTeamId, oppVenue, venueLabel, side){
     const facts = [
-      ...computeTeamFacts(teamId, venue, venueLabel, oppTeamId),
+      ...computeTeamFacts(teamId, venue, venueLabel, oppTeamId, oppVenue),
       ...computeDuelFacts(teamId, venue, venueLabel),
       ...computeStreakFacts(teamId, venue, venueLabel),
       ...computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueLabel),
@@ -2689,6 +2721,30 @@ function matrixCells(match, attackSide) {
   }
   return { info, rows, hidden: lineupRoles.size - rows.length };
 }
+// Suggerimenti "Incroci forti" nello scanner Ruoli contro l'avversario
+// (richiesta Marco 25/10): stessa identica logica di computeRoleCrossExtremes
+// già usata in Analisi partita — qui solo come scorciatoia cliccabile che
+// porta alla tabella interattiva Matchup e giocatori già esistente (stesso
+// go('matchup',{mk,team}) già usato dalle celle della matrice sotto), senza
+// introdurre un filtro nuovo: niente stato aggiuntivo da pulire al cambio
+// di partita o di ruolo, quindi nessun residuo possibile.
+const CROSS_MK = { Tiri: 'Tiri', Tiri_in_porta: 'SOT', Falli_commessi: 'FC' };
+function matrixCrossSuggestionsHtml(match) {
+  let cross;
+  try { cross = computeRoleCrossExtremes(DB.matchLog, DB.rosters, match.Home_ID, match.Away_ID); }
+  catch (e) { console.error(e); return ''; }
+  if (!cross.length) return '';
+  const chips = cross.slice(0, 6).map((c) => {
+    const team = c.attId === match.Home_ID ? 'home' : 'away';
+    const attName = c.attId === match.Home_ID ? match.Home : match.Away;
+    const difName = c.difId === match.Home_ID ? match.Home : match.Away;
+    const mk = CROSS_MK[c.metricKey];
+    const title = esc(attName) + ' produce ' + esc(c.metricLabel) + ' col ' + esc(c.ruolo.toLowerCase()) + ' (' + c.prodRank + '°/' + c.prodEligible + ' di lega) · ' + esc(difName) + ' ne concede di più (' + c.concRank + '°/' + c.concEligible + ') — clic per la tabella giocatori';
+    return '<span class="tagok clickable" title="' + title + '" onclick="go(\'matchup\',{mk:\'' + mk + '\',team:\'' + team + '\'})">'
+      + esc(c.ruolo) + ' ' + esc(attName) + ' ' + c.prodRank + '°↔' + c.concRank + '° ' + esc(difName) + '</span>';
+  }).join(' ');
+  return '<div class="mx-cross"><div class="mx-cross-title">Incroci forti suggeriti <span style="text-transform:none;font-weight:500;">— clic per i giocatori</span></div><div class="chipline" style="margin-bottom:0;">' + chips + '</div></div>';
+}
 function matrixBlock(match) {
   const one = (attackSide) => {
     const M = matrixCells(match, attackSide);
@@ -2703,7 +2759,7 @@ function matrixBlock(match) {
   };
   return `
   <div class="card"><h3>Ruoli contro l'avversario <span class="tag">per ogni ruolo: cosa ha fatto contro questo avversario rispetto a cosa fa di solito contro tutte le altre squadre</span>${scopeToggle()}</h3>
-    <div class="cb"><div class="twocol">${one('home')}${one('away')}</div>
+    <div class="cb">${matrixCrossSuggestionsHtml(match)}<div class="twocol">${one('home')}${one('away')}</div>
       <div class="legend"><span><i style="background:var(--accent)"></i>▲ più: contro questo avversario quel ruolo fa PIÙ eventi del solito</span><span><i style="background:#3a1a14;border:1px solid #6b2b20"></i>▼ meno: ne fa MENO del solito</span><span>· nessuna differenza chiara</span></div>
       <div class="subtle" style="margin-top:6px;"><b>Esempio:</b> riga «Punta centrale», colonna SOT, «▼ meno · 0,3 vs 1,1» = le punte hanno fatto 0,3 tiri in porta ogni 90' contro questo avversario, mentre in media in lega ne fanno 1,1. Il numero a sinistra è contro questo avversario, quello a destra è il "solito". Le celle vuote non vogliono dire "nella media": vuol dire che i dati non bastano per dirlo (serve una differenza oltre il caso). Con «Casa / trasferta» il confronto è fatto solo con partite nello stesso venue di questa (la squadra di casa conta con le partite in casa, l'ospite con quelle in trasferta; anche il "solito" di lega è dello stesso venue), quindi il campione è più piccolo e le celle sono meno. Il colore dice solo più/meno, non se conviene giocare.</div>
     </div></div>`;
