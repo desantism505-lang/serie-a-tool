@@ -1866,6 +1866,24 @@ document.querySelectorAll('#scnTable th.sortable').forEach(th => {
   });
 });
 
+// Lato prevalente sotto il nome del giocatore (richiesta Marco, 25/10) —
+// playerPrevalentSide (engine.js) ritorna null quando il ruolo non è
+// idoneo, il campione è sotto soglia o il giocatore non ha un lato
+// stabile: in quel caso l'etichetta è semplicemente assente, mai forzata.
+// Cache per Player_ID+Ruolo, azzerata ad ogni nuova scansione (loadData/
+// runScanGiornata invalidano DB.matchLog solo caricando un nuovo file, il
+// cache key include quindi solo player+ruolo, sufficiente per sessione).
+const SCN_LATO_ABBR = { Sinistra: 'sx', Destra: 'dx', Centro: 'centro' };
+let _scnLatoCache = {};
+function scnLatoLabel(player){
+  const key = player.Player_ID + '|' + player.Posizione_Analitica;
+  if (!(key in _scnLatoCache)) {
+    const lato = playerPrevalentSide(DB.matchLog, player.Player_ID, player.Posizione_Analitica, player.Team_ID_Rif);
+    _scnLatoCache[key] = lato ? ' · ' + SCN_LATO_ABBR[lato] : '';
+  }
+  return _scnLatoCache[key];
+}
+
 function renderScan(){
   saveScnState(); // ogni scansione e ogni modifica ai filtri "live" aggiorna lo stato salvato
   renderScnJumpRoleBadge(); // mostra sempre se il filtro ruolo (da "fatti salienti") è attivo
@@ -1892,7 +1910,7 @@ function renderScan(){
     const ciTxt = (lo != null) ? `<span class="subtle">±${Math.round((hi - lo) / 2 * 100)}pp</span>` : '';
     const fav = isFavorited(r);
     return `<tr>
-    <td class="metricname">${r.player.Nome_completo}<button class="excl-mark" tabindex="-1" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')">✕</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}</div></td>
+    <td class="metricname">${r.player.Nome_completo}<button class="excl-mark" tabindex="-1" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')">✕</button><div class="subtle">${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}${scnLatoLabel(r.player)}</div></td>
     <td>${r.match.Home} – ${r.match.Away}<div class="subtle">${r.venue.toLowerCase()}</div></td>
     <td class="num">${lineupBadge(r)}</td>
     <td>${MARKET_LABELS[r.mercato]}</td>

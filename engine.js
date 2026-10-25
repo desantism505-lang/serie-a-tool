@@ -367,6 +367,38 @@ function roleConcessionsSideBreakdown(matchLog, team, segmento, ruolo, rawCol) {
 }
 
 // ---------------------------------------------------------------------------
+// LATO PREVALENTE DEL GIOCATORE — richiesta Marco, 25/10. Diverso da
+// roleConcessionsSideBreakdown sopra: qui non scomponiamo un totale di
+// squadra, cerchiamo UN lato stabile per UN giocatore, da mostrare come
+// etichetta (es. nello Scanner, sotto il nome). Conta le PRESENZE per lato
+// (non eventi/tiri come sopra), perché la domanda è "dove gioca di solito",
+// non "quanto produce".
+// Soglie: minimo 3 presenze valorizzate, lato dominante almeno 70% — sotto
+// soglia il giocatore non ha un lato stabile (ruota, o campione insufficiente)
+// e la funzione ritorna null: nessuna etichetta forzata, mai un "misto"
+// spacciato per dato.
+const PLAYER_SIDE_MIN_SAMPLE = 3;
+const PLAYER_SIDE_MIN_SHARE = 0.7;
+function playerPrevalentSide(matchLog, playerId, ruolo, teamId) {
+  if (!WIDE_ROLES_LATO.includes(ruolo) && ruolo !== TRIPLE_CC_ROLE) return null;
+  let rows = filterRows(matchLog, (r) => r.Player_ID === playerId && r.Posizione_Analitica === ruolo);
+  if (teamId) rows = rows.filter((r) => r.Team_ID === teamId);
+  if (ruolo === TRIPLE_CC_ROLE) {
+    const tripleSet = getTripleCCSet(matchLog);
+    rows = rows.filter((r) => tripleSet.has(r.Team_ID + '|' + r.Match_ID));
+  }
+  rows = rows.filter((r) => r.Lato_Campo === 'Sinistra' || r.Lato_Campo === 'Destra' || r.Lato_Campo === 'Centro');
+  if (rows.length < PLAYER_SIDE_MIN_SAMPLE) return null;
+  const counts = { Sinistra: 0, Destra: 0, Centro: 0 };
+  for (const r of rows) counts[r.Lato_Campo]++;
+  const totale = rows.length;
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const [ladoTop, nTop] = entries[0];
+  if (nTop / totale < PLAYER_SIDE_MIN_SHARE) return null;
+  return ladoTop; // 'Sinistra' | 'Destra' | 'Centro'
+}
+
+// ---------------------------------------------------------------------------
 // BASELINE — media pesata Stagione 40% / Venue 30% / L10 20% / L5 10%,
 // normalizzata sui soli pesi delle componenti disponibili.
 // ---------------------------------------------------------------------------
@@ -2289,6 +2321,7 @@ if (typeof module !== 'undefined') {
     rankDesc,
     computeRoleConcessions,
     roleConcessionsSideBreakdown,
+    playerPrevalentSide,
     computeBaseline,
     rankProvisional,
     wilsonInterval,
