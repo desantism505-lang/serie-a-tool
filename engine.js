@@ -1703,12 +1703,16 @@ function crossExtremesOneSide(matchLog, rosters, teamsAll, attId, attVenueLetter
       const prodTied = prodRows.filter((x) => x.value === prodRows[prodIdx].value).length;
       const concTied = concRows.filter((x) => x.value === concRows[concIdx].value).length;
       if (prodTied > FATTI_MAX_TIE || concTied > FATTI_MAX_TIE) continue;
+      const difSegmento = difVenueLetter === 'H' ? 'HOME' : 'AWAY';
       out.push({
         attId, difId, ruolo, metricKey: m.key, metricLabel: m.label,
         prodRank, prodEligible: prod.eligible, prodValue: prodRows[prodIdx].value,
         concRank, concEligible: conc.eligible, concValue: concRows[concIdx].value,
         combinedScore: (prod.eligible + 1 - prodRank) + (conc.eligible + 1 - concRank), // più alto = più estremo su entrambi i lati
         interprete: crossInterpreter(model, matchLog, rosters, attId, ruolo, difId, attVenueLetter, m.modelMetric),
+        // Lato campo (richiesta Marco 25/10) da cui chi difende concede quella metrica a quel ruolo —
+        // stessa funzione roleConcessionsSideBreakdown già usata altrove, null se ruolo non largo/sotto soglia.
+        lato: roleConcessionsSideBreakdown(matchLog, difId, difSegmento, ruolo, m.key),
       });
     }
   }
@@ -1756,7 +1760,46 @@ function narrProjectGoals(calendar, homeId, awayId) {
   const homeDefAvg = homeDef.n ? homeDef.ga / homeDef.n : null;
   const muHome = lgHome * narrShrink(homeAttAvg, homeAtt.n, lgHome) * narrShrink(awayDefAvg, awayDef.n, lgAway);
   const muAway = lgAway * narrShrink(awayAttAvg, awayAtt.n, lgAway) * narrShrink(homeDefAvg, homeDef.n, lgHome);
-  return { muHome, muAway, homeAtt, awayAtt, homeDef, awayDef };
+  return { muHome, muAway, homeAtt, awayAtt, homeDef, awayDef, bandaPiuPlausibile: narrGoalBandaPiuPlausibile(muHome, muAway) };
+}
+
+// Fasce "multigol" (banda di gol più probabile, in %) derivate dalla stessa mu Poisson
+// di narrProjectGoals — NON un nuovo modello, solo pmfNB (alpha=0, coerente col commento
+// sopra: "modello Poisson con shrinkage per i gol", non il motore NB di tiri/SOT/falli.
+// Tre candidati: gol totali di partita (muHome+muAway) e gol della singola squadra (muHome,
+// muAway) — la banda restituita è quella con probabilità più alta tra i tre, quindi può
+// riferirsi anche a UNA SOLA delle due squadre quando il suo segnale è più netto di quello
+// del totale partita (es. una squadra che segna con grande regolarità, l'altra imprevedibile).
+const NARR_BANDE_TOTALE = [{ min: 0, max: 1, label: '0-1' }, { min: 2, max: 3, label: '2-3' }, { min: 4, max: 99, label: '4+' }];
+const NARR_BANDE_SQUADRA = [{ min: 0, max: 0, label: '0' }, { min: 1, max: 1, label: '1' }, { min: 2, max: 99, label: '2+' }];
+function narrBandaProb(mu, banda) {
+  if (mu == null || !Number.isFinite(mu)) return null;
+  let p = 0;
+  for (let k = banda.min; k <= Math.min(banda.max, 30); k++) p += pmfNB(k, mu, 0);
+  return p;
+}
+function narrMiglioreBanda(mu, bande) {
+  if (mu == null || !Number.isFinite(mu)) return null;
+  let best = null;
+  for (const b of bande) {
+    const p = narrBandaProb(mu, b);
+    if (p != null && (!best || p > best.prob)) best = { label: b.label, prob: p };
+  }
+  return best;
+}
+function narrGoalBandaPiuPlausibile(muHome, muAway) {
+  const candidati = [];
+  if (muHome != null && muAway != null && Number.isFinite(muHome) && Number.isFinite(muAway)) {
+    const tot = narrMiglioreBanda(muHome + muAway, NARR_BANDE_TOTALE);
+    if (tot) candidati.push({ ambito: 'totale', ...tot });
+  }
+  const bHome = narrMiglioreBanda(muHome, NARR_BANDE_SQUADRA);
+  if (bHome) candidati.push({ ambito: 'home', ...bHome });
+  const bAway = narrMiglioreBanda(muAway, NARR_BANDE_SQUADRA);
+  if (bAway) candidati.push({ ambito: 'away', ...bAway });
+  if (!candidati.length) return null;
+  candidati.sort((a, b) => b.prob - a.prob);
+  return candidati[0]; // { ambito: 'totale'|'home'|'away', label, prob }
 }
 
 function narrFoulCardWatch(matchLog, rosters, teamId) {
@@ -2518,5 +2561,6 @@ if (typeof module !== 'undefined') {
     probCardFromFouls, projectLineupTotal,
     // --- narrativo
     generateMatchNarrative,
+    narrGoalBandaPiuPlausibile,
   };
 }
