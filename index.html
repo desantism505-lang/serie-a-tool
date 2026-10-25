@@ -390,7 +390,9 @@
   .cross-hero .cross-hero-eyebrow{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-dim);font-weight:700;margin-bottom:7px;}
   .cross-hero h4{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:16.5px;line-height:1.35;margin:0 0 7px;color:var(--text);}
   .cross-hero h4 b{color:var(--accent);}
-  .cross-hero p{font-size:12px;color:var(--text-2);margin:0;text-align:justify;hyphens:auto;}
+  .cross-hero p{font-size:12px;line-height:1.55;color:var(--text-2);margin:0 0 8px;text-align:justify;hyphens:auto;}
+  .cross-hero p:last-of-type{margin-bottom:0;}
+  .cross-hero p.cross-hero-why{color:var(--muted);font-size:11.5px;}
   .cross-hero-scale{margin-top:12px;display:flex;align-items:center;gap:10px;}
   .cross-hero-scale .end{font-size:9.5px;color:var(--muted);width:72px;}
   .cross-hero-scale .end.r{text-align:right;}
@@ -408,9 +410,9 @@
   .cross-vs .hi{color:#5BA8E8;}
   .cross-visual-role{font-size:8.5px;color:var(--muted);text-align:center;text-transform:uppercase;max-width:64px;line-height:1.25;}
   .cross-body{flex:1;min-width:0;}
-  .cross-headline{font-size:12.5px;color:var(--text);font-weight:600;margin-bottom:3px;text-align:justify;hyphens:auto;}
+  .cross-headline{font-size:12.5px;line-height:1.5;color:var(--text);font-weight:600;margin-bottom:6px;text-align:justify;hyphens:auto;}
   .cross-headline b{color:var(--accent);}
-  .cross-why{font-size:11px;color:var(--text-2);text-align:justify;hyphens:auto;}
+  .cross-why{font-size:11px;line-height:1.55;color:var(--text-2);text-align:justify;hyphens:auto;}
   .cross-why b{color:var(--text);}
   .cross-why .lato{color:var(--muted);}
   .cross-empty{font-size:12px;color:var(--muted);padding:4px 0;}
@@ -2413,7 +2415,8 @@ function crossHeroHtml(top, homeId, homeName, awayName) {
   return '<div class="cross-hero">'
     + '<div class="cross-hero-eyebrow">Il punto della partita</div>'
     + '<h4>Il <b>' + esc(top.ruolo.toLowerCase()) + '</b> ' + esc(attName) + ' trova la difesa ' + esc(difName) + ' piu\' permeabile a quel ruolo</h4>'
-    + '<p>' + esc(attName) + ' e\' ' + (top.prodRank === 1 ? 'la squadra che produce piu\' ' + esc(metricUnit) + ' in assoluto' : (top.prodRank + '\u00aa squadra per ' + esc(metricUnit) + ' prodotti')) + ' col ' + esc(top.ruolo.toLowerCase()) + ' (' + top.prodRank + '\u00b0/' + top.prodEligible + ' di lega), e ' + esc(difName) + ' e\' ' + (top.concRank === 1 ? 'la difesa che ne concede di piu\'' : (top.concRank + '\u00aa difesa per concessione')) + ' a quel ruolo (' + top.concRank + '\u00b0/' + top.concEligible + ') - un doppio estremo raro nello stesso ruolo/metrica/venue reale di questa gara. ' + crossWhyHtml(top, attName) + '</p>'
+    + '<p>' + esc(attName) + ' e\' ' + (top.prodRank === 1 ? 'la squadra che produce piu\' ' + esc(metricUnit) + ' in assoluto' : (top.prodRank + '\u00aa squadra per ' + esc(metricUnit) + ' prodotti')) + ' col ' + esc(top.ruolo.toLowerCase()) + ' (' + top.prodRank + '\u00b0/' + top.prodEligible + ' di lega), e ' + esc(difName) + ' e\' ' + (top.concRank === 1 ? 'la difesa che ne concede di piu\'' : (top.concRank + '\u00aa difesa per concessione')) + ' a quel ruolo (' + top.concRank + '\u00b0/' + top.concEligible + ') - un doppio estremo raro nello stesso ruolo/metrica/venue reale di questa gara.</p>'
+    + '<p class="cross-hero-why">' + crossWhyHtml(top, attName) + '</p>'
     + '<div class="cross-hero-scale">'
       + '<span class="end">' + esc(attName) + ' produce</span>'
       + '<div class="cross-hero-track"><div class="cross-hero-mark att" style="left:' + attPct.toFixed(0) + '%;"></div><div class="cross-hero-mark dif" style="left:' + difPct.toFixed(0) + '%;"></div></div>'
@@ -2436,7 +2439,42 @@ function crossExtremeSectionHtml(match) {
     + (rest.length ? '<div class="narr-sec"><div class="narr-sec-title">Altri incroci forti <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;">\u2014 top3 di lega su entrambi i lati</span></div>'
       + '<div class="cross-grid">' + rest.map(c => crossCardHtml(c, match.Home_ID, match.Home, match.Away)).join('') + '</div>'
       + (extra > 0 ? '<div class="cross-empty" style="margin-top:6px;">+' + extra + ' altri incroci a doppio estremo, meno marcati di questi.</div>' : '')
-      + '</div>' : '');
+      + '</div>' : '')
+    + lineExtremeSectionHtml(match);
+}
+// Incroci forti sulle LINEE (richiesta Marco 25/10: "magari anche su linee se una tira
+// tanto e l'altra subisce tanto") \u2014 stessa card degli incroci di ruolo, ma a livello di
+// squadra (computeTeamLineCrossExtremes), senza riga ruolo/lato/interprete (non pertinenti
+// a un dato di squadra aggregato).
+function lineCardHtml(c, homeId, homeName, awayName) {
+  const attName = c.attId === homeId ? homeName : awayName;
+  const difName = c.difId === homeId ? homeName : awayName;
+  const metricUnit = { Tiri: 'tiri', SOT: 'tiri in porta', Falli: 'falli' }[c.metricKey] || c.metricLabel;
+  return '<div class="cross-card">'
+    + '<div class="cross-visual">'
+      + '<div class="cross-vs"><span class="lo">' + c.prodRank + '\u00b0</span><span class="sep">vs</span><span class="hi">' + c.concRank + '\u00b0</span></div>'
+      + '<div class="cross-visual-role">' + esc(metricUnit) + '</div>'
+    + '</div>'
+    + '<div class="cross-body">'
+      + '<div class="cross-headline">' + esc(attName) + ' (' + c.prodRank + '\u00b0/' + c.prodEligible + ' di lega per ' + esc(metricUnit) + ' prodotti) incontra ' + esc(difName) + ' che ne concede di pi\u00f9 (' + c.concRank + '\u00b0/' + c.concEligible + ')</div>'
+      + '<div class="cross-why">Non un ruolo specifico, ma la squadra nel suo complesso: ' + fmt1(c.prodValue) + ' ' + esc(metricUnit) + ' a partita prodotti da ' + esc(attName) + ' contro ' + fmt1(c.concValue) + ' concessi in media da ' + esc(difName) + ' nello stesso venue.</div>'
+    + '</div>'
+  + '</div>';
+}
+function lineExtremeSectionHtml(match) {
+  let lines;
+  try { lines = computeTeamLineCrossExtremes(DB.matchLog, teamsAllIds(), match.Home_ID, match.Away_ID); }
+  catch (e) { console.error(e); return ''; }
+  if (!lines.length) {
+    return '<div class="narr-sec"><div class="narr-sec-title">Altri duelli sulle linee</div>'
+      + '<div class="cross-empty">Nessun doppio estremo a livello di squadra in questa partita: nessuna delle due produce o concede abbastanza da essere tra le prime 3 di lega su tiri, tiri in porta o falli, nello stesso venue reale della gara.</div></div>';
+  }
+  const shown = lines.slice(0, 3);
+  const extra = lines.length - shown.length;
+  return '<div class="narr-sec"><div class="narr-sec-title">Altri duelli sulle linee <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;">\u2014 top3 di lega su entrambi i lati, dato di squadra non di ruolo</span></div>'
+    + '<div class="cross-grid">' + shown.map(c => lineCardHtml(c, match.Home_ID, match.Home, match.Away)).join('') + '</div>'
+    + (extra > 0 ? '<div class="cross-empty" style="margin-top:6px;">+' + extra + ' altri duelli di linea, meno marcati di questi.</div>' : '')
+    + '</div>';
 }
 function narrativeBlock(match) {
   let N;

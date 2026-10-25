@@ -1733,6 +1733,59 @@ function computeRoleCrossExtremes(matchLog, rosters, homeId, awayId) {
   return all;
 }
 
+// ---------------------------------------------------------------------------
+// INCROCIO A DOPPIO ESTREMO SULLE LINEE (richiesta Marco 25/10: "magari anche
+// su linee se una tira tanto e l'altra subisce tanto") — stessa identica logica
+// di computeRoleCrossExtremes, ma a livello di SQUADRA invece che di ruolo:
+// una squadra che PRODUCE molto (rank<=3 di lega) e l'altra che CONCEDE molto
+// (rank<=3) sulla stessa metrica, nel venue reale di questa gara. Usa
+// computeTeamStats già testato altrove, nessun numero nuovo.
+// ---------------------------------------------------------------------------
+const LINE_EXTREME_METRICS = [
+  { key: 'Tiri', label: 'tiri', prodCol: 'Tiri_Fatti_90', concCol: 'Tiri_Subiti_90' },
+  { key: 'SOT', label: 'tiri in porta', prodCol: 'SOT_Fatti_90', concCol: 'SOT_Subiti_90' },
+  { key: 'Falli', label: 'falli', prodCol: 'Falli_Fatti_90', concCol: 'Falli_Subiti_90' },
+];
+function lineMetricLeagueRank(matchLog, teams, venueSegmento, col) {
+  const minSample = 2;
+  const list = teams.map((t) => {
+    const ts = computeTeamStats(matchLog, t, venueSegmento);
+    return { key: t, value: ts[col], partite: ts.Partite };
+  });
+  return { ranks: rankProvisional(list, minSample), list };
+}
+function lineExtremesOneSide(matchLog, teamsAll, attId, attSeg, difId, difSeg) {
+  const out = [];
+  for (const m of LINE_EXTREME_METRICS) {
+    const prod = lineMetricLeagueRank(matchLog, teamsAll, attSeg, m.prodCol);
+    const conc = lineMetricLeagueRank(matchLog, teamsAll, difSeg, m.concCol);
+    const pr = prod.ranks[attId], cr = conc.ranks[difId];
+    if (!pr || !cr || pr.rank === 'N/D' || cr.rank === 'N/D') continue;
+    if (pr.eligible < CROSS_EXTREME_MIN_ELIGIBLE || cr.eligible < CROSS_EXTREME_MIN_ELIGIBLE) continue;
+    if (pr.rank > CROSS_EXTREME_RANK || cr.rank > CROSS_EXTREME_RANK) continue;
+    const prodVal = prod.list.find((x) => x.key === attId).value;
+    const concVal = conc.list.find((x) => x.key === difId).value;
+    const prodTied = prod.list.filter((x) => x.partite >= 2 && x.value === prodVal).length;
+    const concTied = conc.list.filter((x) => x.partite >= 2 && x.value === concVal).length;
+    if (prodTied > FATTI_MAX_TIE || concTied > FATTI_MAX_TIE) continue;
+    out.push({
+      attId, difId, metricKey: m.key, metricLabel: m.label,
+      prodRank: pr.rank, prodEligible: pr.eligible, prodValue: prodVal,
+      concRank: cr.rank, concEligible: cr.eligible, concValue: concVal,
+      combinedScore: (pr.eligible + 1 - pr.rank) + (cr.eligible + 1 - cr.rank),
+    });
+  }
+  return out;
+}
+function computeTeamLineCrossExtremes(matchLog, teamsAll, homeId, awayId) {
+  const out = [
+    ...lineExtremesOneSide(matchLog, teamsAll, homeId, 'HOME', awayId, 'AWAY'),
+    ...lineExtremesOneSide(matchLog, teamsAll, awayId, 'AWAY', homeId, 'HOME'),
+  ];
+  out.sort((a, b) => b.combinedScore - a.combinedScore);
+  return out;
+}
+
 function narrShootingEfficiency(matchLog, calendar, teamId, venue) {
   const totals = computeTeamMatchTotals(matchLog, teamId, venue === 'H' ? 'HOME' : 'AWAY', calendar).filter((m) => m.Tiri > 0);
   if (!totals.length) return null;
@@ -1802,10 +1855,13 @@ function narrGoalBandaPiuPlausibile(muHome, muAway) {
   return candidati[0]; // { ambito: 'totale'|'home'|'away', label, prob }
 }
 
-function narrFoulCardWatch(matchLog, rosters, teamId) {
+// venueLetter (richiesta Marco 25/10: "tutte le info nel pannello devono essere riportate
+// esclusivamente al venue") — prima questa funzione guardava TUTTA la stagione del
+// giocatore, mescolando casa e trasferta; ora solo le presenze nel venue reale di questa gara.
+function narrFoulCardWatch(matchLog, rosters, teamId, venueLetter) {
   const roster = rosters.filter((r) => r.Team_ID_Rif === teamId && r.Attivo_SerieA === 'SI');
   const agg = roster.map((r) => {
-    const rows = matchLog.filter((x) => x.Player_ID === r.Player_ID);
+    const rows = matchLog.filter((x) => x.Player_ID === r.Player_ID && x.Venue === venueLetter);
     const min = rows.reduce((a, x) => a + (Number(x.Minuti) || 0), 0);
     const falli = rows.reduce((a, x) => a + (Number(x.Falli_commessi) || 0), 0);
     const gialli = rows.reduce((a, x) => a + (Number(x.Gialli) || 0), 0);
@@ -2030,8 +2086,8 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
   const awayNames = topNames(awayId, homeId, 'A', true);
 
   // --- Radar disciplinare (anticipato: serve anche ai matchup individuali qui sotto) ---
-  const foulHome = narrFoulCardWatch(matchLog, rosters, homeId);
-  const foulAway = narrFoulCardWatch(matchLog, rosters, awayId);
+  const foulHome = narrFoulCardWatch(matchLog, rosters, homeId, 'H');
+  const foulAway = narrFoulCardWatch(matchLog, rosters, awayId, 'A');
 
   // --- Matchup individuali: più stat, più giocatori, non solo il migliore in assoluto ---
   // 1) Falli: un attaccante che SUBISCE molti falli (FD) contro il difensore del ruolo che
@@ -2095,6 +2151,11 @@ function generateMatchNarrative(matchLog, calendar, rosters, match) {
       awayWeak2: awayWeakX.secondary ? awayWeakX.secondary.row : null,
       homeWeakSOT: homeWeakX.sotWeak, awayWeakSOT: awayWeakX.sotWeak,
       awayExploiters, homeExploiters, shootEff,
+      // Lato campo (richiesta Marco 25/10: evidenziare se terzino/esterno destro o sinistro, non
+      // solo il ruolo generico) — solo per la metrica Tiri, unica con una colonna raw affidabile
+      // (stesso raw col 'Tiri' già usato da computeRoleCrossExtremes); null altrove, nessun dato inventato.
+      homeWeakLato: (homeWeak && homeWeakMetric === 'Tiri') ? roleConcessionsSideBreakdown(matchLog, homeId, 'HOME', homeWeak.Posizione_Analitica, 'Tiri') : null,
+      awayWeakLato: (awayWeak && awayWeakMetric === 'Tiri') ? roleConcessionsSideBreakdown(matchLog, awayId, 'AWAY', awayWeak.Posizione_Analitica, 'Tiri') : null,
     },
     nomi: {
       homeLead, awayLead, cautelaHome, cautelaAway, sfavoritoHome, sfavoritoAway, homeNames, awayNames,
@@ -2226,8 +2287,8 @@ function narrDiscoverThemes(d) {
       Math.abs(ph-pa)/1.5,Math.min(v.homeAtHome.n,v.awayAtAway.n));
   }
   const roles=[
-    {team:d.homeName,opp:d.awayName,weak:c.homeWeak,ratio:c.homeWeakRatio,metric:c.homeWeakMetric,ok:c.homeWeakOppHasRole,n:v.homeAtHome?v.homeAtHome.n:0,players:c.awayExploiters},
-    {team:d.awayName,opp:d.homeName,weak:c.awayWeak,ratio:c.awayWeakRatio,metric:c.awayWeakMetric,ok:c.awayWeakOppHasRole,n:v.awayAtAway?v.awayAtAway.n:0,players:c.homeExploiters}
+    {team:d.homeName,opp:d.awayName,weak:c.homeWeak,ratio:c.homeWeakRatio,metric:c.homeWeakMetric,ok:c.homeWeakOppHasRole,n:v.homeAtHome?v.homeAtHome.n:0,players:c.awayExploiters,venueWord:'in casa',lato:c.homeWeakLato},
+    {team:d.awayName,opp:d.homeName,weak:c.awayWeak,ratio:c.awayWeakRatio,metric:c.awayWeakMetric,ok:c.awayWeakOppHasRole,n:v.awayAtAway?v.awayAtAway.n:0,players:c.homeExploiters,venueWord:'in trasferta',lato:c.awayWeakLato}
   ];
   for(const z of roles){
     if(!z.weak||z.ok!==true||z.ratio==null||z.ratio<1.15) continue;
@@ -2240,11 +2301,19 @@ function narrDiscoverThemes(d) {
     const playerNote=player
       ? ' Nel venue di questa gara, '+player.nome+' ('+z.opp+') ha prodotto '+player.venueShots+' tiri in '+player.venueGames+' partite ('+player.venueMinutes+' minuti, '+f(player.venueTiri90)+' tiri/90).'
       : '';
+    // Lato campo (richiesta Marco 25/10: dire se destro/sinistro, non solo "terzino") — solo
+    // quando il ruolo è largo e il dato supera soglia/dominanza (roleConcessionsSideBreakdown).
+    const latoNote=z.lato
+      ? ' Lato: su '+z.lato.totale+' episodi, '+Math.max(z.lato.sinistra,z.lato.destra,z.lato.centro)+' da '+(z.lato.sinistra>=z.lato.destra&&z.lato.sinistra>=z.lato.centro?'sinistra':z.lato.destra>=z.lato.centro?'destra':'centro')+'.'
+      : '';
     const title=z.metric==='Falli'
       ? z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' e falli contro '+z.team
       : z.opp+': '+(z.weak.Posizione_Analitica||'ruolo')+' contro la difesa '+z.team;
+    // Lessico semplificato (richiesta Marco 25/10): una sola frase che nomina chi concede/dove e
+    // chi beneficia, invece delle due frasi ridondanti "Squadra che concede / Squadra che può
+    // beneficiare" che dicevano la stessa cosa in due modi diversi.
     add('role'+z.team,'matchup',title,
-      'Squadra che concede: '+z.team+' '+(z.team===d.homeName?'in casa':'in trasferta')+'. Squadra che può beneficiare: '+z.opp+'. '+narrTeam(z.team,true)+' registra '+f(value)+' '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi ')+role+' a partita nel proprio venue: +'+Math.round((z.ratio-1)*100)+'% sulla media di riferimento per lo stesso ruolo/venue.'+playerNote,
+      narrTeam(z.team,true)+' concede '+f(value)+' '+(z.metric==='Falli'?'falli commessi contro ':'tiri concessi ')+role+' a partita '+z.venueWord+' (+'+Math.round((z.ratio-1)*100)+'% sulla media di lega per lo stesso ruolo/venue): un varco di cui '+narrTeam(z.opp)+' può provare ad approfittare.'+latoNote+playerNote,
       player ? 'L’incrocio merita verifica sui tiri di '+player.nome+' solo se confermato in quel ruolo e con minuti sufficienti; nessuna indicazione di valore senza quota.'
         : 'Il segnale di reparto non è sostenuto da un interprete con volume di tiri sufficiente nel venue: non promuoverlo a opportunità individuale.',
       Math.min(1,(z.ratio-1)/.65)*(player?Math.min(1.25,Math.max(.25,player.venueTiri90/1.4)):0.25),z.n);
@@ -2562,5 +2631,6 @@ if (typeof module !== 'undefined') {
     // --- narrativo
     generateMatchNarrative,
     narrGoalBandaPiuPlausibile,
+    computeTeamLineCrossExtremes,
   };
 }
