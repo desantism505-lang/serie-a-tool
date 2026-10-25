@@ -430,6 +430,18 @@
   .msdrop-panel{position:absolute;top:100%;left:0;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;z-index:30;display:none;flex-direction:column;gap:5px;min-width:170px;box-shadow:0 6px 16px rgba(0,0,0,0.4);}
   .msdrop-panel.open{display:flex;}
   .msdrop-panel label{display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;font-size:12px;color:var(--text-2);}
+  /* Cursore quota a doppio estremo (richiesta Marco, 25/10) — sostituisce i
+     bucket a checkbox: un range libero invece di fasce fisse. */
+  .quota-slider{position:relative;width:220px;height:28px;margin:4px 2px 0;touch-action:none;}
+  .quota-slider .qs-track{position:absolute;top:12px;left:9px;right:9px;height:4px;background:var(--line);border-radius:2px;}
+  .quota-slider .qs-range{position:absolute;top:12px;height:4px;background:var(--accent);border-radius:2px;}
+  .quota-slider .qs-handle{position:absolute;top:5px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--accent);border:2px solid var(--panel);box-shadow:0 1px 5px rgba(0,0,0,.45);cursor:grab;}
+  .quota-slider .qs-handle:active{cursor:grabbing;}
+  .quota-slider .qs-handle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .quota-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-top:6px;font-family:'Inter',sans-serif;}
+  .quota-labels b{color:var(--text);font-weight:700;}
+  .quota-reset{width:100%;margin-top:8px;font-size:11px;padding:4px 0;background:none;color:var(--muted);border:1px solid var(--line);border-radius:6px;cursor:pointer;font-family:'Inter',sans-serif;}
+  .quota-reset:hover{border-color:var(--accent);color:var(--accent);}
   .filter-group label{
     display:flex;
     align-items:center;
@@ -644,15 +656,13 @@
         <div class="msdrop" id="scnFQuotaDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFQuotaDrop')">Quota: tutte ▾</button>
           <div class="msdrop-panel">
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.00-1.09" /> sotto 1,09</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.10-1.20" /> 1,10–1,20</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.21-1.49" /> 1,21–1,49</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.50-1.60" /> 1,50–1,60</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.61-1.80" /> 1,61–1,80</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="1.81-2.00" /> 1,81–2,00</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="2.01-2.20" /> 2,01–2,20</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="2.21-2.40" /> 2,21–2,40</label>
-            <label><input type="checkbox" class="scnFQuotaChk" value="2.41-999" /> 2,41+</label>
+            <div class="quota-slider" id="scnQuotaSlider">
+              <div class="qs-track"></div><div class="qs-range"></div>
+              <div class="qs-handle" data-h="lo" tabindex="0" role="slider" aria-label="Quota minima"></div>
+              <div class="qs-handle" data-h="hi" tabindex="0" role="slider" aria-label="Quota massima"></div>
+            </div>
+            <div class="quota-labels"><span>da <b id="scnQuotaLoLabel">1,00</b></span><span>a <b id="scnQuotaHiLabel">3,00+</b></span></div>
+            <button type="button" class="quota-reset" onclick="resetQuotaSlider('scn')">Reset</button>
           </div>
         </div>
         <button id="scnFClear" class="secondary">Pulisci filtri</button>
@@ -795,15 +805,13 @@
         <div class="msdrop" id="scrFQuotaDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFQuotaDrop')">Quota ▾</button>
           <div class="msdrop-panel">
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.00-1.09" /> sotto 1,09</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.10-1.20" /> 1,10–1,20</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.21-1.49" /> 1,21–1,49</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.50-1.60" /> 1,50–1,60</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.61-1.80" /> 1,61–1,80</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="1.81-2.00" /> 1,81–2,00</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="2.01-2.20" /> 2,01–2,20</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="2.21-2.40" /> 2,21–2,40</label>
-            <label><input type="checkbox" class="scrFQuotaChk" value="2.41-999" /> 2,41+</label>
+            <div class="quota-slider" id="scrQuotaSlider">
+              <div class="qs-track"></div><div class="qs-range"></div>
+              <div class="qs-handle" data-h="lo" tabindex="0" role="slider" aria-label="Quota minima"></div>
+              <div class="qs-handle" data-h="hi" tabindex="0" role="slider" aria-label="Quota massima"></div>
+            </div>
+            <div class="quota-labels"><span>da <b id="scrQuotaLoLabel">1,00</b></span><span>a <b id="scrQuotaHiLabel">3,00+</b></span></div>
+            <button type="button" class="quota-reset" onclick="resetQuotaSlider('scr')">Reset</button>
           </div>
         </div>
         <select id="scrFEsito" aria-label="Storico">
@@ -929,6 +937,8 @@ function loadFromJSON(D){
 // (funziona su GitHub Pages; su file:// locale il browser blocca il fetch e
 // resta il caricamento manuale del pulsante qui sotto).
 window.addEventListener('DOMContentLoaded', () => {
+  quotaSliderInit('scn');
+  quotaSliderInit('scr');
   if (typeof fetch !== 'function') return;
   fetch('./data.json')
     .then(r => { if (!r.ok) throw new Error('no data.json'); return r.json(); })
@@ -995,7 +1005,7 @@ function saveScnState(){
       hitStag: getCheckedValues('.scnFHitStagChk'),
       edge: getCheckedValues('.scnFEdgeChk'),
       ev: getCheckedValues('.scnFEvChk'),
-      quota: getCheckedValues('.scnFQuotaChk'),
+      quota: _quotaSlider.scn || null,
       ruoli: getCheckedValues('.scnFRuoloChk'),
       auto: document.getElementById('scnGiornata') ? String(prossimaGiornata(DB.calendar)) : null,
     };
@@ -1049,13 +1059,12 @@ function applyScnState(currentAuto){
   checkOnly('.scnFHitStagChk', state.hitStag);
   checkOnly('.scnFEdgeChk', state.edge);
   checkOnly('.scnFEvChk', state.ev);
-  checkOnly('.scnFQuotaChk', state.quota);
+  if (state.quota) { _quotaSlider.scn = state.quota; quotaSliderRender('scn'); }
   checkOnly('.scnFRuoloChk', state.ruoli);
   updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
   updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk');
   updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
   updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk');
-  updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk');
   updateMsDropLabel('scnFRuoloDrop','Ruolo','.scnFRuoloChk');
   renderScnRolesPanel();
   runScanGiornata();
@@ -1675,6 +1684,99 @@ function cvLabel(cv){
 // dentro ci sono checkbox per poter spuntare più intervalli insieme. Un solo
 // pannello aperto alla volta; click fuori lo richiude senza perdere le
 // spunte già fatte.
+// Cursore quota a doppio estremo (richiesta Marco, 25/10) — sostituisce i
+// bucket a checkbox fissi (es. "1,61–1,80") con un range libero che si
+// trascina col mouse/dito. Un'istanza per 'scn' (Scanner) e una per 'scr'
+// (Preferiti), identico comportamento, id diversi. Non tocca il filtro
+// sottostante: resta inAnyBucket([[lo,hi]], ...), come coi bucket fissi —
+// qui il bucket è uno solo e lo decide l'utente invece di una fascia
+// predefinita.
+const QUOTA_RANGE_MIN = 1.00, QUOTA_RANGE_MAX = 3.00; // 3,00 mostrato come "3,00+", nessun tetto reale sul filtro
+const _quotaSlider = {}; // prefix -> {lo, hi}
+function quotaState(prefix){
+  if (!_quotaSlider[prefix]) _quotaSlider[prefix] = { lo: QUOTA_RANGE_MIN, hi: QUOTA_RANGE_MAX };
+  return _quotaSlider[prefix];
+}
+function quotaSliderInit(prefix){
+  const root = document.getElementById(prefix + 'QuotaSlider');
+  if (!root || root._qsInit) return;
+  root._qsInit = true;
+  const track = root.querySelector('.qs-track');
+  const step = (clientX) => {
+    const rect = track.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round((QUOTA_RANGE_MIN + pct * (QUOTA_RANGE_MAX - QUOTA_RANGE_MIN)) * 20) / 20;
+  };
+  root.querySelectorAll('.qs-handle').forEach(handle => {
+    const which = handle.dataset.h;
+    const setFromClientX = (clientX) => {
+      const st = quotaState(prefix);
+      const val = step(clientX);
+      if (which === 'lo') st.lo = Math.min(val, st.hi); else st.hi = Math.max(val, st.lo);
+      quotaSliderRender(prefix);
+      quotaSliderApply(prefix);
+    };
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const move = (ev) => setFromClientX(ev.clientX);
+      const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+    });
+    handle.addEventListener('keydown', (e) => {
+      const st = quotaState(prefix);
+      const d = 0.05;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { if (which === 'lo') st.lo = Math.max(QUOTA_RANGE_MIN, st.lo - d); else st.hi = Math.max(st.lo, st.hi - d); }
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { if (which === 'lo') st.lo = Math.min(st.hi, st.lo + d); else st.hi = Math.min(QUOTA_RANGE_MAX, st.hi + d); }
+      else return;
+      e.preventDefault();
+      quotaSliderRender(prefix);
+      quotaSliderApply(prefix);
+    });
+  });
+  quotaSliderRender(prefix);
+}
+function quotaSliderRender(prefix){
+  const st = quotaState(prefix);
+  const root = document.getElementById(prefix + 'QuotaSlider');
+  if (!root) return;
+  const pct = (v) => ((v - QUOTA_RANGE_MIN) / (QUOTA_RANGE_MAX - QUOTA_RANGE_MIN)) * 100;
+  root.querySelector('.qs-handle[data-h="lo"]').style.left = pct(st.lo) + '%';
+  root.querySelector('.qs-handle[data-h="hi"]').style.left = pct(st.hi) + '%';
+  const rangeEl = root.querySelector('.qs-range');
+  rangeEl.style.left = pct(st.lo) + '%';
+  rangeEl.style.right = (100 - pct(st.hi)) + '%';
+  const loTxt = st.lo.toFixed(2).replace('.', ',');
+  const hiTxt = st.hi >= QUOTA_RANGE_MAX ? '3,00+' : st.hi.toFixed(2).replace('.', ',');
+  const loLabel = document.getElementById(prefix + 'QuotaLoLabel');
+  const hiLabel = document.getElementById(prefix + 'QuotaHiLabel');
+  if (loLabel) loLabel.textContent = loTxt;
+  if (hiLabel) hiLabel.textContent = hiTxt;
+  const active = st.lo > QUOTA_RANGE_MIN || st.hi < QUOTA_RANGE_MAX;
+  const btn = document.querySelector('#' + prefix + 'FQuotaDrop .msdrop-btn');
+  if (btn) {
+    const label = active ? `Quota: ${loTxt}–${hiTxt}` : 'Quota: tutte';
+    if (prefix === 'scn') btn.textContent = label + ' ▾';
+    else btn.innerHTML = (active ? `Quota <b class="fav-n">${loTxt}–${hiTxt}</b>` : 'Quota') + ' ▾';
+    btn.classList.toggle('active-filter', active);
+  }
+}
+// Un solo bucket [lo,hi] (999 = nessun tetto) — stessa forma che usavano i
+// bucket a checkbox, quindi inAnyBucket() non cambia.
+function quotaSliderBuckets(prefix){
+  const st = quotaState(prefix);
+  if (st.lo <= QUOTA_RANGE_MIN && st.hi >= QUOTA_RANGE_MAX) return [];
+  return [[st.lo, st.hi >= QUOTA_RANGE_MAX ? 999 : st.hi]];
+}
+function resetQuotaSlider(prefix){
+  _quotaSlider[prefix] = { lo: QUOTA_RANGE_MIN, hi: QUOTA_RANGE_MAX };
+  quotaSliderRender(prefix);
+  quotaSliderApply(prefix);
+}
+function quotaSliderApply(prefix){
+  if (prefix === 'scn') { renderScan(); try { saveScnState(); } catch (e) {} }
+  else { renderScreener(); }
+}
 function toggleMsDrop(id){
   const target = document.querySelector('#' + id + ' .msdrop-panel');
   const wasOpen = target.classList.contains('open');
@@ -1738,7 +1840,7 @@ function scnFilters(){
     hitStagBuckets: bucketsFromChecked('.scnFHitStagChk'),
     edgeBuckets: bucketsFromChecked('.scnFEdgeChk'),
     evBuckets: bucketsFromChecked('.scnFEvChk'),
-    quotaBuckets: bucketsFromChecked('.scnFQuotaChk'),
+    quotaBuckets: quotaSliderBuckets('scn'),
     venue: getScnVenue(),
     tit: document.getElementById('scnFTit').value,
     ruoli: getCheckedValues('.scnFRuoloChk'),
@@ -1813,7 +1915,6 @@ document.querySelectorAll('.scnFHitChk').forEach(chk => chk.addEventListener('ch
 document.querySelectorAll('.scnFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk'); renderScan(); }));
 document.querySelectorAll('.scnFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk'); renderScan(); }));
 document.querySelectorAll('.scnFEvChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk'); renderScan(); }));
-document.querySelectorAll('.scnFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk'); renderScan(); }));
 document.querySelectorAll('.scnFRuoloChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFRuoloDrop','Ruolo','.scnFRuoloChk'); renderScan(); }));
 document.getElementById('scnFClear').addEventListener('click', () => {
   setScnJumpRole(null);
@@ -1822,12 +1923,12 @@ document.getElementById('scnFClear').addEventListener('click', () => {
   document.getElementById('scnFTit').value = '';
   document.querySelector('.scnFVenueRad[value=""]').checked = true;
   updateScnVenueLabel();
-  document.querySelectorAll('.scnFHitChk,.scnFHitStagChk,.scnFEdgeChk,.scnFEvChk,.scnFQuotaChk,.scnFRuoloChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scnFHitChk,.scnFHitStagChk,.scnFEdgeChk,.scnFEvChk,.scnFRuoloChk').forEach(chk => { chk.checked = false; });
+  resetQuotaSlider('scn');
   updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
   updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk');
   updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
   updateMsDropLabel('scnFEvDrop','EV','.scnFEvChk');
-  updateMsDropLabel('scnFQuotaDrop','Quota','.scnFQuotaChk');
   updateMsDropLabel('scnFRuoloDrop','Ruolo','.scnFRuoloChk');
   renderScan();
 });
@@ -2210,7 +2311,7 @@ function scrFilters(){
     hitStagBuckets: bucketsFromChecked('.scrFHitStagChk'),
     edgeBuckets: bucketsFromChecked('.scrFEdgeChk'),
     evBuckets: bucketsFromChecked('.scrFEvChk'),
-    quotaBuckets: bucketsFromChecked('.scrFQuotaChk'),
+    quotaBuckets: quotaSliderBuckets('scr'),
     esito: document.getElementById('scrFEsito').value,
     ruoli: getCheckedValues('.scrFRuoloChk'),
   };
@@ -2316,7 +2417,6 @@ document.querySelectorAll('.scrFHitChk').forEach(chk => chk.addEventListener('ch
 document.querySelectorAll('.scrFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk'); renderScreener(); }));
 document.querySelectorAll('.scrFEdgeChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk'); renderScreener(); }));
 document.querySelectorAll('.scrFEvChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFEvDrop','EV','.scrFEvChk'); renderScreener(); }));
-document.querySelectorAll('.scrFQuotaChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk'); renderScreener(); }));
 document.querySelectorAll('.scrFRuoloChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFRuoloDrop','Ruolo','.scrFRuoloChk'); renderScreener(); }));
 document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFText').value = '';
@@ -2325,14 +2425,14 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFTit').value = '';
   document.querySelector('.scrFVenueRad[value=""]').checked = true;
   updateScrVenueLabel();
-  document.querySelectorAll('.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFQuotaChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
+  resetQuotaSlider('scr');
   updateFavDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
   updateFavDropLabel('scrFLineaDrop','Linea','.scrFLineaChk');
   updateFavDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
   updateFavDropLabel('scrFHitStagDrop','Hit stag.','.scrFHitStagChk');
   updateFavDropLabel('scrFEdgeDrop','Edge','.scrFEdgeChk');
   updateFavDropLabel('scrFEvDrop','EV','.scrFEvChk');
-  updateFavDropLabel('scrFQuotaDrop','Quota','.scrFQuotaChk');
   updateFavDropLabel('scrFRuoloDrop','Ruolo','.scrFRuoloChk');
   renderScreener();
 });
