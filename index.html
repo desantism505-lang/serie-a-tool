@@ -835,7 +835,15 @@ function populateGiornate(){
   let want = null;
   const h = readHash();
   if (h.m) want = DB.calendar.find(m => m.Match_ID === h.m);
-  if (!want) { let last = null; try { last = localStorage.getItem('mx_last_match'); } catch(e){} if (last) want = DB.calendar.find(m => m.Match_ID === last); }
+  // Ultimo match visto (localStorage): vale solo se la sua giornata non è già
+  // passata rispetto alla "prossima giornata" di oggi. Altrimenti, dopo un turno
+  // concluso, la pagina resterebbe bloccata sulla giornata vecchia (come fa già lo
+  // Scanner con state.auto). Un link con #m=... resta sempre rispettato.
+  if (!want) {
+    let last = null; try { last = localStorage.getItem('mx_last_match'); } catch(e){}
+    const lastM = last ? DB.calendar.find(m => m.Match_ID === last) : null;
+    if (lastM && lastM.Giornata >= prossimaGiornata(DB.calendar)) want = lastM;
+  }
   const auto = want ? want.Giornata : prossimaGiornata(DB.calendar);
   if (giornate.includes(auto)) sel.value = String(auto);
   populateMatches(want ? want.Match_ID : null);
