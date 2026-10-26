@@ -1182,6 +1182,10 @@ function factsTeamMetricTextV2(label, top, venueLabel, rank, eligible){
 // falli commessi) — "falli subiti" e "cartellini" non hanno una metrica di produzione
 // comparabile, quindi niente annotazione inventata per quei due casi.
 const ROLE_FACT_PROD_COL = { tiri: 'Tiri_Prodotti_90', 'tiri in porta': 'SOT_Prodotti_90', falli: 'Falli_Dal_Ruolo_90' };
+// Colonna grezza di MATCH_LOG per il lato di produzione (richiesta Marco 26/10) — stesso dato
+// per-evento già usato da METRIC_RAW_COL per il lato di concessione, qui filtrato dal lato di
+// chi produce (roleProductionSideBreakdown in engine.js) invece che di chi concede.
+const PROD_RAW_COL = { tiri: 'Tiri', 'tiri in porta': 'Tiri_in_porta', falli: 'Falli_commessi' };
 function roleFavorabilityTxt(attTeamId, attVenueSegment, role, label){
   const prodCol = ROLE_FACT_PROD_COL[label];
   if (!prodCol) return '';
@@ -1196,12 +1200,18 @@ function roleFavorabilityTxt(attTeamId, attVenueSegment, role, label){
   if (rank === 'N/D' || eligible < 6) return '';
   const favorevole = rank <= Math.ceil(eligible / 2);
   const attName = teamNameOf(attTeamId);
+  // Lato di produzione (richiesta Marco 26/10: "puoi mettermi lato campo anche per Lecce che
+  // sfrutta?"): da che lato tira/fallisce DAVVERO la squadra che dovrebbe sfruttare il dato,
+  // non da che lato lo subisce chi difende (quello è latoBreakdownTxt, un'altra chiamata).
+  const prodRaw = PROD_RAW_COL[label];
+  const latoProd = prodRaw ? roleProductionSideBreakdown(DB.matchLog, attTeamId, attVenueSegment, role, prodRaw) : null;
+  const latoProdTxt = latoProd ? ` (${latoProd.totale} ${esc(label)} totali: ${latoProd.sinistra} da sinistra, ${latoProd.destra} da destra${latoProd.centro ? `, ${latoProd.centro} centro` : ''})` : '';
   // Sintassi chiarita (richiesta Marco 25/10 e 26/10: "non capisco leggendo la logica e la
   // sintassi" / "vorrei spiegare bene quella statistica"): attTeamId è SEMPRE l'avversario
   // reale di questa gara (chi dovrebbe sfruttare il fatto descritto sopra, non chi lo
   // subisce) — diciamo esplicitamente sia il suo ruolo (non "per {nome}" generico) sia QUALE
   // statistica sta producendo (label, non "la stessa statistica" vago).
-  return ` — ${esc(attName)}, che dovrebbe sfruttare questo dato, è ${rank}° su ${eligible} di lega per ${esc(label)} nel ruolo ${esc(role.toLowerCase())}: incrocio <b class="${favorevole ? 'narr-hl' : 'narr-hl-warn'}">${favorevole ? 'favorevole' : 'sfavorevole'}</b> a ${esc(attName)}`;
+  return ` — ${esc(attName)}, che dovrebbe sfruttare questo dato, è ${rank}° su ${eligible} di lega per ${esc(label)} nel ruolo ${esc(role.toLowerCase())}${latoProdTxt}: incrocio <b class="${favorevole ? 'narr-hl' : 'narr-hl-warn'}">${favorevole ? 'favorevole' : 'sfavorevole'}</b> a ${esc(attName)}`;
 }
 
 function factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible){

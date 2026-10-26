@@ -400,6 +400,38 @@ function roleConcessionsSideBreakdown(matchLog, team, segmento, ruolo, rawCol) {
   return { totale, sinistra: by.Sinistra, destra: by.Destra, centro: by.Centro };
 }
 
+// Lato di PRODUZIONE (richiesta Marco 26/10: "puoi mettermi lato campo anche per Lecce che
+// sfrutta?") — gemella di roleConcessionsSideBreakdown ma dal lato opposto: lì si guardava da
+// che lato arrivano gli eventi SUBITI da `team` (r.Opp_ID === team, qualunque sia la squadra
+// che attacca); qui guardiamo da che lato arrivano gli eventi PRODOTTI da `team` stesso
+// (r.Team_ID === team) nel ruolo indicato. Stesse soglie (LATO_MIN_SAMPLE, LATO_SKEW_MIN),
+// stessi ruoli ammessi (WIDE_ROLES_LATO/CONDITIONAL_TRIPLE_ROLES): nessun criterio nuovo.
+function roleProductionSideBreakdown(matchLog, team, segmento, ruolo, rawCol) {
+  if (!WIDE_ROLES_LATO.includes(ruolo) && !CONDITIONAL_TRIPLE_ROLES.includes(ruolo)) return null;
+  let rows = filterRows(matchLog, (r) => r.Team_ID === team && r.Posizione_Analitica === ruolo);
+  if (segmento !== 'TOTALE') {
+    const v = segmento === 'HOME' ? 'H' : 'A'; // qui NON si inverte: è team stesso a giocare in questo venue
+    rows = rows.filter((r) => r.Venue === v);
+  }
+  if (CONDITIONAL_TRIPLE_ROLES.includes(ruolo)) {
+    const tripleSet = getTripleRoleSet(matchLog, ruolo);
+    rows = rows.filter((r) => tripleSet.has(r.Team_ID + '|' + r.Match_ID));
+  }
+  const hasLato = rows.some((r) => r.Lato_Campo === 'Sinistra' || r.Lato_Campo === 'Destra' || r.Lato_Campo === 'Centro');
+  if (!hasLato) return null;
+  const by = { Sinistra: 0, Destra: 0, Centro: 0 };
+  let totale = 0;
+  for (const r of rows) {
+    const v = Number(r[rawCol]) || 0;
+    totale += v;
+    if (by[r.Lato_Campo] != null) by[r.Lato_Campo] += v;
+  }
+  if (totale < LATO_MIN_SAMPLE) return null;
+  const dominante = Math.max(by.Sinistra, by.Destra, by.Centro);
+  if (dominante / totale < LATO_SKEW_MIN) return null;
+  return { totale, sinistra: by.Sinistra, destra: by.Destra, centro: by.Centro };
+}
+
 // ---------------------------------------------------------------------------
 // LATO PREVALENTE DEL GIOCATORE — richiesta Marco, 25/10. Diverso da
 // roleConcessionsSideBreakdown sopra: qui non scomponiamo un totale di
