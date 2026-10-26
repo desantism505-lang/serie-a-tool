@@ -974,7 +974,12 @@ function populateGiornate(){
   const auto = prossimaGiornata(DB.calendar);
   const scnSel = document.getElementById('scnGiornata');
   scnSel.innerHTML = giornate.map(g => `<option value="${g}">Giornata ${g}</option>`).join('');
-  scnSel.onchange = () => { setScnJumpRole(null); populateScnMatch(); }; // cambio manuale giornata: il filtro ruolo di un'altra partita non ha più senso
+  // Bug residuo filtro (segnalato Marco 26/10): cambiare giornata/partita a mano
+  // non rilanciava la scansione — la tabella restava quella della scansione
+  // precedente (altra giornata/partita), senza nessun avviso che fosse vecchia.
+  // Ora ogni cambio manuale richiama anche runScanGiornata(), stesso effetto di
+  // premere "Scansiona" o di un clic "filtra tabella" dal pannello ruoli.
+  scnSel.onchange = () => { setScnJumpRole(null); populateScnMatch(); runScanGiornata(); }; // cambio manuale giornata: il filtro ruolo di un'altra partita non ha più senso
   if (giornate.includes(auto)) scnSel.value = String(auto);
   populateScnMatch();
   applyScnState(auto); // ripristina (se presente e coerente con la giornata auto) l'ultima selezione salvata
@@ -1243,7 +1248,7 @@ function scnToggleMore(sideKey){
   const n = more.children.length;
   btn.textContent = open ? `mostra altri ${n} ▾` : 'mostra meno ▴';
 }
-document.getElementById('scnMatch').addEventListener('change', () => { setScnJumpRole(null); renderScnRolesPanel(); }); // cambio manuale partita: idem
+document.getElementById('scnMatch').addEventListener('change', () => { setScnJumpRole(null); renderScnRolesPanel(); runScanGiornata(); }); // cambio manuale partita: idem, e rilancia la scansione (bug residuo filtro, Marco 26/10)
 
 function fmt(v, d=2){
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
