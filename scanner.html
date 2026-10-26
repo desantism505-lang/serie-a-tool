@@ -217,7 +217,6 @@
   #scrFilterPanel select:hover{border-color:var(--accent-dim);}
   #scrFilterPanel select:focus-visible,#scrFilterPanel .msdrop-btn:focus-visible,#scrFilterPanel #scrFClear:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
   #scrFilterPanel #scrFTit{width:112px;}
-  #scrFilterPanel #scrFCV{width:106px;}
   #scrFilterPanel #scrFEsito{width:96px;}
   #scrFilterPanel .msdrop-btn.active-filter,
   #scrFilterPanel select.active-filter{border-color:var(--accent);color:var(--accent);background-color:rgba(212,255,107,.08);}
@@ -616,12 +615,14 @@
           <option value="conf">Solo titolari confermati</option>
           <option value="notN">Nascondi esclusi (✗), tieni senza formazione</option>
         </select>
-        <select id="scnFCV" style="background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 8px;border-radius:6px;">
-          <option value="">Consistenza: tutte</option>
-          <option value="stabile">stabile</option>
-          <option value="variabile">variabile</option>
-          <option value="incostante">incostante</option>
-        </select>
+        <div class="msdrop" id="scnFCVDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFCVDrop')">Consistenza: tutte ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scnFCVChk" value="stabile" /> stabile</label>
+            <label><input type="checkbox" class="scnFCVChk" value="variabile" /> variabile</label>
+            <label><input type="checkbox" class="scnFCVChk" value="incostante" /> incostante</label>
+          </div>
+        </div>
         <div class="msdrop" id="scnFHitDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnFHitDrop')">Hit venue: tutte ▾</button>
           <div class="msdrop-panel">
@@ -769,12 +770,14 @@
           <option value="conf">Confermati</option>
           <option value="notN">Escludi ✗</option>
         </select>
-        <select id="scrFCV" aria-label="Consistenza">
-          <option value="">Consistenza</option>
-          <option value="stabile">stabile</option>
-          <option value="variabile">variabile</option>
-          <option value="incostante">incostante</option>
-        </select>
+        <div class="msdrop" id="scrFCVDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFCVDrop')">Consistenza ▾</button>
+          <div class="msdrop-panel">
+            <label><input type="checkbox" class="scrFCVChk" value="stabile" /> stabile</label>
+            <label><input type="checkbox" class="scrFCVChk" value="variabile" /> variabile</label>
+            <label><input type="checkbox" class="scrFCVChk" value="incostante" /> incostante</label>
+          </div>
+        </div>
         <div class="msdrop" id="scrFHitDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFHitDrop')">Hit venue ▾</button>
           <div class="msdrop-panel">
@@ -1014,7 +1017,7 @@ function saveScnState(){
       text: document.getElementById('scnFText').value,
       venue: getScnVenue(),
       tit: document.getElementById('scnFTit').value,
-      cv: document.getElementById('scnFCV').value,
+      cv: getCheckedValues('.scnFCVChk'),
       hit: getCheckedValues('.scnFHitChk'),
       hitStag: getCheckedValues('.scnFHitStagChk'),
       edge: getCheckedValues('.scnFEdgeChk'),
@@ -1066,13 +1069,14 @@ function applyScnState(currentAuto){
     updateScnVenueLabel();
   }
   if (state.tit) document.getElementById('scnFTit').value = state.tit;
-  if (state.cv) document.getElementById('scnFCV').value = state.cv;
+  checkOnly('.scnFCVChk', state.cv);
   checkOnly('.scnFHitChk', state.hit);
   checkOnly('.scnFHitStagChk', state.hitStag);
   checkOnly('.scnFEdgeChk', state.edge);
   checkOnly('.scnFEvChk', state.ev);
   if (state.quota) { _quotaSlider.scn = state.quota; quotaSliderRender('scn'); }
   checkOnly('.scnFRuoloChk', state.ruoli);
+  updateMsDropLabel('scnFCVDrop','Consistenza','.scnFCVChk');
   updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
   updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk');
   updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
@@ -1913,7 +1917,7 @@ function inAnyBucket(val, buckets){
 function scnFilters(){
   return {
     text: (document.getElementById('scnFText').value || '').trim().toLowerCase(),
-    cv: document.getElementById('scnFCV').value,
+    cv: getCheckedValues('.scnFCVChk'),
     hitBuckets: bucketsFromChecked('.scnFHitChk'),
     hitStagBuckets: bucketsFromChecked('.scnFHitStagChk'),
     edgeBuckets: bucketsFromChecked('.scnFEdgeChk'),
@@ -1961,7 +1965,7 @@ function applyScnFilters(rows){
       const hay = `${r.player.Nome_completo} ${r.match.Home} ${r.match.Away}`.toLowerCase();
       if (!hay.includes(f.text)) return false;
     }
-    if (f.cv && cvLabel(r.cv) !== f.cv) return false;
+    if (f.cv.length && !f.cv.includes(cvLabel(r.cv))) return false;
     if (!inAnyBucket(r.hitVenue != null ? r.hitVenue * 100 : null, f.hitBuckets)) return false;
     if (!inAnyBucket(r.hitStag != null ? r.hitStag * 100 : null, f.hitStagBuckets)) return false;
     const { quota, edge, ev } = derived(r);
@@ -1987,7 +1991,7 @@ function updateScnVenueLabel(){
 }
 document.querySelectorAll('.scnFVenueRad').forEach(r => r.addEventListener('change', () => { updateScnVenueLabel(); renderScan(); }));
 document.getElementById('scnFText').addEventListener('input', renderScan);
-document.getElementById('scnFCV').addEventListener('change', renderScan);
+document.querySelectorAll('.scnFCVChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFCVDrop','Consistenza','.scnFCVChk'); renderScan(); }));
 document.getElementById('scnFTit').addEventListener('change', renderScan);
 document.querySelectorAll('.scnFHitChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk'); renderScan(); }));
 document.querySelectorAll('.scnFHitStagChk').forEach(chk => chk.addEventListener('change', () => { updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk'); renderScan(); }));
@@ -1997,12 +2001,12 @@ document.querySelectorAll('.scnFRuoloChk').forEach(chk => chk.addEventListener('
 document.getElementById('scnFClear').addEventListener('click', () => {
   setScnJumpRole(null);
   document.getElementById('scnFText').value = '';
-  document.getElementById('scnFCV').value = '';
   document.getElementById('scnFTit').value = '';
   document.querySelector('.scnFVenueRad[value=""]').checked = true;
   updateScnVenueLabel();
-  document.querySelectorAll('.scnFHitChk,.scnFHitStagChk,.scnFEdgeChk,.scnFEvChk,.scnFRuoloChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scnFCVChk,.scnFHitChk,.scnFHitStagChk,.scnFEdgeChk,.scnFEvChk,.scnFRuoloChk').forEach(chk => { chk.checked = false; });
   resetQuotaSlider('scn');
+  updateMsDropLabel('scnFCVDrop','Consistenza','.scnFCVChk');
   updateMsDropLabel('scnFHitDrop','Hit venue','.scnFHitChk');
   updateMsDropLabel('scnFHitStagDrop','Hit stag.','.scnFHitStagChk');
   updateMsDropLabel('scnFEdgeDrop','Edge','.scnFEdgeChk');
@@ -2457,7 +2461,7 @@ function scrFilters(){
   return {
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
     matches: getCheckedValues('.scrFMatchChk'), // checkbox multi-partita (richiesta Marco 26/10)
-    cv: document.getElementById('scrFCV').value,
+    cv: getCheckedValues('.scrFCVChk'),
     mercati: getCheckedValues('.scrFMercatoChk'),
     linee: getCheckedValues('.scrFLineaChk').map(Number),
     venue: (document.querySelector('.scrFVenueRad:checked') || {}).value || '',
@@ -2540,7 +2544,7 @@ function applyScrFilters(rows){
       if (f.tit === 'conf' && st !== 'Y') return false;
       if (f.tit === 'notN' && st === 'N') return false;
     }
-    if (f.cv && cvLabel(r.cv) !== f.cv) return false;
+    if (f.cv.length && !f.cv.includes(cvLabel(r.cv))) return false;
     if (!inAnyBucket(r.hitVenue != null ? r.hitVenue * 100 : null, f.hitBuckets)) return false;
     if (!inAnyBucket(r.hitStag != null ? r.hitStag * 100 : null, f.hitStagBuckets)) return false;
     const { edge, ev } = scrDerived(r);
@@ -2556,7 +2560,7 @@ function applyScrFilters(rows){
   });
 }
 document.getElementById('scrFText').addEventListener('input', renderScreener);
-document.getElementById('scrFCV').addEventListener('change', renderScreener);
+document.querySelectorAll('.scrFCVChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFCVDrop','Consistenza','.scrFCVChk'); renderScreener(); }));
 document.getElementById('scrFEsito').addEventListener('change', renderScreener);
 function updateScrVenueLabel(){
   const c = document.querySelector('.scrFVenueRad:checked');
@@ -2576,14 +2580,14 @@ document.querySelectorAll('.scrFEvChk').forEach(chk => chk.addEventListener('cha
 document.querySelectorAll('.scrFRuoloChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFRuoloDrop','Ruolo','.scrFRuoloChk'); renderScreener(); }));
 document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFText').value = '';
-  document.getElementById('scrFCV').value = '';
   document.getElementById('scrFEsito').value = '';
   document.getElementById('scrFTit').value = '';
   document.querySelector('.scrFVenueRad[value=""]').checked = true;
   updateScrVenueLabel();
-  document.querySelectorAll('.scrFMatchChk,.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scrFMatchChk,.scrFCVChk,.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
   resetQuotaSlider('scr');
   updateFavDropLabel('scrFMatchDrop','Partita','.scrFMatchChk');
+  updateFavDropLabel('scrFCVDrop','Consistenza','.scrFCVChk');
   updateFavDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
   updateFavDropLabel('scrFLineaDrop','Linea','.scrFLineaChk');
   updateFavDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
