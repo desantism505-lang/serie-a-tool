@@ -344,6 +344,17 @@
   }
   .panel-collapse-btn:hover{border-color:var(--accent);color:var(--accent);}
   .section-gap{margin-top:28px;}
+  /* Bottone download Excel dei Fatti salienti (richiesta Marco 26/10) — stesso
+     stile del bottone .fav-xls già usato in scanner.html per i Preferiti. */
+  .facts-xls-btn{
+    display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;flex:none;
+    background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px;
+    cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;font-size:12px;line-height:1;
+    transition:border-color .15s,color .15s;margin-left:12px;
+  }
+  .facts-xls-btn svg{width:14px;height:14px;flex:none;}
+  .facts-xls-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .facts-xls-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 
   /* ===================== Pannello "Analisi partita" — testo discorsivo ===================== */
   .narr-body{padding:26px 28px;}
@@ -1926,6 +1937,11 @@ function goalLineFactsForSide(teamId, venue, venueLabel){
   }));
 }
 
+// Cache dell'ultimo render dei Fatti salienti (richiesta Marco 26/10: scaricare
+// un Excel dei Fatti salienti con nome del match) — evita di ricalcolare tutto
+// al clic sul bottone: il bottone legge semplicemente l'ultimo match/home/away
+// già calcolati da renderNotableFactsPanel per la partita in vista.
+let factsXlsCache = null;
 function renderNotableFactsPanel(match){
   _pCache = {}; _roleCache = {}; _leagueMetricCache = {}; // reset cache per questo render
 
@@ -1960,6 +1976,7 @@ function renderNotableFactsPanel(match){
 
   const home = sideFacts(match.Home_ID, 'HOME', match.Away_ID, 'AWAY', 'in casa', 'home');
   const away = sideFacts(match.Away_ID, 'AWAY', match.Home_ID, 'HOME', 'in trasferta', 'away');
+  factsXlsCache = { match, home, away };
 
   function list(teamName, facts){
     if (!facts.length) return `<div class="subtle">Nessun rank ancora affidabile (campione insufficiente su tutte le metriche).</div>`;
@@ -1983,6 +2000,7 @@ function renderNotableFactsPanel(match){
   return `
     <div class="panel" style="margin-top:28px;">
       <h2>Fatti salienti <span class="tag" style="flex:1;">rank più estremi (vicini a 1° o all'ultimo posto), squadra e giocatore, sempre nel venue reale della partita</span>
+        <button type="button" class="facts-xls-btn" onclick="exportFactsXlsx()" title="Scarica Excel dei Fatti salienti di questa partita" aria-label="Scarica Excel dei Fatti salienti di questa partita"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 20h14"/></svg><span>Excel</span></button>
         <button type="button" class="panel-collapse-btn" onclick="togglePanelCollapse('facts')" id="panelBtn-facts" title="${panelCollapseState.facts ? 'Espandi il pannello Fatti salienti' : 'Minimizza il pannello Fatti salienti'}" aria-label="${panelCollapseState.facts ? 'Espandi il pannello Fatti salienti' : 'Minimizza il pannello Fatti salienti'}" aria-expanded="${panelCollapseState.facts ? 'false' : 'true'}">${panelCollapseState.facts ? '+' : '&minus;'}</button>
       </h2>
       <div id="panelBody-facts" style="${panelCollapseState.facts ? 'display:none;' : ''}">
@@ -2804,6 +2822,45 @@ function secSintesi(match) {
 }
 function factsBlock(match) {
   return renderNotableFactsPanel(match).replace('<div class="panel" style="margin-top:28px;">', '<div class="panel" style="margin-bottom:22px;">');
+}
+
+// Export Excel dei Fatti salienti (richiesta Marco 26/10, "mi fai scaricare
+// icona excel file con nome match"): legge factsXlsCache, l'ultimo
+// home/away/match calcolati da renderNotableFactsPanel per la partita in
+// vista — nessun ricalcolo, nessuna duplicazione della logica dei fatti.
+// f.text può contenere markup HTML (es. <b> dei fatti "favorevole/
+// sfavorevole"): va spogliato per un file di testo semplice.
+function stripHtmlForXls(s){
+  return String(s || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+}
+function factsXlsRows(teamName, venueLabel, facts){
+  return facts.map(f => [
+    teamName,
+    venueLabel,
+    f.tag,
+    stripHtmlForXls(f.text),
+    f.tag === 'Linea gol' ? '' : `${f.rank}°/${f.eligible}`,
+  ]);
+}
+function exportFactsXlsx(){
+  if (typeof XLSX === 'undefined') { alert('Libreria Excel non caricata: controlla la connessione e riprova.'); return; }
+  if (!factsXlsCache) { alert('Nessun fatto salienti ancora calcolato per questa partita.'); return; }
+  const { match, home, away } = factsXlsCache;
+  const aoa = [
+    ['Squadra', 'Venue', 'Categoria', 'Fatto', 'Rank'],
+    ...factsXlsRows(match.Home, 'Casa', home),
+    ...factsXlsRows(match.Away, 'Trasferta', away),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 18 }, { wch: 11 }, { wch: 20 }, { wch: 120 }, { wch: 10 }];
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: 4 } }) };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Fatti salienti');
+  const p2 = n => String(n).padStart(2, '0');
+  const now = new Date();
+  const day = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
+  const slug = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  XLSX.writeFile(wb, `fatti_salienti_${slug(match.Home)}-${slug(match.Away)}_${day}.xlsx`);
 }
 
 function cmpBlock(match, P) {
