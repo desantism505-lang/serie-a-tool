@@ -1218,10 +1218,18 @@ function roleFavorabilityTxt(attTeamId, attVenueSegment, role, label){
   // reale di questa gara (chi dovrebbe sfruttare il fatto descritto sopra, non chi lo
   // subisce) — diciamo esplicitamente sia il suo ruolo (non "per {nome}" generico) sia QUALE
   // statistica sta producendo (label, non "la stessa statistica" vago).
-  const esito = favorevole === null
-    ? ': nella media di lega, non un vero incrocio a favore o contro'
-    : (': incrocio <b class="' + (favorevole ? 'narr-hl' : 'narr-hl-warn') + '">' + (favorevole ? 'favorevole' : 'sfavorevole') + '</b> a ' + esc(attName));
-  return ` — ${esc(attName)}, che dovrebbe sfruttare questo dato, è ${rank}° su ${eligible} di lega per ${esc(label)} nel ruolo ${esc(role.toLowerCase())}${latoProdTxt}${esito}`;
+  // Lessico per esito (richiesta Marco 26/10, opzione A sia per favorevole che sfavorevole):
+  // prima il verdetto in chiaro ("è/non è la squadra giusta per sfruttarlo"), poi il rank a
+  // supporto. Prima la frase era identica nei due casi ("che dovrebbe sfruttare questo dato,
+  // è N°... incrocio sfavorevole") — contraddittoria quando l'esito era sfavorevole.
+  const roleTxt = `${esc(label)} nel ruolo ${esc(role.toLowerCase())}${latoProdTxt}`;
+  if (favorevole === true) {
+    return ` — ${esc(attName)} è la squadra giusta per sfruttarlo: è ${rank}° su ${eligible} di lega per ${roleTxt} — incrocio <b class="narr-hl">favorevole</b> a ${esc(attName)}`;
+  }
+  if (favorevole === false) {
+    return ` — ${esc(attName)}, però, non è la squadra giusta per sfruttarlo: è solo ${rank}° su ${eligible} di lega per ${roleTxt} — incrocio <b class="narr-hl-warn">sfavorevole</b> a ${esc(attName)}`;
+  }
+  return ` — ${esc(attName)} è ${rank}° su ${eligible} di lega per ${roleTxt}: nella media di lega, non un vero incrocio a favore o contro`;
 }
 
 function factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible){
