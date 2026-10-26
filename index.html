@@ -1480,7 +1480,7 @@ function computePlayerAbsoluteFacts(teamId, venue, venueLabel){
       facts.push({
         tag: 'Giocatore · Serie A',
         icon: metricIcon(label),
-        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) è tra i primi 3 di tutta la lega per ${label}, senza distinzione di ruolo — ${rank}° su ${eligible} giocatori idonei`,
+        text: `${player.Nome_completo} (${player.Posizione_Analitica}), ${venueLabel}, è tra i primi 3 di tutta la lega per ${label}, senza distinzione di ruolo — ${rank}° su ${eligible} giocatori idonei`,
         rank, eligible,
       });
     }
@@ -1506,7 +1506,7 @@ function computePlayerStandoutFacts(teamId, venue, venueLabel){
       facts.push({
         tag: 'Giocatore · ruolo',
         icon: metricIcon(label),
-        text: `${player.Nome_completo} (${player.Posizione_Analitica}, ${venueLabel}) è tra i più prolifici della lega per ${label}, nel confronto con gli altri giocatori dello stesso ruolo — ${res.rank}° su ${res.eligible} ${player.Posizione_Analitica.toLowerCase()} idonei`,
+        text: `${player.Nome_completo} (${player.Posizione_Analitica}), ${venueLabel}, è tra i più prolifici della lega per ${label}, nel confronto con gli altri giocatori dello stesso ruolo — ${res.rank}° su ${res.eligible} ${player.Posizione_Analitica.toLowerCase()} idonei`,
         rank: res.rank, eligible: res.eligible,
       });
     }
