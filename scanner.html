@@ -1158,6 +1158,8 @@ function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdIn
   const oppVenueWord = opponentVenueLetter === 'H' ? 'in casa' : 'in trasferta';
   const teamVenueWord = venueWord === 'casa' ? 'in casa' : 'in trasferta';
   const focusVenueSide = venueWord === 'casa' ? 'HOME' : 'AWAY';
+  const attVenueLetter = opponentVenueLetter === 'H' ? 'A' : 'H'; // venue reale di teamIdInFocus, l'opposto dell'avversario
+  const attSegmento = attVenueLetter === 'H' ? 'HOME' : 'AWAY';
   const lines = top.map(r => {
     const ruoloPlur = SCN_ROLE_PLURAL[r.ruolo] || r.ruolo;
     const verbo = SCN_METRIC_VERBO[r.metricKey] || 'producono';
@@ -1179,8 +1181,18 @@ function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdIn
     const oppRankTxt = `<b>${escAttr(opponentName)}</b> è <b>${r.rank}°</b> su ${r.totale} squadre idonee per ${subitoNoun} da ${ruoloPlur} ${oppVenueWord} (${fmt(r.value,2)} vs ${fmt(r.mediaLega,2)} di media).`;
     // Rank della squadra in focus sul lato PRODUZIONE, stesso ruolo/metrica nel
     // proprio venue reale — è il secondo lato dell'incrocio a doppio estremo
-    // già garantito dal filtro in fattiRuoloVsAvversario, qui solo mostrato.
-    const prodRankTxt = ` <b>${escAttr(teamName)}</b> è a sua volta <b>${r.prodRank}°</b> su ${r.prodEligible} di lega per quanto ${verbo} con quel ruolo ${teamVenueWord}: un vero incrocio a doppio estremo.`;
+    // già garantito dal filtro in fattiRuoloVsAvversario (prodRank<=3), qui
+    // solo mostrato. Stesso lessico/logica di roleFavorabilityTxt() in
+    // index.html (richiesta Marco 26/10, "stessa cosa di fatti salienti"):
+    // nome squadra che sfrutta, rank di produzione, lato campo prodotto, e
+    // verdetto favorevole/sfavorevole. Qui è sempre "favorevole" perché il
+    // filtro a monte richiede già prodRank<=3, più stretto del terzile usato
+    // come soglia favorevole in roleFavorabilityTxt — non serve ricalcolarlo.
+    // r.metricKey ('Tiri'/'Tiri_in_porta'/'Falli_commessi') è già il nome
+    // della colonna grezza nel match log, stesso riuso di PROD_RAW_COL.
+    const latoProd = roleProductionSideBreakdown(matchLog, teamIdInFocus, attSegmento, r.ruolo, r.metricKey);
+    const latoProdTxt = latoProd ? ` (${latoProd.totale} ${r.metricLabel} totali: ${latoProd.sinistra} da sinistra, ${latoProd.destra} da destra${latoProd.centro ? `, ${latoProd.centro} centro` : ''})` : '';
+    const prodRankTxt = ` <b>${escAttr(teamName)}</b>, che dovrebbe sfruttare questo dato, è <b>${r.prodRank}°</b> su ${r.prodEligible} di lega per ${r.metricLabel} nel ruolo ${r.ruolo.toLowerCase()}${latoProdTxt}: incrocio <b>favorevole</b> a ${escAttr(teamName)}.`;
     const testo = `Contro ${escAttr(opponentName)} ${oppVenueWord}, <b>${ruoloPlur}</b> ${verbo} ${confronto}. ${oppRankTxt}${prodRankTxt}${latoTxt}`;
     return `<a href="javascript:void(0)" onclick="scnJumpToStat('${r.metricKey}','${focusVenueSide}','${r.ruolo}')" style="color:inherit;text-decoration:none;cursor:pointer;" title="Clic per filtrare la tabella su questa squadra, questo ruolo e questa statistica">${testo} <span style="color:var(--accent);">▸ filtra tabella</span></a>`;
   });
