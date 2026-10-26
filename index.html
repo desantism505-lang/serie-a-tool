@@ -1196,11 +1196,12 @@ function roleFavorabilityTxt(attTeamId, attVenueSegment, role, label){
   if (rank === 'N/D' || eligible < 6) return '';
   const favorevole = rank <= Math.ceil(eligible / 2);
   const attName = teamNameOf(attTeamId);
-  // Sintassi chiarita (richiesta Marco 25/10: "non capisco leggendo la logica e la sintassi"):
-  // attTeamId è SEMPRE l'avversario reale di questa gara (chi dovrebbe sfruttare il fatto
-  // descritto sopra, non chi lo subisce) — qui diciamo esplicitamente il suo ruolo, non solo
-  // "per {nome}", che lasciava capire chi dei due fosse in produzione.
-  return ` — ${esc(attName)}, che dovrebbe sfruttare questo dato, è ${rank}° su ${eligible} di lega nella PRODUZIONE della stessa statistica: incrocio <b class="${favorevole ? 'narr-hl' : 'narr-hl-warn'}">${favorevole ? 'favorevole' : 'sfavorevole'}</b> a ${esc(attName)}`;
+  // Sintassi chiarita (richiesta Marco 25/10 e 26/10: "non capisco leggendo la logica e la
+  // sintassi" / "vorrei spiegare bene quella statistica"): attTeamId è SEMPRE l'avversario
+  // reale di questa gara (chi dovrebbe sfruttare il fatto descritto sopra, non chi lo
+  // subisce) — diciamo esplicitamente sia il suo ruolo (non "per {nome}" generico) sia QUALE
+  // statistica sta producendo (label, non "la stessa statistica" vago).
+  return ` — ${esc(attName)}, che dovrebbe sfruttare questo dato, è ${rank}° su ${eligible} di lega per ${esc(label)} nel ruolo ${esc(role.toLowerCase())}: incrocio <b class="${favorevole ? 'narr-hl' : 'narr-hl-warn'}">${favorevole ? 'favorevole' : 'sfavorevole'}</b> a ${esc(attName)}`;
 }
 
 function factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible){
@@ -1340,7 +1341,11 @@ function computeTeamFacts(teamId, venue, venueLabel, oppTeamId, oppVenue){
       if (!dedupByPlayerSide && rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT) {
         const top = isTopEnd(rank, eligible);
         const latoTxt = latoBreakdownTxt(teamId, venue, role, col, label);
-        const favorTxt = oppTeamId && oppVenue ? roleFavorabilityTxt(oppTeamId, oppVenue, role, label) : '';
+        // L'annotazione "incrocio favorevole/sfavorevole" ha senso solo quando il fatto
+        // principale dice "più" (la difesa concede molto, quindi è potenzialmente
+        // sfruttabile): quando dice "meno" (la difesa è forte) non c'è nulla da sfruttare,
+        // quindi niente incrocio (richiesta Marco 26/10).
+        const favorTxt = (top && oppTeamId && oppVenue) ? roleFavorabilityTxt(oppTeamId, oppVenue, role, label) : '';
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
@@ -1413,7 +1418,8 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
       if (rank !== 'N/D' && eligible >= 6 && tiedCount(list, minSample, me.value) <= MAX_TIE_FOR_FACT && rank <= 3) {
         const top = isTopEnd(rank, eligible);
         const latoTxt = latoBreakdownTxt(oppTeamId, oppVenue, role, col, label);
-        const favorTxt = roleFavorabilityTxt(teamId, venue, role, label);
+        // Stesso criterio: solo sui fatti "più" (richiesta Marco 26/10).
+        const favorTxt = top ? roleFavorabilityTxt(teamId, venue, role, label) : '';
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
