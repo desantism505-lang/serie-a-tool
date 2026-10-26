@@ -2630,64 +2630,52 @@ function narrativeBlock(match) {
       if (!s) return '';
       return ' ' + fmt1(s.gfAvg) + ' gol fatti e ' + fmt1(s.gaAvg) + ' subiti/partita ' + venueWord + ', ha segnato nel ' + Math.round(s.scoredPct * 100) + '% delle gare, porta inviolata nel ' + Math.round(s.cleanSheetPct * 100) + '%, entrambe a segno nel ' + Math.round(s.bttsPct * 100) + '% (campione: ' + s.n + ' gare).';
     }
+    // Doppio incrocio prodotto/concesso (richiesta Marco 25/10: "in basi statistiche non puoi
+    // inserire 1/2 stat più estreme e che hanno incrocio", e "io vorrei solo una card quella
+    // della multigol [...] le altre info le metterei se rilevanti nel commento con la fascia
+    // multigol" — niente più card separate: al massimo 1-2 frasi, solo se c'è un VERO doppio
+    // estremo (entrambi i lati sopra la soglia), fuse nel commento della fascia. Stessi numeri
+    // che alimentano lo shrinkage di muHome/muAway, non ricalcolati.
+    const M = N.multigol;
+    const INCROCIO_SOGLIA = 1.15; // = soglia "sopra media" già in uso altrove in questo motore (es. homeWeakRatio)
+    function incrocioCandidate(attName, attAvg, attN, attLg, attStats, attVenueWord, difName, difAvg, difN, difLg, difStats, difVenueWord) {
+      if (attAvg == null || difAvg == null || !attLg || !difLg) return null;
+      const attRatio = attAvg / attLg, difRatio = difAvg / difLg;
+      if (attRatio < INCROCIO_SOGLIA || difRatio < INCROCIO_SOGLIA) return null; // non un vero incrocio: niente numero inventato
+      // Frase streak (richiesta Marco: "ha segnato in tutte le partite" / "ha subito in tutte
+      // le gare") quando il campione lo sostiene davvero, altrimenti scarto medio vs lega.
+      const attPct = Math.round((attRatio - 1) * 100);
+      const difPct = Math.round((difRatio - 1) * 100);
+      const attPart = (attStats && attStats.n >= 3 && attStats.scoredPct === 1)
+        ? ('<b>' + esc(attName) + '</b> ha segnato in tutte le ' + attStats.n + ' gare ' + attVenueWord)
+        : ('<b>' + esc(attName) + '</b> segna ' + fmt1(attAvg) + ' gol/partita ' + attVenueWord + ' (+' + attPct + '% sulla media lega, ' + attN + ' gare)');
+      const difPart = (difStats && difStats.n >= 3 && difStats.cleanSheetPct === 0)
+        ? (esc(difName) + ' ha subito gol in tutte le ' + difStats.n + ' gare ' + difVenueWord)
+        : (esc(difName) + ' concede ' + fmt1(difAvg) + ' gol/partita ' + difVenueWord + ' (+' + difPct + '% sulla media lega, ' + difN + ' gare)');
+      return { score: (attRatio - 1) + (difRatio - 1), testo: attPart + ' e affronta ' + difPart + '.' };
+    }
+    const incrocioCandidati = [
+      incrocioCandidate(homeName, M.homeAttAvg, M.homeAtt ? M.homeAtt.n : 0, M.lgHome, M.homeGoalStats, 'in casa',
+        awayName, M.awayDefAvg, M.awayDef ? M.awayDef.n : 0, M.lgAway, M.awayGoalStats, 'in trasferta'),
+      incrocioCandidate(awayName, M.awayAttAvg, M.awayAtt ? M.awayAtt.n : 0, M.lgAway, M.awayGoalStats, 'in trasferta',
+        homeName, M.homeDefAvg, M.homeDef ? M.homeDef.n : 0, M.lgHome, M.homeGoalStats, 'in casa'),
+    ].filter(Boolean).sort((a, b) => b.score - a.score);
+    const incrocioTxt = incrocioCandidati.length ? (' ' + incrocioCandidati.map((c) => c.testo).join(' ')) : '';
+
     const whyText = !b ? 'Campione insufficiente per stimare una fascia gol affidabile.'
       : (b.ambito === 'totale'
         ? ('Nessuna delle due squadre ha un segnale isolato più netto del totale di partita.'
           + statsProse(N.multigol.homeGoalStats, 'in casa')
           + statsProse(N.multigol.awayGoalStats, 'in trasferta'))
         : ('Il segnale di ' + ambitoLabel + ' da solo è più netto del totale partita: la proiezione per l\'altra squadra non sposta la fascia più probabile.'
-          + statsProse(b.ambito === 'home' ? N.multigol.homeGoalStats : N.multigol.awayGoalStats, b.ambito === 'home' ? 'in casa' : 'in trasferta')));
+          + statsProse(b.ambito === 'home' ? N.multigol.homeGoalStats : N.multigol.awayGoalStats, b.ambito === 'home' ? 'in casa' : 'in trasferta')))
+      + incrocioTxt;
     multigolHtml = '<div class="mg-wrap">'
       + '<div class="mg-tile"><div class="mg-team">' + esc(homeName) + '</div><div class="mg-mu">' + fmt2(N.multigol.muHome) + '</div></div>'
       + '<div class="mg-plus">+</div>'
       + '<div class="mg-tile"><div class="mg-team">' + esc(awayName) + '</div><div class="mg-mu">' + fmt2(N.multigol.muAway) + '</div></div>'
       + '<div class="mg-why">' + (b ? ('Fascia più plausibile: <b>' + ambitoLabel + ' Multigol ' + esc(b.label) + '</b> — ' + Math.round(b.prob * 100) + '% secondo il modello. ' + whyText) : whyText) + '</div>'
       + '</div>';
-    // Doppio incrocio prodotto/concesso nel venue reale di questa gara (richiesta Marco 25/10:
-    // "andrebbe fatto doppio incrocio prodotto concesso tra le due squadre nel venue di
-    // giornata"): sono gli STESSI numeri (homeAttAvg/awayDefAvg/awayAttAvg/homeDefAvg, lgHome/
-    // lgAway) che alimentano lo shrinkage di muHome/muAway qui sopra — non ricalcolati, solo
-    // mostrati, per spiegare perché la mu è quella e non un'altra.
-    const M = N.multigol;
-    function crossGoalRow(attName, attAvg, attN, attLg, attVerbo, difName, difAvg, difN, difLg, difVerbo) {
-      if (attAvg == null || difAvg == null) return '';
-      const attPct = Math.round((attAvg / attLg - 1) * 100);
-      const difPct = Math.round((difAvg / difLg - 1) * 100);
-      return '<div class="cross-card">'
-        + '<div class="cross-visual"><div class="cross-vs"><span class="' + (attPct >= 0 ? 'hi' : 'lo') + '">' + fmt1(attAvg) + '</span><span class="sep">vs</span><span class="' + (difPct >= 0 ? 'hi' : 'lo') + '">' + fmt1(difAvg) + '</span></div><div class="cross-visual-role">gol/partita</div></div>'
-        + '<div class="cross-body">'
-          + '<div class="cross-headline">' + esc(artCap(attName)) + ' attacco vs ' + esc(artOf(difName)) + ' difesa</div>'
-          + '<div class="cross-why"><b>' + esc(attName) + '</b> ' + attVerbo + ' ' + fmt1(attAvg) + ' gol/partita (' + (attPct >= 0 ? '+' : '') + attPct + '% sulla media lega, ' + attN + ' gare), <b>' + esc(difName) + '</b> ' + difVerbo + ' ' + fmt1(difAvg) + ' gol/partita (' + (difPct >= 0 ? '+' : '') + difPct + '% sulla media lega, ' + difN + ' gare).</div>'
-        + '</div></div>';
-    }
-    const crossRows = [
-      crossGoalRow(homeName, M.homeAttAvg, M.homeAtt ? M.homeAtt.n : 0, M.lgHome, 'segna in casa', awayName, M.awayDefAvg, M.awayDef ? M.awayDef.n : 0, M.lgAway, 'concede in trasferta'),
-      crossGoalRow(awayName, M.awayAttAvg, M.awayAtt ? M.awayAtt.n : 0, M.lgAway, 'segna in trasferta', homeName, M.homeDefAvg, M.homeDef ? M.homeDef.n : 0, M.lgHome, 'concede in casa'),
-    ].filter(Boolean);
-    if (crossRows.length) {
-      multigolHtml += '<div class="cross-grid" style="margin-top:12px;">' + crossRows.join('') + '</div>';
-    }
-    // Basi statistiche più importanti e costanti (richiesta Marco 25/10: "spiegata la logica
-    // [...] contestualizzando 2/3 basi statistiche quelle più importanti e costanti che
-    // spiegano la scelta della multigol"): tra i quattro segnali sopra, quelli con lo scarto
-    // maggiore dalla media lega E un campione non minimale (n>=3) — non un'opinione, sono gli
-    // stessi numeri della riga sopra ordinati per quanto pesano sullo shrinkage della mu.
-    const segnali = [
-      { team: homeName, label: 'segna in casa', avg: M.homeAttAvg, n: M.homeAtt ? M.homeAtt.n : 0, lg: M.lgHome },
-      { team: awayName, label: 'concede in trasferta', avg: M.awayDefAvg, n: M.awayDef ? M.awayDef.n : 0, lg: M.lgAway },
-      { team: awayName, label: 'segna in trasferta', avg: M.awayAttAvg, n: M.awayAtt ? M.awayAtt.n : 0, lg: M.lgAway },
-      { team: homeName, label: 'concede in casa', avg: M.homeDefAvg, n: M.homeDef ? M.homeDef.n : 0, lg: M.lgHome },
-    ].filter((s) => s.avg != null && s.n >= 3 && s.lg)
-      .map((s) => ({ ...s, scarto: Math.abs(s.avg / s.lg - 1) }))
-      .sort((a, b) => b.scarto - a.scarto)
-      .slice(0, 3);
-    if (segnali.length) {
-      const basiTxt = segnali.map((s) => {
-        const pct = Math.round((s.avg / s.lg - 1) * 100);
-        return '<b>' + esc(s.team) + '</b> ' + s.label + ' ' + (pct >= 0 ? '+' : '') + pct + '% sulla media lega (' + fmt1(s.avg) + ' vs ' + fmt1(s.lg) + ', ' + s.n + ' gare)';
-      }).join('; ') + '.';
-      multigolHtml += '<div class="mg-why" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);"><b>Basi statistiche più costanti dietro questa proiezione:</b> ' + basiTxt + '</div>';
-    }
   }
 
   // --- Statistiche e sequenze in evidenza (per venue) ---
