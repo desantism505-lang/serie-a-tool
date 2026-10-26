@@ -1196,7 +1196,11 @@ function roleFavorabilityTxt(attTeamId, attVenueSegment, role, label){
   if (rank === 'N/D' || eligible < 6) return '';
   const favorevole = rank <= Math.ceil(eligible / 2);
   const attName = teamNameOf(attTeamId);
-  return ` — incrocio <b class="${favorevole ? 'narr-hl' : 'narr-hl-warn'}">${favorevole ? 'favorevole' : 'sfavorevole'}</b> per ${esc(attName)} in produzione (${rank}° su ${eligible})`;
+  // Sintassi chiarita (richiesta Marco 25/10: "non capisco leggendo la logica e la sintassi"):
+  // attTeamId è SEMPRE l'avversario reale di questa gara (chi dovrebbe sfruttare il fatto
+  // descritto sopra, non chi lo subisce) — qui diciamo esplicitamente il suo ruolo, non solo
+  // "per {nome}", che lasciava capire chi dei due fosse in produzione.
+  return ` — ${esc(attName)}, che dovrebbe sfruttare questo dato, è ${rank}° su ${eligible} di lega nella PRODUZIONE della stessa statistica: incrocio <b class="${favorevole ? 'narr-hl' : 'narr-hl-warn'}">${favorevole ? 'favorevole' : 'sfavorevole'}</b> a ${esc(attName)}`;
 }
 
 function factsRoleTextV2(teamName, label, top, role, venueLabel, rank, eligible){
@@ -1392,14 +1396,12 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
   const facts = [];
   const rolesSeen = new Set();
   const oppName = teamNameOf(oppTeamId);
-  const teamName = teamNameOf(teamId);
   const oppVenueWord = oppVenue === 'HOME' ? 'in casa' : 'in trasferta';
   for (const player of players) {
     const role = player.Posizione_Analitica;
     if (role === 'Portiere') continue; // portieri esclusi dai Fatti salienti (richiesta Marco, 17/10)
-    if (rolesSeen.has(role)) continue; // un fatto per ruolo (elenca TUTTI i giocatori di quel ruolo, non uno a caso)
+    if (rolesSeen.has(role)) continue; // un fatto per ruolo
     rolesSeen.add(role);
-    const sameRole = players.filter(p => p.Posizione_Analitica === role).map(p => p.Nome_completo);
     for (const [label, col] of roleMetrics) {
       const list = teamsAll.map(t => {
         const ts = computeTeamStats(DB.matchLog, t, oppVenue);
@@ -1415,7 +1417,7 @@ function computePlayerVsOpponentFacts(teamId, venue, oppTeamId, oppVenue, venueL
         facts.push({
           tag: 'Matchup ruolo',
           icon: metricIcon(label),
-          text: `${factsRoleTextV2(oppName, label, top, role, oppVenueWord, rank, eligible)} — ${rank}° su ${eligible} squadre idonee${latoTxt}${favorTxt}. Per ${art(teamName)} il matchup riguarda: ${sameRole.join(', ')}.`,
+          text: `${factsRoleTextV2(oppName, label, top, role, oppVenueWord, rank, eligible)} — ${rank}° su ${eligible} squadre idonee${latoTxt}${favorTxt}`,
           rank, eligible,
         });
       }
