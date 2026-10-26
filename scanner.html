@@ -543,7 +543,10 @@
     <div class="body">
       <div class="screener-form" style="margin-bottom:10px;">
         <select id="scnGiornata"></select>
-        <select id="scnMatch"><option value="ALL">Tutte le partite</option></select>
+        <div class="msdrop" id="scnMatchDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scnMatchDrop')">Partite: tutte ▾</button>
+          <div class="msdrop-panel" id="scnMatchPanel"></div>
+        </div>
         <select id="scnCriterio">
           <option value="MEDIA">Media venue &gt; Linea</option>
           <option value="HIT" selected>Hit rate venue ≥ soglia</option>
@@ -716,6 +719,10 @@
       <div id="scrFilterPanel" role="toolbar" aria-label="Filtri preferiti">
         <svg class="fav-fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Filtra preferiti"><title>Filtra preferiti</title><path d="M3 5h18l-7 8.5V20l-4-2v-4.5z"/></svg>
         <input type="text" id="scrFText" placeholder="Cerca giocatore o partita" aria-label="Cerca giocatore o partita" />
+        <div class="msdrop" id="scrFMatchDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMatchDrop')">Partita ▾</button>
+          <div class="msdrop-panel" id="scrFMatchPanel"></div>
+        </div>
         <div class="msdrop" id="scrFMercatoDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMercatoDrop')">Giocata ▾</button>
           <div class="msdrop-panel">
@@ -998,7 +1005,7 @@ function saveScnState(){
   try {
     const state = {
       giornata: document.getElementById('scnGiornata').value,
-      match: document.getElementById('scnMatch').value,
+      matches: getCheckedValues('.scnMatchChk'), // checkbox multi-partita (richiesta Marco 26/10): array, non più un valore singolo
       criterio: document.getElementById('scnCriterio').value,
       minHit: document.getElementById('scnMinHit').value,
       minN: document.getElementById('scnMinN').value,
@@ -1042,10 +1049,8 @@ function applyScnState(currentAuto){
     gSel.value = state.giornata;
     populateScnMatch(); // la giornata e' cambiata: ricostruisce le <option> di Partita
   }
-  const mSel = document.getElementById('scnMatch');
-  if (state.match && [...mSel.options].some(o => o.value === state.match)) {
-    mSel.value = state.match;
-  }
+  checkOnly('.scnMatchChk', state.matches); // checkbox multi-partita: array di Match_ID, vuoto = tutte
+  updateMsDropLabel('scnMatchDrop','Partite','.scnMatchChk');
   if (state.criterio) {
     document.getElementById('scnCriterio').value = state.criterio;
     document.getElementById('scnCriterio').dispatchEvent(new Event('change')); // mostra/nasconde scnMinHitWrap
@@ -1076,12 +1081,22 @@ function applyScnState(currentAuto){
   renderScnRolesPanel();
   runScanGiornata();
 }
+// Checkbox multi-partita (richiesta Marco 26/10: "si può fare con checkbox in
+// modo da poter selezionare + gare insieme"), stesso componente .msdrop già
+// usato per Ruolo/Hit/Edge/EV nei filtri risultati. Nessuna selezione = tutte
+// le partite della giornata (stesso comportamento di prima con "ALL").
 function populateScnMatch(){
   const g = Number(document.getElementById('scnGiornata').value);
   const matches = DB.calendar.filter(r => r.Giornata === g);
-  const sel = document.getElementById('scnMatch');
-  sel.innerHTML = '<option value="ALL">Tutte le partite</option>' +
-    matches.map(m => `<option value="${m.Match_ID}">${m.Home} – ${m.Away}</option>`).join('');
+  const panel = document.getElementById('scnMatchPanel');
+  panel.innerHTML = matches.map(m => `<label><input type="checkbox" class="scnMatchChk" value="${m.Match_ID}" /> ${escAttr(m.Home)} – ${escAttr(m.Away)}</label>`).join('');
+  panel.querySelectorAll('.scnMatchChk').forEach(chk => chk.addEventListener('change', () => {
+    setScnJumpRole(null); // altra selezione di partite: il filtro ruolo di prima non ha più senso
+    updateMsDropLabel('scnMatchDrop','Partite','.scnMatchChk');
+    renderScnRolesPanel();
+    runScanGiornata();
+  }));
+  updateMsDropLabel('scnMatchDrop','Partite','.scnMatchChk');
   renderScnRolesPanel();
 }
 
@@ -1207,11 +1222,17 @@ function scnOppRankBlock(teamName, venueWord, matchLog, rosters, teams, teamIdIn
 function renderScnRolesPanel(){
   const panel = document.getElementById('scnRolesPanel');
   if (!DB) return;
-  const matchId = document.getElementById('scnMatch').value;
-  if (matchId === 'ALL') {
-    panel.innerHTML = '<div class="subtle">Seleziona una partita specifica (non "Tutte le partite") per vedere i fatti salienti di ruolo delle due squadre.</div>';
+  // Con le checkbox multi-partita (26/10) il pannello "Ruoli scoperti" resta
+  // comunque per UNA partita alla volta (il confronto casa/avversario non ha
+  // senso su più gare insieme): serve selezionarne esattamente una.
+  const matchesScelte = getCheckedValues('.scnMatchChk');
+  if (matchesScelte.length !== 1) {
+    panel.innerHTML = matchesScelte.length === 0
+      ? '<div class="subtle">Seleziona esattamente una partita (hai "tutte" selezionato) per vedere i fatti salienti di ruolo delle due squadre.</div>'
+      : '<div class="subtle">Seleziona esattamente una partita (ne hai selezionate più di una) per vedere i fatti salienti di ruolo delle due squadre.</div>';
     return;
   }
+  const matchId = matchesScelte[0];
   const g = Number(document.getElementById('scnGiornata').value);
   const match = DB.calendar.find(m => m.Giornata === g && m.Match_ID === matchId);
   if (!match) { panel.innerHTML = '<div class="subtle">Partita non trovata.</div>'; return; }
@@ -1248,7 +1269,6 @@ function scnToggleMore(sideKey){
   const n = more.children.length;
   btn.textContent = open ? `mostra altri ${n} ▾` : 'mostra meno ▴';
 }
-document.getElementById('scnMatch').addEventListener('change', () => { setScnJumpRole(null); renderScnRolesPanel(); runScanGiornata(); }); // cambio manuale partita: idem, e rilancia la scansione (bug residuo filtro, Marco 26/10)
 
 function fmt(v, d=2){
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
@@ -1547,10 +1567,10 @@ function runScanGiornata(){
   const criterio = document.getElementById('scnCriterio').value; // 'MEDIA' | 'HIT'
   const minHit = Number(document.getElementById('scnMinHit').value);
   const minN = Number(document.getElementById('scnMinN').value);
-  const matchFilter = document.getElementById('scnMatch').value;
+  const matchesScelte = getCheckedValues('.scnMatchChk'); // checkbox multi-partita (26/10): vuoto = tutte
 
   let matches = DB.calendar.filter(m => m.Giornata === giornata);
-  if (matchFilter !== 'ALL') matches = matches.filter(m => m.Match_ID === matchFilter);
+  if (matchesScelte.length) matches = matches.filter(m => matchesScelte.includes(m.Match_ID));
   const results = [];
   const exclGiornata = scnExclSet(giornata); // solo indisponibili segnati per QUESTA giornata
 
@@ -2436,6 +2456,7 @@ function favSyncFilterStyle(){
 function scrFilters(){
   return {
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
+    matches: getCheckedValues('.scrFMatchChk'), // checkbox multi-partita (richiesta Marco 26/10)
     cv: document.getElementById('scrFCV').value,
     mercati: getCheckedValues('.scrFMercatoChk'),
     linee: getCheckedValues('.scrFLineaChk').map(Number),
@@ -2500,6 +2521,7 @@ function applyScrFilters(rows){
       const hay = `${r.giocatore} ${r.partita}`.toLowerCase();
       if (!hay.includes(f.text)) return false;
     }
+    if (f.matches.length && !f.matches.includes(r.partita)) return false;
     if (f.mercati.length && !f.mercati.includes(r.mercato)) return false;
     if (f.linee.length && !f.linee.includes(Number(r.linea))) return false;
     if (f.venue && r.venue !== f.venue) return false;
@@ -2559,8 +2581,9 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFTit').value = '';
   document.querySelector('.scrFVenueRad[value=""]').checked = true;
   updateScrVenueLabel();
-  document.querySelectorAll('.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scrFMatchChk,.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
   resetQuotaSlider('scr');
+  updateFavDropLabel('scrFMatchDrop','Partita','.scrFMatchChk');
   updateFavDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
   updateFavDropLabel('scrFLineaDrop','Linea','.scrFLineaChk');
   updateFavDropLabel('scrFHitDrop','Hit venue','.scrFHitChk');
@@ -2579,7 +2602,28 @@ document.querySelectorAll('#scrTable th.sortable').forEach(th => {
   });
 });
 
+// Checkbox multi-partita per i Preferiti (richiesta Marco 26/10, stesso
+// principio dello Scanner): l'elenco delle partite non è una giornata fissa
+// come nello Scanner, ma le squadre effettivamente presenti tra i preferiti
+// salvati (r.partita, es. "Lecce – Milan"). Ricostruita solo quando l'insieme
+// delle partite tra i preferiti cambia (non ad ogni render/filtro), così non
+// si chiude il menu a tendina ad ogni checkbox cliccata dentro di esso.
+let _scrMatchFilterKey = null;
+function populateScrMatchFilterIfNeeded(){
+  const partite = [...new Set(screenerRows.map(r => r.partita))].sort();
+  const key = partite.join('|');
+  if (key === _scrMatchFilterKey) return;
+  _scrMatchFilterKey = key;
+  const already = new Set(getCheckedValues('.scrFMatchChk'));
+  const panel = document.getElementById('scrFMatchPanel');
+  panel.innerHTML = partite.length
+    ? partite.map(p => `<label><input type="checkbox" class="scrFMatchChk" value="${escAttr(p)}" ${already.has(p) ? 'checked' : ''} /> ${escAttr(p)}</label>`).join('')
+    : '<div class="subtle" style="padding:2px 4px;">Nessuna partita tra i preferiti.</div>';
+  panel.querySelectorAll('.scrFMatchChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFMatchDrop','Partita','.scrFMatchChk'); renderScreener(); }));
+  updateFavDropLabel('scrFMatchDrop','Partita','.scrFMatchChk');
+}
 function renderScreener(){
+  populateScrMatchFilterIfNeeded();
   favSyncFilterStyle();
   const body = document.getElementById('scrBody');
   const empty = document.getElementById('scrEmpty');
