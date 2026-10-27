@@ -2888,6 +2888,14 @@ function cmpBlock(match, P) {
     poss = `<div class="cmp-row"><div class="v l"><b>${fmt(hp.Possesso_Medio, 0)}%</b><small>${hp.Possesso_N} partite in casa</small></div>
       <div class="mid"><div class="mname">Possesso medio <span class="subtle">(contesto)</span></div><div class="bar"><i style="width:${(hp.Possesso_Medio / s * 100).toFixed(1)}%"></i></div><div class="diff">non entra nelle proiezioni</div></div>
       <div class="v r"><b>${fmt(ap.Possesso_Medio, 0)}%</b><small>${ap.Possesso_N} partite in trasferta</small></div></div>`;
+    // Proiezione vera e propria per QUESTA partita: combina la tendenza propria
+    // di ciascuna squadra nel suo venue (shrinkata verso 50% con n/(n+3)),
+    // normalizzata per costruzione così che le due metà sommino sempre a 100 —
+    // niente a che fare con la riga sopra, che resta la media grezza stagionale.
+    const pp = possessoProjection(DB.matchLog, match.Home_ID, match.Away_ID);
+    poss += `<div class="cmp-row"><div class="v l"><b>${fmt(pp.homeProj, 0)}%</b></div>
+      <div class="mid"><div class="mname">Possesso proiettato <span class="subtle">(questa partita)</span></div><div class="bar"><i style="width:${pp.homeProj.toFixed(1)}%"></i></div><div class="diff">somma sempre 100%</div></div>
+      <div class="v r"><b>${fmt(pp.awayProj, 0)}%</b></div></div>`;
   }
   return `
   <div class="card"><h3>Confronto squadre <span class="tag">proiezione per partita con le formazioni scelte (${S.bench ? 'titolari + stima panchina' : 'solo titolari'}) · barra = quota sul totale, tacca centrale = parità</span>${benchToggle()}</h3>
@@ -2895,7 +2903,7 @@ function cmpBlock(match, P) {
       <div class="cmp-head"><span class="h">${esc(match.Home)} <span class="subtle">· casa</span></span><span class="m">metrica</span><span class="a">${esc(match.Away)} <span class="subtle">· trasferta</span></span></div>
       ${rows}${poss}
     </div>
-    <div class="subtle" style="margin-top:10px;">Sotto ogni valore: media reale per partita della squadra nel suo venue e numero di partite. Il possesso medio è solo contesto: nel backtest è già dentro le medie di squadra, usarlo come moltiplicatore conterebbe lo stesso effetto due volte.</div>
+    <div class="subtle" style="margin-top:10px;">Sotto ogni valore: media reale per partita della squadra nel suo venue e numero di partite. Il possesso medio (contesto) non entra nelle proiezioni di Tiri/SOT/Corner: nel backtest è già dentro le medie di squadra, usarlo lì come moltiplicatore conterebbe lo stesso effetto due volte. Il possesso proiettato è un calcolo separato, specifico per questa partita, e non influenza le altre metriche sopra.</div>
     </div>
   </div>`;
 }

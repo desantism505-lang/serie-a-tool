@@ -719,6 +719,32 @@ function multiplicativeProjection(matchLog, teamId, venue, oppTeamId, oppVenue, 
   return { ownAvgA, nA, concedeAvgB, nB, projection };
 }
 
+// Proiezione possesso: a differenza di Tiri/SOT/Corner non esiste un dato
+// "possesso concesso" misurato a parte — è strutturalmente lo zero-sum della
+// stessa partita (Home+Away=100 per riga CALENDAR/MATCH_LOG, verificato).
+// Quindi niente moltiplicazione di due fattori indipendenti (rischierebbe di
+// non sommare più a 100 e di esplodere vicino ai bordi 0/100): si combina la
+// tendenza propria della squadra di casa nel suo venue con il complemento
+// della tendenza propria dell'ospite nel suo venue (unico modo di dedurre un
+// "fattore avversario" per una variabile a somma fissa), ciascuna shrinkata
+// verso la media di lega (50%, per costruzione) con n/(n+SHRINK_K) — stesso k
+// della Baseline. Away_proj = 100 - Home_proj sempre: la somma a 100 è
+// garantita dalla formula, non da un controllo a posteriori.
+function possessoProjection(matchLog, homeId, awayId) {
+  const hp = computeTeamStats(matchLog, homeId, 'HOME');
+  const ap = computeTeamStats(matchLog, awayId, 'AWAY');
+  const LG = 50;
+  const shrink = (avg, n) => (avg == null ? LG : LG + (avg - LG) * (n / (n + SHRINK_K)));
+  const H = shrink(hp.Possesso_Medio, hp.Possesso_N);
+  const A = shrink(ap.Possesso_Medio, ap.Possesso_N);
+  const homeProj = (H + (100 - A)) / 2;
+  return {
+    homeProj, awayProj: 100 - homeProj,
+    rawHome: hp.Possesso_Medio, nHome: hp.Possesso_N,
+    rawAway: ap.Possesso_Medio, nAway: ap.Possesso_N,
+  };
+}
+
 // Giorni di riposo prima della partita indicata: differenza in giorni tra la
 // Data della partita e la Data della partita precedente della stessa
 // squadra (qualunque venue) — null se non c'è una partita precedente.
@@ -2716,6 +2742,7 @@ if (typeof module !== 'undefined') {
     computeTeamDuelTotals,
     teamDuelRecord,
     multiplicativeProjection,
+    possessoProjection,
     restDaysBefore,
     computeTeamStreak,
     normalizeArbitroKey,
