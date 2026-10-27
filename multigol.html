@@ -52,6 +52,29 @@ main{padding:32px 32px 60px;max-width:1220px;margin:0 auto}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 @media(max-width:850px){.grid2,.grid3{grid-template-columns:1fr}.controls{padding:14px 18px}main{padding:22px 18px 50px}header,nav.sitenav{padding-left:18px;padding-right:18px}}
+.cardA{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.cardA .head{padding:13px 18px;background:var(--panel-header);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.cardA .head .team{font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--text);font-size:14px}
+.cardA .head .venue{color:var(--muted);font-size:11.5px}
+.rowA{display:flex;align-items:center;gap:14px;padding:12px 18px;border-top:1px solid var(--line)}
+.rowA:first-of-type{border-top:none}
+.badgeA{flex:0 0 auto;width:52px;height:40px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700}
+.badgeA.over{background:rgba(212,255,107,.14);color:var(--accent)}
+.badgeA.under{background:rgba(91,168,232,.14);color:var(--blue)}
+.badgeA.freq{background:rgba(212,255,107,.14);color:var(--accent)}
+.badgeA.ritardo{background:rgba(242,166,90,.14);color:var(--warn)}
+.badgeA .dir{font-size:9px;letter-spacing:.02em}
+.badgeA .line{font-size:15px;line-height:1.1}
+.rowA .mid{flex:1;min-width:0}
+.rowA .txt{font-size:12.5px;color:var(--text-2)}
+.rowA .streak{display:flex;gap:3px;margin-top:5px}
+.rowA .dot{width:6px;height:6px;border-radius:50%;background:var(--accent-dim)}
+.rowA .dot.off{background:var(--line)}
+.crossRow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:12.5px;color:var(--text-2);flex-wrap:wrap}
+.crossRow:first-of-type{border-top:none}
+.crossRow .side{display:flex;align-items:baseline;gap:6px}
+.crossRow b{color:var(--text)}
+.crossRow .sep{color:var(--muted)}
 .subtle{color:var(--muted);font-size:11px}
 .metricname{color:var(--text);font-weight:600}
 table.stat{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -375,10 +398,21 @@ function arbitroFactTextMultigol(e, nomeKey){
   return `${nomeKey} ${clausola} (media <strong>${e.value.toFixed(2)}</strong>${leagueTxt}), ${e.rank}° su ${e.eligible} arbitri idonei (${e.n} partite dirette)`;
 }
 
+function fmtLineaMultigol(x){ return String(x).replace('.', ','); }
+const MULTIGOL_COL_LABEL = { fatti: 'gol fatti', subiti: 'gol subiti', totale: 'gol totali' };
+
+function dotsRowA(n, onIdxs){
+  let html = '';
+  for (let i = 0; i < n; i++) html += `<span class="dot${onIdxs.has(i) ? '' : ' off'}"></span>`;
+  return html;
+}
+
 function factsSalientiMultigol(m){
   if (typeof computeGoalLineFacts !== 'function') return '';
   const hFacts = computeGoalLineFacts(DB.calendar, m.Home_ID, 'HOME', 'in casa');
   const aFacts = computeGoalLineFacts(DB.calendar, m.Away_ID, 'AWAY', 'in trasferta');
+  const hBand = typeof computeMultigolBandFacts === 'function' ? computeMultigolBandFacts(DB.calendar, m.Home_ID, 'HOME', 'in casa') : null;
+  const aBand = typeof computeMultigolBandFacts === 'function' ? computeMultigolBandFacts(DB.calendar, m.Away_ID, 'AWAY', 'in trasferta') : null;
 
   let arbHtml = '';
   if (DB.arbitri && DB.arbitri.length && DB.matchLog && DB.matchLog.length && typeof rankArbitriFacts === 'function') {
@@ -400,24 +434,71 @@ function factsSalientiMultigol(m){
     }
   }
 
-  const sideBox = (teamName, venueLabel, facts) => {
-    if (!facts.length) return `<div class="card"><div class="card-title">${teamName} — ${venueLabel}</div><div class="subtle">Nessuna linea gol ricorrente ancora affidabile (campione insufficiente).</div></div>`;
-    return `<div class="card">
-      <div class="card-title">${teamName} — ${venueLabel}</div>
-      <ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--text-2);">
-        ${facts.map(f => `<li style="margin-bottom:4px;">${f.txt.charAt(0).toUpperCase()}${f.txt.slice(1)}</li>`).join('')}
-      </ul>
+  // Opzione A (scelta da Marco 27/10): badge Over/Under/Fascia + striscia presenze reali
+  // (una pallina per partita del campione, piena dove il fatto si verifica davvero).
+  const sideBox = (teamName, venueLabel, facts, band) => {
+    const lineFactRows = facts.map(f => {
+      const n = f.n;
+      return `<div class="rowA">
+        <div class="badgeA ${f.over ? 'over' : 'under'}"><span class="dir">${f.over ? 'OVER' : 'UNDER'}</span><span class="line">${fmtLineaMultigol(f.line)}</span></div>
+        <div class="mid"><div class="txt">${f.txt.charAt(0).toUpperCase()}${f.txt.slice(1)}</div>
+          <div class="streak">${dotsRowA(n, new Set(Array.from({length:n}, (_,i)=>i)))}</div></div>
+      </div>`;
+    });
+    let bandRows = '';
+    if (band) {
+      const onFreq = new Set(band.bands.reduce((a, lb, i) => (lb === band.frequente.label ? [...a, i] : a), []));
+      bandRows += `<div class="rowA">
+        <div class="badgeA freq"><span class="dir">FASCIA+</span><span class="line">${band.frequente.label}</span></div>
+        <div class="mid"><div class="txt">Fascia multigol più frequente ${band.venueLabel}: ${band.frequente.label} gol totali, registrata in ${band.frequente.count} delle ultime ${band.n} partite</div>
+          <div class="streak">${dotsRowA(band.n, onFreq)}</div></div>
+      </div>`;
+      if (band.ritardo) {
+        const onRit = band.ritardo.mai ? new Set() : new Set(band.bands.reduce((a, lb, i) => (lb === band.ritardo.label ? [...a, i] : a), []));
+        const ritTxt = band.ritardo.mai
+          ? `Fascia multigol in ritardo ${band.venueLabel}: ${band.ritardo.label} gol totali, mai registrata nelle ultime ${band.n} partite`
+          : `Fascia multigol in ritardo ${band.venueLabel}: ${band.ritardo.label} gol totali, non si ripresenta da ${band.ritardo.ritardo} ${band.ritardo.ritardo === 1 ? 'partita' : 'partite'}`;
+        bandRows += `<div class="rowA">
+          <div class="badgeA ritardo"><span class="dir">RITARDO</span><span class="line">${band.ritardo.label}</span></div>
+          <div class="mid"><div class="txt">${ritTxt}</div>
+            <div class="streak">${dotsRowA(band.n, onRit)}</div></div>
+        </div>`;
+      }
+    }
+    const allRows = lineFactRows.join('') + bandRows;
+    if (!allRows) return `<div class="cardA"><div class="head"><span class="team">${teamName}</span><span class="venue">${venueLabel}</span></div><div class="rowA"><div class="mid"><div class="txt subtle">Nessuna linea gol ricorrente ancora affidabile (campione insufficiente).</div></div></div></div>`;
+    return `<div class="cardA">
+      <div class="head"><span class="team">${teamName}</span><span class="venue">${venueLabel}</span></div>
+      ${allRows}
     </div>`;
   };
 
-  if (!hFacts.length && !aFacts.length && !arbHtml) return '';
+  // Incroci (richiesta Marco 27/10): il fatto "X segna" di una squadra e il fatto "Y subisce"
+  // dell'altra, sulla stessa riga — SOLO quando esistono entrambi i lati. Niente riga a metà:
+  // se un lato manca (campione insufficiente), l'incrocio salta senza lasciare un vuoto.
+  const pickFact = (facts, col) => facts.filter(f => f.col === col).sort((a, b) => (b.over === a.over ? 0 : b.over ? 1 : -1))[0] || null;
+  const shortFact = (teamName, f) => `<span class="side"><b>${teamName}</b> ${f.over ? 'Over' : 'Under'} ${fmtLineaMultigol(f.line)} ${MULTIGOL_COL_LABEL[f.col]}</span>`;
+  const crossPairs = [
+    [pickFact(hFacts, 'fatti'), pickFact(aFacts, 'subiti')],
+    [pickFact(aFacts, 'fatti'), pickFact(hFacts, 'subiti')],
+  ];
+  const crossRows = crossPairs
+    .filter(([a, b]) => a && b)
+    .map(([hf, af]) => {
+      const [hTeam, hf2, aTeam, af2] = hf.col === 'fatti' ? [m.Home, hf, m.Away, af] : [m.Away, hf, m.Home, af];
+      return `<div class="crossRow">${shortFact(hTeam, hf2)}<span class="sep">—</span>${shortFact(aTeam, af2)}</div>`;
+    });
+  const crossHtml = crossRows.length ? `<div class="card" style="margin-top:14px;"><div class="card-title">Incroci attacco/difesa</div>${crossRows.join('')}</div>` : '';
+
+  if (!hFacts.length && !aFacts.length && !hBand && !aBand && !arbHtml) return '';
   return `
     <section class="panel">
       <h2>0 · Fatti salienti <span class="tag">linee gol ricorrenti e stats arbitro rilevanti per questa partita</span></h2>
       <div class="body grid2">
-        ${sideBox(m.Home, 'Casa', hFacts)}
-        ${sideBox(m.Away, 'Trasferta', aFacts)}
+        ${sideBox(m.Home, 'Casa', hFacts, hBand)}
+        ${sideBox(m.Away, 'Trasferta', aFacts, aBand)}
       </div>
+      ${crossHtml ? `<div class="body" style="padding-top:0;">${crossHtml}</div>` : ''}
       ${arbHtml ? `<div class="body" style="padding-top:0;">${arbHtml}</div>` : ''}
     </section>`;
 }

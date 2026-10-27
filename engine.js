@@ -884,6 +884,49 @@ function computeGoalLineFacts(calendar, teamId, venue, venueLabel, minSample) {
   return facts;
 }
 
+// Fasce multigol (gol totali di partita) effettivamente registrate dalla squadra nel suo
+// venue — richiesta Marco 27/10: NON la proiezione Poisson di narrGoalBandaPiuPlausibile,
+// ma la frequenza storica reale, stessa logica empirica di computeGoalLineFacts/teamGoalMatches.
+// Riusa le bande NARR_BANDE_TOTALE (0-1 / 2-3 / 4+) già definite per i gol totali, per
+// coerenza con l'unico altro punto del codice che già parla di "fascia multigol".
+// Due fatti per squadra:
+//  - più frequente: la fascia con più occorrenze nel campione (0-1 incluso qui).
+//  - ritardo: tra le fasce diverse da 0-1 (esclusa su richiesta esplicita — è la fascia più
+//    comune e quindi meno interessante come "ritardo"), quella che non si registra da più
+//    partite consecutive, contando dalla più recente andando indietro. Una fascia mai vista
+//    nel campione è "in ritardo da sempre" (ritardo = n).
+function computeMultigolBandFacts(calendar, teamId, venue, venueLabel, minSample) {
+  minSample = minSample == null ? GOAL_LINE_MIN_SAMPLE : minSample;
+  const matches = teamGoalMatches(calendar, teamId, venue);
+  if (matches.length < minSample) return null;
+  const n = matches.length;
+  const bands = matches.map((m) => NARR_BANDE_TOTALE.find((b) => m.totale >= b.min && m.totale <= b.max).label);
+
+  // Più frequente: a parità di conteggio vince la fascia vista più di recente (trend caldo).
+  let best = null;
+  for (const b of NARR_BANDE_TOTALE) {
+    const idxs = bands.reduce((acc, lb, i) => (lb === b.label ? [...acc, i] : acc), []);
+    if (!idxs.length) continue;
+    const lastIdx = idxs[idxs.length - 1];
+    if (!best || idxs.length > best.count || (idxs.length === best.count && lastIdx > best.lastIdx)) {
+      best = { label: b.label, count: idxs.length, lastIdx };
+    }
+  }
+  const frequente = best && { label: best.label, count: best.count, n };
+
+  // Ritardo: tra le fasce != 0-1, quella con più partite consecutive senza ripresentarsi.
+  let worst = null;
+  for (const b of NARR_BANDE_TOTALE) {
+    if (b.label === '0-1') continue;
+    const idxs = bands.reduce((acc, lb, i) => (lb === b.label ? [...acc, i] : acc), []);
+    const ritardo = idxs.length ? n - 1 - idxs[idxs.length - 1] : n;
+    if (!worst || ritardo > worst.ritardo) worst = { label: b.label, ritardo, mai: !idxs.length };
+  }
+  const ritardo = worst;
+
+  return { frequente, ritardo, n, venueLabel, bands };
+}
+
 // Normalizzazione nome arbitro: l'inserimento è manuale, quindi lo stesso
 // arbitro può comparire con maiuscole/minuscole diverse ("ROSSI", "Rossi",
 // "rossi") — vanno raggruppati come UNA persona, non contati come arbitri
@@ -2727,6 +2770,7 @@ if (typeof module !== 'undefined') {
     computeAllArbitroStats,
     rankArbitriFacts,
     computeGoalLineFacts,
+    computeMultigolBandFacts,
     teamGoalMatches,
     computeTeamMatchTotals,
     teamHitRate,
