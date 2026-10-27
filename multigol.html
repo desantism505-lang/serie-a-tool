@@ -168,9 +168,12 @@ function togglePanelCollapse(id){
   btn.title = t; btn.setAttribute('aria-label', t); btn.setAttribute('aria-expanded', c ? 'false' : 'true');
 }
 
-const TEAM_RANGES = [[0,1],[0,2],[1,2],[1,3],[2,3],[2,4],[2,6]];
+// Correzione Marco 27/10: la fascia "0-2" non è un mercato multigol reale (la più
+// bassa è 1-2), rimossa dall'elenco linee.
+const TEAM_RANGES = [[0,1],[1,2],[1,3],[2,3],[2,4],[2,6]];
 const TOTAL_RANGES = [[0,1],[1,3],[2,4],[2,5],[3,5],[2,6]];
-const NATURAL_CANDIDATES = [[0,1],[1,2],[2,3],[0,2],[1,3],[2,4],[0,3],[1,4],[0,4]];
+// Correzione Marco 27/10: rimossa "0-2", non è un mercato multigol reale.
+const NATURAL_CANDIDATES = [[0,1],[1,2],[2,3],[1,3],[2,4],[0,3],[1,4],[0,4]];
 const NATURAL_MIN_COVER = 0.70;
 
 function toISO(v){
@@ -427,8 +430,14 @@ function factsSalientiMultigol(m){
   if (typeof computeGoalLineFacts !== 'function') return '';
   const hFacts = computeGoalLineFacts(DB.calendar, m.Home_ID, 'HOME', 'in casa');
   const aFacts = computeGoalLineFacts(DB.calendar, m.Away_ID, 'AWAY', 'in trasferta');
-  const hBand = typeof computeMultigolBandFacts === 'function' ? computeMultigolBandFacts(DB.calendar, m.Home_ID, 'HOME', 'in casa') : null;
-  const aBand = typeof computeMultigolBandFacts === 'function' ? computeMultigolBandFacts(DB.calendar, m.Away_ID, 'AWAY', 'in trasferta') : null;
+  // Richiesta Marco 27/10: oltre al multigol TOTALE di partita, considerare anche il
+  // multigol SQUADRA (i gol fatti dalla squadra stessa nel suo venue) per frequenza/ritardo.
+  const bandFactsFor = (teamId, venue, venueLabel) => typeof computeMultigolBandFacts !== 'function' ? [] : [
+    computeMultigolBandFacts(DB.calendar, teamId, venue, venueLabel, undefined, 'totale'),
+    computeMultigolBandFacts(DB.calendar, teamId, venue, venueLabel, undefined, 'fatti'),
+  ].filter(Boolean);
+  const hBands = bandFactsFor(m.Home_ID, 'HOME', 'in casa');
+  const aBands = bandFactsFor(m.Away_ID, 'AWAY', 'in trasferta');
 
   let arbHtml = '';
   if (DB.arbitri && DB.arbitri.length && DB.matchLog && DB.matchLog.length && typeof rankArbitriFacts === 'function') {
@@ -452,7 +461,7 @@ function factsSalientiMultigol(m){
 
   // Opzione A (scelta da Marco 27/10): badge Over/Under/Fascia + striscia presenze reali
   // (una pallina per partita del campione, piena dove il fatto si verifica davvero).
-  const sideBox = (teamName, venueLabel, facts, band) => {
+  const sideBox = (teamName, venueLabel, facts, bands) => {
     const lineFactRows = facts.map(f => {
       const n = f.n;
       return `<div class="rowA">
@@ -462,25 +471,26 @@ function factsSalientiMultigol(m){
       </div>`;
     });
     let bandRows = '';
-    if (band) {
+    (bands || []).forEach(band => {
+      const tipoLabel = band.col === 'totale' ? 'multigol totale' : 'multigol squadra';
       const onFreq = new Set(band.bands.reduce((a, lb, i) => (lb === band.frequente.label ? [...a, i] : a), []));
       bandRows += `<div class="rowA">
         <div class="badgeA freq"><span class="dir">FASCIA+</span><span class="line">${band.frequente.label}</span></div>
-        <div class="mid"><div class="txt">Fascia multigol più frequente ${band.venueLabel}: ${band.frequente.label} gol totali, registrata in ${band.frequente.count} delle ultime ${band.n} partite</div>
+        <div class="mid"><div class="txt">Fascia ${tipoLabel} più frequente ${band.venueLabel}: ${band.frequente.label} gol, registrata in ${band.frequente.count} delle ultime ${band.n} partite</div>
           <div class="streak">${dotsRowA(band.n, onFreq)}</div></div>
       </div>`;
       if (band.ritardo) {
         const onRit = band.ritardo.mai ? new Set() : new Set(band.bands.reduce((a, lb, i) => (lb === band.ritardo.label ? [...a, i] : a), []));
         const ritTxt = band.ritardo.mai
-          ? `Fascia multigol in ritardo ${band.venueLabel}: ${band.ritardo.label} gol totali, mai registrata nelle ultime ${band.n} partite`
-          : `Fascia multigol in ritardo ${band.venueLabel}: ${band.ritardo.label} gol totali, non si ripresenta da ${band.ritardo.ritardo} ${band.ritardo.ritardo === 1 ? 'partita' : 'partite'}`;
+          ? `Fascia ${tipoLabel} in ritardo ${band.venueLabel}: ${band.ritardo.label} gol, mai registrata nelle ultime ${band.n} partite`
+          : `Fascia ${tipoLabel} in ritardo ${band.venueLabel}: ${band.ritardo.label} gol, non si ripresenta da ${band.ritardo.ritardo} ${band.ritardo.ritardo === 1 ? 'partita' : 'partite'}`;
         bandRows += `<div class="rowA">
           <div class="badgeA ritardo"><span class="dir">RITARDO</span><span class="line">${band.ritardo.label}</span></div>
           <div class="mid"><div class="txt">${ritTxt}</div>
             <div class="streak">${dotsRowA(band.n, onRit)}</div></div>
         </div>`;
       }
-    }
+    });
     const allRows = lineFactRows.join('') + bandRows;
     if (!allRows) return `<div class="cardA"><div class="head"><span class="team">${teamName}</span><span class="venue">${venueLabel}</span></div><div class="rowA"><div class="mid"><div class="txt subtle">Nessuna linea gol ricorrente ancora affidabile (campione insufficiente).</div></div></div></div>`;
     return `<div class="cardA">
@@ -506,7 +516,7 @@ function factsSalientiMultigol(m){
     });
   const crossHtml = crossRows.length ? `<div class="card" style="margin-top:14px;"><div class="card-title">Incroci attacco/difesa</div>${crossRows.join('')}</div>` : '';
 
-  if (!hFacts.length && !aFacts.length && !hBand && !aBand && !arbHtml) return '';
+  if (!hFacts.length && !aFacts.length && !hBands.length && !aBands.length && !arbHtml) return '';
   return `
     <section class="panel">
       <h2>0 · Fatti salienti <span class="tag">linee gol ricorrenti e stats arbitro rilevanti per questa partita</span>
@@ -514,8 +524,8 @@ function factsSalientiMultigol(m){
       </h2>
       <div id="panelBody-facts" style="${panelCollapseState.facts ? 'display:none;' : ''}">
         <div class="body grid2">
-          ${sideBox(m.Home, 'Casa', hFacts, hBand)}
-          ${sideBox(m.Away, 'Trasferta', aFacts, aBand)}
+          ${sideBox(m.Home, 'Casa', hFacts, hBands)}
+          ${sideBox(m.Away, 'Trasferta', aFacts, aBands)}
         </div>
         ${crossHtml ? `<div class="body" style="padding-top:0;">${crossHtml}</div>` : ''}
         ${arbHtml ? `<div class="body" style="padding-top:0;">${arbHtml}</div>` : ''}

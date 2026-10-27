@@ -895,16 +895,28 @@ function computeGoalLineFacts(calendar, teamId, venue, venueLabel, minSample) {
 //    comune e quindi meno interessante come "ritardo"), quella che non si registra da più
 //    partite consecutive, contando dalla più recente andando indietro. Una fascia mai vista
 //    nel campione è "in ritardo da sempre" (ritardo = n).
-function computeMultigolBandFacts(calendar, teamId, venue, venueLabel, minSample) {
+//
+// col = 'totale' (default): gol complessivi della partita → bande NARR_BANDE_TOTALE, esclude '0-1'
+//   dal ritardo (correzione Marco 27/10: la fascia "0-2" NON esiste come mercato multigol, la più
+//   bassa vera è 1-2 — quindi per il gol FATTI dalla singola squadra le bande partono da 0 isolato
+//   o 1-2, mai 0-2).
+// col = 'fatti' (richiesta Marco 27/10: "oltre a multigol totale anche multigol casa/trasferta"):
+//   gol fatti dalla squadra nel suo venue → bande MULTIGOL_BANDE_SQUADRA, esclude '0' dal ritardo
+//   (0 gol non è un vero mercato multigol, è solo il residuo sotto la fascia più bassa 1-2).
+const MULTIGOL_BANDE_SQUADRA = [{ min: 0, max: 0, label: '0' }, { min: 1, max: 2, label: '1-2' }, { min: 3, max: 99, label: '3+' }];
+function computeMultigolBandFacts(calendar, teamId, venue, venueLabel, minSample, col) {
   minSample = minSample == null ? GOAL_LINE_MIN_SAMPLE : minSample;
+  col = col || 'totale';
+  const BANDE = col === 'totale' ? NARR_BANDE_TOTALE : MULTIGOL_BANDE_SQUADRA;
+  const escludiRitardo = col === 'totale' ? '0-1' : '0';
   const matches = teamGoalMatches(calendar, teamId, venue);
   if (matches.length < minSample) return null;
   const n = matches.length;
-  const bands = matches.map((m) => NARR_BANDE_TOTALE.find((b) => m.totale >= b.min && m.totale <= b.max).label);
+  const bands = matches.map((m) => BANDE.find((b) => m[col] >= b.min && m[col] <= b.max).label);
 
   // Più frequente: a parità di conteggio vince la fascia vista più di recente (trend caldo).
   let best = null;
-  for (const b of NARR_BANDE_TOTALE) {
+  for (const b of BANDE) {
     const idxs = bands.reduce((acc, lb, i) => (lb === b.label ? [...acc, i] : acc), []);
     if (!idxs.length) continue;
     const lastIdx = idxs[idxs.length - 1];
@@ -914,17 +926,17 @@ function computeMultigolBandFacts(calendar, teamId, venue, venueLabel, minSample
   }
   const frequente = best && { label: best.label, count: best.count, n };
 
-  // Ritardo: tra le fasce != 0-1, quella con più partite consecutive senza ripresentarsi.
+  // Ritardo: tra le fasce diverse da quella esclusa, quella con più partite consecutive senza ripresentarsi.
   let worst = null;
-  for (const b of NARR_BANDE_TOTALE) {
-    if (b.label === '0-1') continue;
+  for (const b of BANDE) {
+    if (b.label === escludiRitardo) continue;
     const idxs = bands.reduce((acc, lb, i) => (lb === b.label ? [...acc, i] : acc), []);
     const ritardo = idxs.length ? n - 1 - idxs[idxs.length - 1] : n;
     if (!worst || ritardo > worst.ritardo) worst = { label: b.label, ritardo, mai: !idxs.length };
   }
   const ritardo = worst;
 
-  return { frequente, ritardo, n, venueLabel, bands };
+  return { frequente, ritardo, n, venueLabel, bands, col };
 }
 
 // Normalizzazione nome arbitro: l'inserimento è manuale, quindi lo stesso
