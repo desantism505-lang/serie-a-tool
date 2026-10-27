@@ -896,19 +896,16 @@ function computeGoalLineFacts(calendar, teamId, venue, venueLabel, minSample) {
 //    partite consecutive, contando dalla più recente andando indietro. Una fascia mai vista
 //    nel campione è "in ritardo da sempre" (ritardo = n).
 //
-// col = 'totale' (default): gol complessivi della partita → bande NARR_BANDE_TOTALE, esclude '0-1'
-//   dal ritardo (correzione Marco 27/10: la fascia "0-2" NON esiste come mercato multigol, la più
-//   bassa vera è 1-2 — quindi per il gol FATTI dalla singola squadra le bande partono da 0 isolato
-//   o 1-2, mai 0-2).
-// col = 'fatti' (richiesta Marco 27/10: "oltre a multigol totale anche multigol casa/trasferta"):
-//   gol fatti dalla squadra nel suo venue → bande MULTIGOL_BANDE_SQUADRA, esclude '0' dal ritardo
-//   (0 gol non è un vero mercato multigol, è solo il residuo sotto la fascia più bassa 1-2).
-const MULTIGOL_BANDE_SQUADRA = [{ min: 0, max: 0, label: '0' }, { min: 1, max: 2, label: '1-2' }, { min: 3, max: 99, label: '3+' }];
+// col = 'totale' (Multigol Tot — gol complessivi della partita) o 'fatti' (MG Casa/MG Trasferta —
+// gol fatti dalla squadra nel suo venue): STESSA partizione per entrambi (correzione Marco 27/10:
+// "0-1" e "0-2" NON sono mercati multigol reali, la più bassa vera è 1-2 — quindi sia per il totale
+// che per la singola squadra le bande sono 0 isolato / 1-2 / 3+, mai 0-1 o 0-2).
+const MULTIGOL_BANDE = [{ min: 0, max: 0, label: '0' }, { min: 1, max: 2, label: '1-2' }, { min: 3, max: 99, label: '3+' }];
 function computeMultigolBandFacts(calendar, teamId, venue, venueLabel, minSample, col) {
   minSample = minSample == null ? GOAL_LINE_MIN_SAMPLE : minSample;
   col = col || 'totale';
-  const BANDE = col === 'totale' ? NARR_BANDE_TOTALE : MULTIGOL_BANDE_SQUADRA;
-  const escludiRitardo = col === 'totale' ? '0-1' : '0';
+  const BANDE = MULTIGOL_BANDE;
+  const escludiRitardo = '0'; // 0 gol non è un vero mercato multigol, è il residuo sotto la fascia più bassa 1-2
   const matches = teamGoalMatches(calendar, teamId, venue);
   if (matches.length < minSample) return null;
   const n = matches.length;

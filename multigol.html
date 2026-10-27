@@ -168,12 +168,14 @@ function togglePanelCollapse(id){
   btn.title = t; btn.setAttribute('aria-label', t); btn.setAttribute('aria-expanded', c ? 'false' : 'true');
 }
 
-// Correzione Marco 27/10: la fascia "0-2" non è un mercato multigol reale (la più
-// bassa è 1-2), rimossa dall'elenco linee.
-const TEAM_RANGES = [[0,1],[1,2],[1,3],[2,3],[2,4],[2,6]];
-const TOTAL_RANGES = [[0,1],[1,3],[2,4],[2,5],[3,5],[2,6]];
-// Correzione Marco 27/10: rimossa "0-2", non è un mercato multigol reale.
-const NATURAL_CANDIDATES = [[0,1],[1,2],[2,3],[1,3],[2,4],[0,3],[1,4],[0,4]];
+// Correzione Marco 27/10: "0-1" e "0-2" non sono mercati multigol reali (la più
+// bassa è 1-2), rimosse dall'elenco linee.
+const TEAM_RANGES = [[1,2],[1,3],[2,3],[2,4],[2,6]];
+// Correzione Marco 27/10: rimossa "0-1", non è un mercato multigol reale.
+const TOTAL_RANGES = [[1,3],[2,4],[2,5],[3,5],[2,6]];
+// Correzione Marco 27/10: rimosse tutte le fasce che partono da 0 ("0-1","0-2",
+// "0-3","0-4") — non sono mercati multigol reali, la più bassa è 1-2.
+const NATURAL_CANDIDATES = [[1,2],[2,3],[1,3],[2,4],[1,4]];
 const NATURAL_MIN_COVER = 0.70;
 
 function toISO(v){
@@ -430,14 +432,17 @@ function factsSalientiMultigol(m){
   if (typeof computeGoalLineFacts !== 'function') return '';
   const hFacts = computeGoalLineFacts(DB.calendar, m.Home_ID, 'HOME', 'in casa');
   const aFacts = computeGoalLineFacts(DB.calendar, m.Away_ID, 'AWAY', 'in trasferta');
-  // Richiesta Marco 27/10: oltre al multigol TOTALE di partita, considerare anche il
-  // multigol SQUADRA (i gol fatti dalla squadra stessa nel suo venue) per frequenza/ritardo.
-  const bandFactsFor = (teamId, venue, venueLabel) => typeof computeMultigolBandFacts !== 'function' ? [] : [
-    computeMultigolBandFacts(DB.calendar, teamId, venue, venueLabel, undefined, 'totale'),
-    computeMultigolBandFacts(DB.calendar, teamId, venue, venueLabel, undefined, 'fatti'),
-  ].filter(Boolean);
-  const hBands = bandFactsFor(m.Home_ID, 'HOME', 'in casa');
-  const aBands = bandFactsFor(m.Away_ID, 'AWAY', 'in trasferta');
+  // Richiesta Marco 27/10: considerare sia il Multigol Tot di partita sia il MG
+  // Casa/Trasferta (gol fatti dalla squadra stessa nel suo venue), ma mostrare UNA
+  // sola fascia più frequente e UNA sola in ritardo (non entrambi i mercati per
+  // entrambi i fatti) — vince il mercato col segnale più netto (conteggio/ritardo
+  // più alto). Nomi dei mercati: "MG Casa"/"MG Trasferta"/"Multigol Tot".
+  const bandFactsFor = (teamId, venue, venueLabel, mgLabel) => typeof computeMultigolBandFacts !== 'function' ? [] : [
+    { mercato: 'Multigol Tot', ...computeMultigolBandFacts(DB.calendar, teamId, venue, venueLabel, undefined, 'totale') },
+    { mercato: mgLabel, ...computeMultigolBandFacts(DB.calendar, teamId, venue, venueLabel, undefined, 'fatti') },
+  ].filter((b) => b.frequente !== undefined);
+  const hBands = bandFactsFor(m.Home_ID, 'HOME', 'in casa', 'MG Casa');
+  const aBands = bandFactsFor(m.Away_ID, 'AWAY', 'in trasferta', 'MG Trasferta');
 
   let arbHtml = '';
   if (DB.arbitri && DB.arbitri.length && DB.matchLog && DB.matchLog.length && typeof rankArbitriFacts === 'function') {
@@ -471,26 +476,33 @@ function factsSalientiMultigol(m){
       </div>`;
     });
     let bandRows = '';
-    (bands || []).forEach(band => {
-      const tipoLabel = band.col === 'totale' ? 'multigol totale' : 'multigol squadra';
-      const onFreq = new Set(band.bands.reduce((a, lb, i) => (lb === band.frequente.label ? [...a, i] : a), []));
+    const bandList = bands || [];
+    if (bandList.length) {
+      // Una sola fascia più frequente: vince il mercato con più occorrenze (poi recency).
+      const bestFreq = bandList.reduce((best, b) => (!best || b.frequente.count > best.frequente.count
+        || (b.frequente.count === best.frequente.count && b.bands.lastIndexOf(b.frequente.label) > best.bands.lastIndexOf(best.frequente.label))) ? b : best, null);
+      const onFreq = new Set(bestFreq.bands.reduce((a, lb, i) => (lb === bestFreq.frequente.label ? [...a, i] : a), []));
       bandRows += `<div class="rowA">
-        <div class="badgeA freq"><span class="dir">FASCIA+</span><span class="line">${band.frequente.label}</span></div>
-        <div class="mid"><div class="txt">Fascia ${tipoLabel} più frequente ${band.venueLabel}: ${band.frequente.label} gol, registrata in ${band.frequente.count} delle ultime ${band.n} partite</div>
-          <div class="streak">${dotsRowA(band.n, onFreq)}</div></div>
+        <div class="badgeA freq"><span class="dir">FASCIA+</span><span class="line">${bestFreq.frequente.label}</span></div>
+        <div class="mid"><div class="txt"><b>${bestFreq.mercato}</b> — fascia più frequente ${bestFreq.venueLabel}: ${bestFreq.frequente.label} gol, registrata in ${bestFreq.frequente.count} delle ultime ${bestFreq.n} partite</div>
+          <div class="streak">${dotsRowA(bestFreq.n, onFreq)}</div></div>
       </div>`;
-      if (band.ritardo) {
-        const onRit = band.ritardo.mai ? new Set() : new Set(band.bands.reduce((a, lb, i) => (lb === band.ritardo.label ? [...a, i] : a), []));
-        const ritTxt = band.ritardo.mai
-          ? `Fascia ${tipoLabel} in ritardo ${band.venueLabel}: ${band.ritardo.label} gol, mai registrata nelle ultime ${band.n} partite`
-          : `Fascia ${tipoLabel} in ritardo ${band.venueLabel}: ${band.ritardo.label} gol, non si ripresenta da ${band.ritardo.ritardo} ${band.ritardo.ritardo === 1 ? 'partita' : 'partite'}`;
+
+      // Una sola fascia in ritardo: vince il mercato con più partite di assenza.
+      const withRitardo = bandList.filter((b) => b.ritardo);
+      if (withRitardo.length) {
+        const bestRit = withRitardo.reduce((best, b) => (!best || b.ritardo.ritardo > best.ritardo.ritardo) ? b : best, null);
+        const onRit = bestRit.ritardo.mai ? new Set() : new Set(bestRit.bands.reduce((a, lb, i) => (lb === bestRit.ritardo.label ? [...a, i] : a), []));
+        const ritTxt = bestRit.ritardo.mai
+          ? `<b>${bestRit.mercato}</b> — fascia in ritardo ${bestRit.venueLabel}: ${bestRit.ritardo.label} gol, mai registrata nelle ultime ${bestRit.n} partite`
+          : `<b>${bestRit.mercato}</b> — fascia in ritardo ${bestRit.venueLabel}: ${bestRit.ritardo.label} gol, non si ripresenta da ${bestRit.ritardo.ritardo} ${bestRit.ritardo.ritardo === 1 ? 'partita' : 'partite'}`;
         bandRows += `<div class="rowA">
-          <div class="badgeA ritardo"><span class="dir">RITARDO</span><span class="line">${band.ritardo.label}</span></div>
+          <div class="badgeA ritardo"><span class="dir">RITARDO</span><span class="line">${bestRit.ritardo.label}</span></div>
           <div class="mid"><div class="txt">${ritTxt}</div>
-            <div class="streak">${dotsRowA(band.n, onRit)}</div></div>
+            <div class="streak">${dotsRowA(bestRit.n, onRit)}</div></div>
         </div>`;
       }
-    });
+    }
     const allRows = lineFactRows.join('') + bandRows;
     if (!allRows) return `<div class="cardA"><div class="head"><span class="team">${teamName}</span><span class="venue">${venueLabel}</span></div><div class="rowA"><div class="mid"><div class="txt subtle">Nessuna linea gol ricorrente ancora affidabile (campione insufficiente).</div></div></div></div>`;
     return `<div class="cardA">
