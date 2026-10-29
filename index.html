@@ -935,6 +935,28 @@ const ROLE_ARTICLE_SINGULAR = {
   'Terzino': 'un terzino',
   'Trequartista': 'un trequartista',
 };
+// Articolo determinativo singolare davanti al nome del ruolo (es. "L'esterno
+// offensivo", "Il centrocampista centrale") — serve negli headline "Incroci
+// forti", dove il ruolo non è hardcoded "Il X" ma varia per genere/iniziale.
+const ROLE_ARTICLE_DEF = {
+  'Centrale difensivo': 'Il',
+  'Centrocampista centrale': 'Il',
+  'Esterno offensivo': 'L\'',
+  'Esterno/Quinto': 'L\'',
+  'Portiere': 'Il',
+  'Punta centrale': 'La',
+  'Terzino': 'Il',
+  'Trequartista': 'Il',
+};
+function artRuoloDef(ruolo) {
+  const a = ROLE_ARTICLE_DEF[ruolo] || 'Il';
+  return a + (a.endsWith('\'') ? '' : ' ');
+}
+// Nome della metrica per i fatti "Incroci forti" — unica fonte, usata sia nel
+// corpo del fatto (tiri/falli prodotti e concessi) sia nel dato di contesto
+// sul lato campo (latoContestoHtml), che in precedenza diceva sempre "tiri
+// storici" anche quando il fatto era sui falli — bug corretto il 29/10/2026.
+const CROSS_METRIC_UNIT = { Tiri: 'tiri', Tiri_in_porta: 'tiri in porta', Falli_commessi: 'falli' };
 const PLAYER_METRICS = [
   ['Tiri_90', 'tiri'], ['SOT_90', 'tiri in porta'], ['FC_90', 'falli commessi'],
   ['FD_90', 'falli subiti'], ['Cartellini_90', 'cartellini'],
@@ -2475,14 +2497,15 @@ const CROSS_SHOWN_DEFAULT = 4;
 // (richiesta: "ricordati di tenere a mente lato-posizione in confronto"), altrimenti nota onesta.
 // Dato di contesto sul lato di campo (richiesta Marco 25/10: deve esserci sempre quando
 // disponibile, stesso lessico in ogni punto del pannello dove compare un dato di lato).
-function latoContestoHtml(lato, difName) {
+function latoContestoHtml(lato, difName, metricNoun) {
   if (!lato) return '';
   const tot = lato.totale, dom = Math.max(lato.sinistra, lato.destra, lato.centro);
   const latoLabel = lato.sinistra === dom ? 'sinistra' : (lato.destra === dom ? 'destra' : 'centro');
-  return ' <span class="lato">Dato di contesto: su ' + tot + ' tiri storici di quel ruolo contro ' + esc(art(difName)) + ', <b>' + dom + ' sono partiti da ' + latoLabel + '</b>.</span>';
+  const noun = metricNoun || 'tiri';
+  return ' <span class="lato">Dato di contesto: su ' + tot + ' ' + esc(noun) + ' storici di quel ruolo contro ' + esc(art(difName)) + ', <b>' + dom + ' sono partiti da ' + latoLabel + '</b>.</span>';
 }
 function crossWhyHtml(c, attName, difName) {
-  const metricUnit = { Tiri: 'tiri', Tiri_in_porta: 'tiri in porta', Falli_commessi: 'falli' }[c.metricKey] || c.metricLabel;
+  const metricUnit = CROSS_METRIC_UNIT[c.metricKey] || c.metricLabel;
   const parts = [];
   if (c.interprete) {
     parts.push('<b>' + esc(c.interprete.nome) + '</b> e\' l\'interprete designato (' + fmt2(c.interprete.mu) + ' ' + metricUnit + ' attesi dal modello'
@@ -2490,19 +2513,19 @@ function crossWhyHtml(c, attName, difName) {
   } else {
     parts.push('Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione individuale affidabile: il dato di reparto resta, ma senza un nome su cui costruirci sopra.');
   }
-  return parts.join(' ') + latoContestoHtml(c.lato, difName);
+  return parts.join(' ') + latoContestoHtml(c.lato, difName, metricUnit);
 }
 function crossCardHtml(c, homeId, homeName, awayName) {
   const attName = c.attId === homeId ? homeName : awayName;
   const difName = c.difId === homeId ? homeName : awayName;
-  const metricUnit = { Tiri: 'tiri', Tiri_in_porta: 'tiri in porta', Falli_commessi: 'falli' }[c.metricKey] || c.metricLabel;
+  const metricUnit = CROSS_METRIC_UNIT[c.metricKey] || c.metricLabel;
   return '<div class="cross-card">'
     + '<div class="cross-visual">'
       + '<div class="cross-vs"><span class="lo">' + c.prodRank + '\u00b0</span><span class="sep">vs</span><span class="hi">' + c.concRank + '\u00b0</span></div>'
       + '<div class="cross-visual-role">' + esc(c.ruolo) + ' \u00b7 ' + esc(metricUnit) + '</div>'
     + '</div>'
     + '<div class="cross-body">'
-      + '<div class="cross-headline">Il <b>' + esc(c.ruolo.toLowerCase()) + '</b> ' + esc(artOf(attName)) + ' (' + c.prodRank + '\u00b0/' + c.prodEligible + ' di lega in produzione) trova la difesa ' + esc(artOf(difName)) + ' che ne concede di piu\' (' + c.concRank + '\u00b0/' + c.concEligible + ')</div>'
+      + '<div class="cross-headline">' + esc(artRuoloDef(c.ruolo)) + '<b>' + esc(c.ruolo.toLowerCase()) + '</b> ' + esc(artOf(attName)) + ' (' + c.prodRank + '\u00b0/' + c.prodEligible + ' di lega in produzione) trova la difesa ' + esc(artOf(difName)) + ' che ne concede di piu\' (' + c.concRank + '\u00b0/' + c.concEligible + ')</div>'
       + '<div class="cross-why">' + crossWhyHtml(c, attName, difName) + '</div>'
     + '</div>'
   + '</div>';
@@ -2510,13 +2533,13 @@ function crossCardHtml(c, homeId, homeName, awayName) {
 function crossHeroHtml(top, homeId, homeName, awayName) {
   const attName = top.attId === homeId ? homeName : awayName;
   const difName = top.difId === homeId ? homeName : awayName;
-  const metricUnit = { Tiri: 'tiri', Tiri_in_porta: 'tiri in porta', Falli_commessi: 'falli' }[top.metricKey] || top.metricLabel;
+  const metricUnit = CROSS_METRIC_UNIT[top.metricKey] || top.metricLabel;
   const attPct = ((top.prodEligible + 1 - top.prodRank) / top.prodEligible) * 100;
   const difPct = (top.concRank / top.concEligible) * 100;
   return '<div class="cross-hero">'
     + '<div class="cross-hero-eyebrow">Il punto della partita</div>'
-    + '<h4>Il <b>' + esc(top.ruolo.toLowerCase()) + '</b> ' + esc(artOf(attName)) + ' trova la difesa ' + esc(artOf(difName)) + ' piu\' permeabile a quel ruolo</h4>'
-    + '<p>' + esc(artCap(attName)) + ' e\' ' + (top.prodRank === 1 ? 'la squadra che produce piu\' ' + esc(metricUnit) + ' in assoluto' : (top.prodRank + '\u00aa squadra per ' + esc(metricUnit) + ' prodotti')) + ' col ' + esc(top.ruolo.toLowerCase()) + ' (' + top.prodRank + '\u00b0/' + top.prodEligible + ' di lega), e ' + esc(art(difName)) + ' e\' ' + (top.concRank === 1 ? 'la difesa che ne concede di piu\'' : (top.concRank + '\u00aa difesa per concessione')) + ' a quel ruolo (' + top.concRank + '\u00b0/' + top.concEligible + ') - un doppio estremo raro nello stesso ruolo/metrica/venue reale di questa gara.</p>'
+    + '<h4>' + esc(artRuoloDef(top.ruolo)) + '<b>' + esc(top.ruolo.toLowerCase()) + '</b> ' + esc(artOf(attName)) + ' trova la difesa ' + esc(artOf(difName)) + ' piu\' permeabile a quel ruolo</h4>'
+    + '<p>' + esc(artCap(attName)) + ' e\' ' + (top.prodRank === 1 ? 'la squadra che produce piu\' ' + esc(metricUnit) + ' in assoluto' : (top.prodRank + '\u00aa squadra per ' + esc(metricUnit) + ' prodotti')) + ' col ' + esc(top.ruolo.toLowerCase()) + ' (' + top.prodRank + '\u00b0/' + top.prodEligible + ' di lega), e ' + esc(art(difName)) + ' e\' ' + (top.concRank === 1 ? 'la difesa che ne concede di piu\'' : (top.concRank + '\u00aa difesa per concessione')) + ' a quel ruolo (' + top.concRank + '\u00b0/' + top.concEligible + ').</p>'
     + '<p class="cross-hero-why">' + crossWhyHtml(top, attName, difName) + '</p>'
     + '<div class="cross-hero-scale">'
       + '<span class="end">' + esc(artCap(attName)) + ' produce</span>'
@@ -2664,7 +2687,7 @@ function narrativeBlock(match) {
         + '<div class="cross-visual-role">' + esc(role) + ' · ' + esc(unit.split(' ')[0]) + '</div></div>'
       + '<div class="cross-body">'
         + '<div class="cross-headline">' + esc(artCap(side.team)) + ' (' + side.venue + ') sul ruolo ' + esc(role.toLowerCase()) + '</div>'
-        + '<div class="cross-why"><b>' + esc(artCap(side.team)) + '</b> ' + verbo + ' ' + fmt1(value) + ' ' + metricNoun + ' a partita sul ruolo <b>' + esc(role.toLowerCase()) + '</b> quando gioca ' + side.venue + ', <b>+' + pct + '%</b> sulla media lega dello stesso ruolo/venue.' + oppClause + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(sideLato, side.team) + '</div>'
+        + '<div class="cross-why"><b>' + esc(artCap(side.team)) + '</b> ' + verbo + ' ' + fmt1(value) + ' ' + metricNoun + ' a partita sul ruolo <b>' + esc(role.toLowerCase()) + '</b> quando gioca ' + side.venue + ', <b>+' + pct + '%</b> sulla media lega dello stesso ruolo/venue.' + oppClause + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(sideLato, side.team, metricNoun) + '</div>'
       + '</div></div>');
   }
   const matchupHtml = matchupRows.length ? '<div class="cross-grid">' + matchupRows.join('') + '</div>' : '';
