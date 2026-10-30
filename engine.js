@@ -1829,10 +1829,19 @@ function crossInterpreter(model, matchLog, rosters, attId, ruolo, difId, attVenu
     const rows = matchLog.filter((x) => x.Player_ID === r.Player_ID);
     const min = rows.reduce((a, x) => a + (Number(x.Minuti) || 0), 0);
     if (min < CROSS_INTERPRETER_MIN_MIN) continue;
+    // Minutaggio nel venue reale di questa partita (richiesta Marco 30/10: il minutaggio
+    // mostrato in analisi partita deve riferirsi al venue, non solo al totale stagione).
+    // Sotto soglia (< BASELINE_THRESHOLDS.minNVenue presenze in quel venue, stessa soglia
+    // già in uso per HOME/AWAY altrove nel motore) il dato venue è troppo rumoroso per
+    // essere il numero principale: si mantiene il totale stagione come riferimento,
+    // il venue resta disponibile ma etichettato "campione minimo" lato rendering.
+    const venueRows = rows.filter((x) => x.Team_ID === attId && x.Venue === attVenueLetter);
+    const venueMin = venueRows.reduce((a, x) => a + (Number(x.Minuti) || 0), 0);
+    const venueGames = venueRows.length;
     const player = { id: r.Player_ID, team: attId, ruolo };
     const pr = projectPlayer(model, matchLog, player, difId, true, modelMetric, attVenueLetter);
     if (pr.mu == null) continue;
-    if (!best || pr.mu > best.mu) best = { id: r.Player_ID, nome: r.Nome_completo, mu: pr.mu, min, affidabilita: pr.affidabilita };
+    if (!best || pr.mu > best.mu) best = { id: r.Player_ID, nome: r.Nome_completo, mu: pr.mu, min, venueMin, venueGames, affidabilita: pr.affidabilita };
   }
   return best;
 }

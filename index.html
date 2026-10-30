@@ -2504,12 +2504,23 @@ function latoContestoHtml(lato, difName, metricNoun) {
   const noun = metricNoun || 'tiri';
   return ' <span class="lato">Dato di contesto: su ' + tot + ' ' + esc(noun) + ' storici di quel ruolo contro ' + esc(art(difName)) + ', <b>' + dom + ' sono partiti da ' + latoLabel + '</b>.</span>';
 }
+// Minutaggio da mostrare nella card "interprete designato": venue reale se il campione
+// in quel venue è sufficiente (stessa soglia minNVenue già in uso ovunque nel motore
+// per HOME/AWAY), altrimenti totale stagione con etichetta esplicita di campione minimo —
+// mai una sostituzione silenziosa (richiesta Marco 30/10).
+function interpreteMinText(p) {
+  if (p.venueGames != null && p.venueGames >= BASELINE_THRESHOLDS.minNVenue) {
+    return p.venueMin + "' in questo venue (" + p.venueGames + ' pres.)';
+  }
+  const presLabel = (p.venueGames === 1) ? '1 presenza' : ((p.venueGames || 0) + ' presenze');
+  return p.min + "' totali stagione (campione minimo nel venue: " + presLabel + ')';
+}
 function crossWhyHtml(c, attName, difName) {
   const metricUnit = CROSS_METRIC_UNIT[c.metricKey] || c.metricLabel;
   const parts = [];
   if (c.interprete) {
     parts.push('<b>' + esc(c.interprete.nome) + '</b> e\' l\'interprete designato (' + fmt2(c.interprete.mu) + ' ' + metricUnit + ' attesi dal modello'
-      + (c.interprete.affidabilita === 'alta' ? ', affidabilita\' alta' : ', affidabilita\' ' + c.interprete.affidabilita) + ', ' + c.interprete.min + "').");
+      + (c.interprete.affidabilita === 'alta' ? ', affidabilita\' alta' : ', affidabilita\' ' + c.interprete.affidabilita) + ', ' + interpreteMinText(c.interprete) + ").");
   } else {
     parts.push('Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione individuale affidabile: il dato di reparto resta, ma senza un nome su cui costruirci sopra.');
   }
