@@ -3783,10 +3783,11 @@ function drawerHtml(match, pid) {
     if (val >= 1.05 || val <= 0.95) return `${lbl}: ${soggetto} ${pct >= 0 ? '+' : ''}${pct}%.`;
     return `${lbl}: nella media (scostamento sotto il 5%, troppo poco per colorarlo).`;
   };
-  const numTxt = (val, raw, soggetto) => {
-    // raw === null  -> nessun dato per questa cella (es. Cartellini/Squadra): mostra "—".
+  const numTxt = (val, raw, soggetto, reasonIfNull) => {
+    // raw === null  -> nessun dato per questa cella (es. Cartellini/Squadra): mostra "—",
+    // col motivo nel tooltip se fornito (reasonIfNull) invece che scritto nella nota sotto.
     // soggetto === null -> cella Totale: nessuna spiegazione propria, solo colore.
-    if (raw === null) return '—';
+    if (raw === null) return reasonIfNull ? `<span title="${reasonIfNull}">—</span>` : '—';
     const color = colorOf(val);
     const why = soggetto == null ? '' : whyColor(val, soggetto);
     const rawTxt = raw === undefined ? '' : `${why ? ' ' : ''}Dato grezzo (prima dello smorzamento): ${fmt(raw, 2)}×.`;
@@ -3810,7 +3811,7 @@ function drawerHtml(match, pid) {
           return `<span title="${title}"><b style="color:${color};">${pct >= 0 ? '+' : ''}${pct}%</b></span>`;
         })()
       : '—';
-    return `<tr><td>${l}</td><td class="num">${numTxt(d.fattoreSquadra, d.rapportoSquadra, `${esc(info.oppName)} concede in totale`)}</td><td class="num">${numTxt(d.fattoreRuolo, d.rapportoGrezzoAvversario, `${esc(info.oppName)} concede a questo ruolo, oltre alla sua media di Squadra,`)}</td><td class="num"><b>${numTxt(d.fattoreAvversario, undefined, null)}</b></td><td class="num">${rxCell}</td></tr>`;
+    return `<tr><td>${l}</td><td class="num">${numTxt(d.fattoreSquadra, d.rapportoSquadra, `${esc(info.oppName)} concede in totale`, m === 'Cart' ? 'Cartellini non ha un fattore Squadra: dipende dall\'arbitro, non dalla difesa avversaria.' : null)}</td><td class="num">${numTxt(d.fattoreRuolo, d.rapportoGrezzoAvversario, `${esc(info.oppName)} concede a questo ruolo, oltre alla sua media di Squadra,`)}</td><td class="num"><b>${numTxt(d.fattoreAvversario, undefined, null)}</b></td><td class="num">${rxCell}</td></tr>`;
   }).join('');
   const rx0 = roleExposure(info.oppId, p.Posizione_Analitica, 'Tiri', info.oppVenue);
   // come nasce la proiezione
@@ -3837,7 +3838,7 @@ function drawerHtml(match, pid) {
         <th title="Squadra × Ruolo: il moltiplicatore che entra davvero nella proiezione del giocatore, più sotto in \'Come nasce la proiezione\'.">Totale</th>
         <th title="Fatti reali, non stime: quante volte questa statistica si è verificata nelle partite già giocate contro ${esc(info.oppName)} da giocatori con questo ruolo, contro quante te ne aspetteresti dalla media-lega per quel ruolo.">Nei dati reali</th>
       </tr>${opRows}</table>
-      <div class="note">${rx0 ? rx0.n : 0} presenze da "${esc(p.Posizione_Analitica)}" contro ${esc(info.oppName)} finora (${Math.round(t.minutiAvversarioRuolo)}'). Più dati ci sono, più il modello si fida: oggi pesa Squadra ${Math.round((t.pesoSquadra || 0) * 100)}% · Ruolo ${Math.round((t.pesoRuolo || 0) * 100)}% (su Tiri). Cartellini non ha un fattore Squadra: dipende dall'arbitro, non dalla difesa avversaria.${rx0 ? ` Sui Tiri, nei dati reali: ${rx0.obs} osservati contro ${fmt(rx0.exp, 1)} attesi (${Math.round((rx0.ratio - 1) * 100) >= 0 ? '+' : ''}${Math.round((rx0.ratio - 1) * 100)}%) — è la colonna "Nei dati reali" qui sopra, un fatto già successo, non una proiezione.` : ''}</div></div>
+      <div class="note">${rx0 ? rx0.n : 0} presenze da "${esc(p.Posizione_Analitica)}" contro ${esc(info.oppName)} finora (${Math.round(t.minutiAvversarioRuolo)}'). Più dati ci sono, più il modello si fida: oggi pesa Squadra ${Math.round((t.pesoSquadra || 0) * 100)}% · Ruolo ${Math.round((t.pesoRuolo || 0) * 100)}% (su Tiri).</div></div>
     <div class="ds rs"><h4>Come nasce la proiezione</h4>
       <table><tr><th></th><th>Baseline /90</th><th>× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th><th>Min attesi</th><th>Atteso a partita</th></tr>${rsRows}</table>
       <div class="note">Baseline: il giocatore pesa ${Math.round(t.pesoGiocatore * 100)}% (${Math.round(t.minutiStagione)}' giocati), il resto è la media del ruolo ${t.prior90 != null ? '(' + fmt(t.prior90) + ' tiri/90)' : ''}. Affidabilità: ${relHtml(t.affidabilita)}.</div>
