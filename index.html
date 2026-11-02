@@ -3773,21 +3773,38 @@ function drawerHtml(match, pid) {
   // (richiesta Marco 2/11: badge colorati "discordanti" col resto della
   // scheda). Mostra solo il numero "usato" (quello che conta per la
   // proiezione); il dato grezzo non smorzato resta al passaggio del mouse.
-  const numTxt = (val, raw, rawLabel) => {
+  // Il colore (verde/rosso) ora si spiega da solo al passaggio del mouse,
+  // cella per cella, invece di una legenda generica sopra la tabella
+  // (Marco 2/11: "così non si capisce" la legenda unica).
+  const colorOf = (val) => (val >= 1.05 ? 'var(--accent)' : val <= 0.95 ? 'var(--bad)' : 'var(--text-2)');
+  const whyColor = (val, soggetto) => {
+    const pct = Math.round((val - 1) * 100);
+    const lbl = val >= 1.05 ? 'Verde' : val <= 0.95 ? 'Rosso' : 'Grigio';
+    if (val >= 1.05 || val <= 0.95) return `${lbl}: ${soggetto} ${pct >= 0 ? '+' : ''}${pct}%.`;
+    return `${lbl}: nella media (scostamento sotto il 5%, troppo poco per colorarlo).`;
+  };
+  const numTxt = (val, raw, soggetto) => {
     // raw === null  -> nessun dato per questa cella (es. Cartellini/Squadra): mostra "—".
-    // raw === undefined -> nessun grezzo da mostrare in tooltip (es. Totale), ma il valore c'e'.
+    // soggetto === null -> cella Totale: nessuna spiegazione propria, solo colore.
     if (raw === null) return '—';
-    const color = val >= 1.05 ? 'var(--accent)' : val <= 0.95 ? 'var(--bad)' : 'var(--text-2)';
-    const title = raw === undefined ? '' : ` title="${rawLabel}: ${fmt(raw, 2)}×, prima dello smorzamento"`;
+    const color = colorOf(val);
+    const why = soggetto == null ? '' : whyColor(val, soggetto);
+    const rawTxt = raw === undefined ? '' : `${why ? ' ' : ''}Dato grezzo (prima dello smorzamento): ${fmt(raw, 2)}×.`;
+    const title = (why || rawTxt) ? ` title="${why}${rawTxt}"` : '';
     return `<span style="color:${color};font-weight:600;"${title}>${fmt(val, 2)}×</span>`;
   };
   const opRows = MK.map(([m, l]) => {
     const rx = roleExposure(info.oppId, p.Posizione_Analitica, m, info.oppVenue);
     const d = proj[m];
     const rxCell = rx
-      ? (() => { const pct = Math.round((rx.ratio - 1) * 100); const color = rx.ratio >= 1.05 ? 'var(--accent)' : rx.ratio <= 0.95 ? 'var(--bad)' : 'var(--text-2)'; return `<span title="${fmt(rx.v90, 2)} a partita ogni 90' contro ${fmt(rx.lg90, 2)} di media lega per questo ruolo · ${rx.n} prestazioni osservate">${rx.obs} vs ${fmt(rx.exp, 1)} atteso <b style="color:${color};">(${pct >= 0 ? '+' : ''}${pct}%)</b></span>`; })()
+      ? (() => {
+          const pct = Math.round((rx.ratio - 1) * 100);
+          const color = colorOf(rx.ratio);
+          const why = `${rx.ratio >= 1.05 ? 'Verde' : rx.ratio <= 0.95 ? 'Rosso' : 'Grigio'}: nei fatti già visti, questo ruolo contro ${esc(info.oppName)} è andato ${pct >= 0 ? '+' : ''}${pct}% rispetto alla media lega.`
+          return `<span title="${why} ${fmt(rx.v90, 2)} a partita ogni 90' contro ${fmt(rx.lg90, 2)} di media lega · ${rx.n} prestazioni osservate">${rx.obs} vs ${fmt(rx.exp, 1)} atteso <b style="color:${color};">(${pct >= 0 ? '+' : ''}${pct}%)</b></span>`;
+        })()
       : '—';
-    return `<tr><td>${l}</td><td class="num">${numTxt(d.fattoreSquadra, d.rapportoSquadra, 'Dato grezzo')}</td><td class="num">${numTxt(d.fattoreRuolo, d.rapportoGrezzoAvversario, 'Dato grezzo')}</td><td class="num"><b>${numTxt(d.fattoreAvversario, undefined, '')}</b></td><td class="num">${rxCell}</td></tr>`;
+    return `<tr><td>${l}</td><td class="num">${numTxt(d.fattoreSquadra, d.rapportoSquadra, `${esc(info.oppName)} concede in totale`)}</td><td class="num">${numTxt(d.fattoreRuolo, d.rapportoGrezzoAvversario, `${esc(info.oppName)} concede a questo ruolo, oltre alla sua media di Squadra,`)}</td><td class="num"><b>${numTxt(d.fattoreAvversario, undefined, null)}</b></td><td class="num">${rxCell}</td></tr>`;
   }).join('');
   const rx0 = roleExposure(info.oppId, p.Posizione_Analitica, 'Tiri', info.oppVenue);
   // come nasce la proiezione
