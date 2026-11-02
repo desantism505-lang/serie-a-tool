@@ -3842,8 +3842,8 @@ function drawerHtml(match, pid) {
     <div class="ds rs"><h4>Come nasce la proiezione</h4>
       <table><tr><th></th><th>Baseline /90</th><th>× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th><th>Min attesi</th><th>Atteso a partita</th></tr>${rsRows}</table>
       <div class="note">Baseline: il giocatore pesa ${Math.round(t.pesoGiocatore * 100)}% (${Math.round(t.minutiStagione)}' giocati), il resto è la media del ruolo ${t.prior90 != null ? '(' + fmt(t.prior90) + ' tiri/90)' : ''}. Affidabilità: ${relHtml(t.affidabilita)}.</div>
-      <table style="margin-top:10px;"><tr><th>Probabilità</th><th>1 o più</th><th>2 o più</th><th>3 o più</th></tr>${prRows}</table>
-      <div class="note">Probabilità dal modello (binomiale negativa sui tiri, Poisson sui cartellini) sul valore atteso di questa partita. Quota minima = 1 ÷ probabilità: sotto quella quota il prezzo non copre il rischio secondo il modello. È una stima, non una certezza: con poche giornate l'incertezza resta alta.</div></div>
+      <table style="margin-top:10px;"><tr><th title="Calcolate con binomiale negativa sui tiri, Poisson sui cartellini, sul valore atteso di questa partita.">Probabilità</th><th>1 o più</th><th>2 o più</th><th>3 o più</th></tr>${prRows}</table>
+      <div class="note">Quota minima = 1 ÷ probabilità: sotto quella quota il prezzo non copre il rischio secondo il modello.</div></div>
   </div>`;
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.pl) closePlayer(); });
