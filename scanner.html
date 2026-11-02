@@ -721,13 +721,13 @@
       <div id="scrFilterPanel" role="toolbar" aria-label="Filtri preferiti">
         <svg class="fav-fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Filtra preferiti"><title>Filtra preferiti</title><path d="M3 5h18l-7 8.5V20l-4-2v-4.5z"/></svg>
         <input type="text" id="scrFText" placeholder="Cerca giocatore o partita" aria-label="Cerca giocatore o partita" />
-        <div class="msdrop" id="scrFMatchDrop">
-          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMatchDrop')">Partita ▾</button>
-          <div class="msdrop-panel" id="scrFMatchPanel"></div>
-        </div>
         <div class="msdrop" id="scrFGiornataDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFGiornataDrop')">Giornata ▾</button>
           <div class="msdrop-panel" id="scrFGiornataPanel"></div>
+        </div>
+        <div class="msdrop" id="scrFMatchDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMatchDrop')">Partita ▾</button>
+          <div class="msdrop-panel" id="scrFMatchPanel"></div>
         </div>
         <div class="msdrop" id="scrFMercatoDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMercatoDrop')">Giocata ▾</button>
@@ -2635,16 +2635,22 @@ function populateScrGiornataFilterIfNeeded(){
   updateFavDropLabel('scrFGiornataDrop','Giornata','.scrFGiornataChk');
 }
 let _scrMatchFilterKey = null;
+// A cascata sulla Giornata (richiesta Marco 2/11): se e' selezionata una o piu'
+// giornate, l'elenco Partita mostra solo le partite di quelle giornate - non
+// tutte le partite tra i preferiti. Selezioni Partita non piu' valide per la
+// giornata appena scelta vengono scartate (non restano "fantasma" spuntate).
 function populateScrMatchFilterIfNeeded(){
-  const partite = [...new Set(screenerRows.map(r => r.partita))].sort();
-  const key = partite.join('|');
+  const selGiornate = getCheckedValues('.scrFGiornataChk');
+  const pool = selGiornate.length ? screenerRows.filter(r => selGiornate.includes(String(r.giornata))) : screenerRows;
+  const partite = [...new Set(pool.map(r => r.partita))].sort();
+  const key = selGiornate.join(',') + '::' + partite.join('|');
   if (key === _scrMatchFilterKey) return;
   _scrMatchFilterKey = key;
-  const already = new Set(getCheckedValues('.scrFMatchChk'));
+  const already = new Set(getCheckedValues('.scrFMatchChk').filter(p => partite.includes(p)));
   const panel = document.getElementById('scrFMatchPanel');
   panel.innerHTML = partite.length
     ? partite.map(p => `<label><input type="checkbox" class="scrFMatchChk" value="${escAttr(p)}" ${already.has(p) ? 'checked' : ''} /> ${escAttr(p)}</label>`).join('')
-    : '<div class="subtle" style="padding:2px 4px;">Nessuna partita tra i preferiti.</div>';
+    : '<div class="subtle" style="padding:2px 4px;">Nessuna partita tra i preferiti' + (selGiornate.length ? ' per la giornata scelta.' : '.') + '</div>';
   panel.querySelectorAll('.scrFMatchChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFMatchDrop','Partita','.scrFMatchChk'); renderScreener(); }));
   updateFavDropLabel('scrFMatchDrop','Partita','.scrFMatchChk');
 }
