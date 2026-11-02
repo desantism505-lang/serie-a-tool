@@ -3796,12 +3796,18 @@ function drawerHtml(match, pid) {
   const opRows = MK.map(([m, l]) => {
     const rx = roleExposure(info.oppId, p.Posizione_Analitica, m, info.oppVenue);
     const d = proj[m];
+    // Solo la percentuale in riga (richiesta Marco 2/11: "invece di scrivere
+    // tutto, mettimi solo la percentuale"); il dettaglio (8 vs 5.1 attesi, il
+    // /90 e cosa significa in parole) resta tutto nel tooltip al passaggio
+    // del mouse sulla percentuale.
     const rxCell = rx
       ? (() => {
           const pct = Math.round((rx.ratio - 1) * 100);
           const color = colorOf(rx.ratio);
-          const why = `${rx.ratio >= 1.05 ? 'Verde' : rx.ratio <= 0.95 ? 'Rosso' : 'Grigio'}: nei fatti già visti, questo ruolo contro ${esc(info.oppName)} è andato ${pct >= 0 ? '+' : ''}${pct}% rispetto alla media lega.`
-          return `<span title="${why} ${fmt(rx.v90, 2)} a partita ogni 90' contro ${fmt(rx.lg90, 2)} di media lega · ${rx.n} prestazioni osservate">${rx.obs} vs ${fmt(rx.exp, 1)} atteso <b style="color:${color};">(${pct >= 0 ? '+' : ''}${pct}%)</b></span>`;
+          const lbl = rx.ratio >= 1.05 ? 'Verde' : rx.ratio <= 0.95 ? 'Rosso' : 'Grigio';
+          const diffTxt = rx.ratio >= 1.05 ? `il ${pct}% in più` : rx.ratio <= 0.95 ? `il ${Math.abs(pct)}% in meno` : `quanto previsto`;
+          const title = `${lbl}: ${rx.obs} osservati contro ${fmt(rx.exp, 1)} attesi secondo la media lega per questo ruolo — nelle partite già giocate contro ${esc(info.oppName)}, questo ruolo ha fatto ${diffTxt} di quanto previsto dalla media lega. In cifre: ${fmt(rx.v90, 2)} a partita ogni 90' contro ${fmt(rx.lg90, 2)} di media lega, su ${rx.n} prestazioni osservate.`;
+          return `<span title="${title}"><b style="color:${color};">${pct >= 0 ? '+' : ''}${pct}%</b></span>`;
         })()
       : '—';
     return `<tr><td>${l}</td><td class="num">${numTxt(d.fattoreSquadra, d.rapportoSquadra, `${esc(info.oppName)} concede in totale`)}</td><td class="num">${numTxt(d.fattoreRuolo, d.rapportoGrezzoAvversario, `${esc(info.oppName)} concede a questo ruolo, oltre alla sua media di Squadra,`)}</td><td class="num"><b>${numTxt(d.fattoreAvversario, undefined, null)}</b></td><td class="num">${rxCell}</td></tr>`;
