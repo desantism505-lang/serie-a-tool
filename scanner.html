@@ -724,6 +724,10 @@
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMatchDrop')">Partita ▾</button>
           <div class="msdrop-panel" id="scrFMatchPanel"></div>
         </div>
+        <div class="msdrop" id="scrFGiornataDrop">
+          <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFGiornataDrop')">Giornata ▾</button>
+          <div class="msdrop-panel" id="scrFGiornataPanel"></div>
+        </div>
         <div class="msdrop" id="scrFMercatoDrop">
           <button type="button" class="msdrop-btn" onclick="toggleMsDrop('scrFMercatoDrop')">Giocata ▾</button>
           <div class="msdrop-panel">
@@ -2461,6 +2465,7 @@ function scrFilters(){
   return {
     text: (document.getElementById('scrFText').value || '').trim().toLowerCase(),
     matches: getCheckedValues('.scrFMatchChk'), // checkbox multi-partita (richiesta Marco 26/10)
+    giornate: getCheckedValues('.scrFGiornataChk'), // checkbox multi-giornata
     cv: getCheckedValues('.scrFCVChk'),
     mercati: getCheckedValues('.scrFMercatoChk'),
     linee: getCheckedValues('.scrFLineaChk').map(Number),
@@ -2526,6 +2531,7 @@ function applyScrFilters(rows){
       if (!hay.includes(f.text)) return false;
     }
     if (f.matches.length && !f.matches.includes(r.partita)) return false;
+    if (f.giornate.length && !f.giornate.includes(String(r.giornata))) return false;
     if (f.mercati.length && !f.mercati.includes(r.mercato)) return false;
     if (f.linee.length && !f.linee.includes(Number(r.linea))) return false;
     if (f.venue && r.venue !== f.venue) return false;
@@ -2584,9 +2590,10 @@ document.getElementById('scrFClear').addEventListener('click', () => {
   document.getElementById('scrFTit').value = '';
   document.querySelector('.scrFVenueRad[value=""]').checked = true;
   updateScrVenueLabel();
-  document.querySelectorAll('.scrFMatchChk,.scrFCVChk,.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('.scrFMatchChk,.scrFGiornataChk,.scrFCVChk,.scrFMercatoChk,.scrFLineaChk,.scrFHitChk,.scrFHitStagChk,.scrFEdgeChk,.scrFEvChk,.scrFRuoloChk').forEach(chk => { chk.checked = false; });
   resetQuotaSlider('scr');
   updateFavDropLabel('scrFMatchDrop','Partita','.scrFMatchChk');
+  updateFavDropLabel('scrFGiornataDrop','Giornata','.scrFGiornataChk');
   updateFavDropLabel('scrFCVDrop','Consistenza','.scrFCVChk');
   updateFavDropLabel('scrFMercatoDrop','Giocata','.scrFMercatoChk');
   updateFavDropLabel('scrFLineaDrop','Linea','.scrFLineaChk');
@@ -2612,6 +2619,20 @@ document.querySelectorAll('#scrTable th.sortable').forEach(th => {
 // salvati (r.partita, es. "Lecce – Milan"). Ricostruita solo quando l'insieme
 // delle partite tra i preferiti cambia (non ad ogni render/filtro), così non
 // si chiude il menu a tendina ad ogni checkbox cliccata dentro di esso.
+let _scrGiornataFilterKey = null;
+function populateScrGiornataFilterIfNeeded(){
+  const giornate = [...new Set(screenerRows.map(r => r.giornata))].sort((a,b)=>a-b);
+  const key = giornate.join('|');
+  if (key === _scrGiornataFilterKey) return;
+  _scrGiornataFilterKey = key;
+  const already = new Set(getCheckedValues('.scrFGiornataChk'));
+  const panel = document.getElementById('scrFGiornataPanel');
+  panel.innerHTML = giornate.length
+    ? giornate.map(g => `<label><input type="checkbox" class="scrFGiornataChk" value="${g}" ${already.has(String(g)) ? 'checked' : ''} /> Giornata ${g}</label>`).join('')
+    : '<div class="subtle" style="padding:2px 4px;">Nessuna giornata tra i preferiti.</div>';
+  panel.querySelectorAll('.scrFGiornataChk').forEach(chk => chk.addEventListener('change', () => { updateFavDropLabel('scrFGiornataDrop','Giornata','.scrFGiornataChk'); renderScreener(); }));
+  updateFavDropLabel('scrFGiornataDrop','Giornata','.scrFGiornataChk');
+}
 let _scrMatchFilterKey = null;
 function populateScrMatchFilterIfNeeded(){
   const partite = [...new Set(screenerRows.map(r => r.partita))].sort();
@@ -2627,6 +2648,7 @@ function populateScrMatchFilterIfNeeded(){
   updateFavDropLabel('scrFMatchDrop','Partita','.scrFMatchChk');
 }
 function renderScreener(){
+  populateScrGiornataFilterIfNeeded();
   populateScrMatchFilterIfNeeded();
   favSyncFilterStyle();
   const body = document.getElementById('scrBody');
