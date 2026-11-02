@@ -3767,26 +3767,27 @@ function drawerHtml(match, pid) {
   }
   // avversario per il ruolo
   const proj = Object.fromEntries(MK.map(([m]) => [m, pData(match, side, p, m, starter)]));
-  // Pannello "X contro il ruolo" semplificato (richiesta Marco 2/11: troppo
-  // testo, poco leggibile a colpo d'occhio). Mostra solo il numero "usato"
-  // (quello che conta davvero per la proiezione) in un badge colorato come
-  // altrove nel tool (.fac up/dn); il dato "grezzo" non smorzato resta
-  // disponibile al passaggio del mouse, non più scritto per esteso in riga.
-  const facPill = (val, raw, rawLabel) => {
+  // Pannello "X contro il ruolo": stesso stile testuale delle altre tabelle
+  // del drawer (Il giocatore, Come nasce la proiezione) - niente badge, solo
+  // testo colorato come fa già "Come nasce la proiezione" sul valore finale
+  // (richiesta Marco 2/11: badge colorati "discordanti" col resto della
+  // scheda). Mostra solo il numero "usato" (quello che conta per la
+  // proiezione); il dato grezzo non smorzato resta al passaggio del mouse.
+  const numTxt = (val, raw, rawLabel) => {
     // raw === null  -> nessun dato per questa cella (es. Cartellini/Squadra): mostra "—".
     // raw === undefined -> nessun grezzo da mostrare in tooltip (es. Totale), ma il valore c'e'.
     if (raw === null) return '—';
-    const cls = val >= 1.05 ? 'up' : val <= 0.95 ? 'dn' : '';
+    const color = val >= 1.05 ? 'var(--accent)' : val <= 0.95 ? 'var(--bad)' : 'var(--text-2)';
     const title = raw === undefined ? '' : ` title="${rawLabel}: ${fmt(raw, 2)}×, prima dello smorzamento"`;
-    return `<span class="fac ${cls}"${title}>${fmt(val, 2)}×</span>`;
+    return `<span style="color:${color};font-weight:600;"${title}>${fmt(val, 2)}×</span>`;
   };
   const opRows = MK.map(([m, l]) => {
     const rx = roleExposure(info.oppId, p.Posizione_Analitica, m, info.oppVenue);
     const d = proj[m];
     const rxCell = rx
-      ? (() => { const pct = Math.round((rx.ratio - 1) * 100); const cls = rx.ratio >= 1.05 ? 'up' : rx.ratio <= 0.95 ? 'dn' : ''; return `<span class="fac ${cls}" title="${fmt(rx.v90, 2)} a partita ogni 90' contro ${fmt(rx.lg90, 2)} di media lega per questo ruolo · ${rx.n} prestazioni osservate">${rx.obs} vs ${fmt(rx.exp, 1)} atteso <b>(${pct >= 0 ? '+' : ''}${pct}%)</b></span>`; })()
+      ? (() => { const pct = Math.round((rx.ratio - 1) * 100); const color = rx.ratio >= 1.05 ? 'var(--accent)' : rx.ratio <= 0.95 ? 'var(--bad)' : 'var(--text-2)'; return `<span title="${fmt(rx.v90, 2)} a partita ogni 90' contro ${fmt(rx.lg90, 2)} di media lega per questo ruolo · ${rx.n} prestazioni osservate">${rx.obs} vs ${fmt(rx.exp, 1)} atteso <b style="color:${color};">(${pct >= 0 ? '+' : ''}${pct}%)</b></span>`; })()
       : '—';
-    return `<tr><td>${l}</td><td class="num">${facPill(d.fattoreSquadra, d.rapportoSquadra, 'Dato grezzo')}</td><td class="num">${facPill(d.fattoreRuolo, d.rapportoGrezzoAvversario, 'Dato grezzo')}</td><td class="num"><b>${facPill(d.fattoreAvversario, undefined, '')}</b></td><td class="num">${rxCell}</td></tr>`;
+    return `<tr><td>${l}</td><td class="num">${numTxt(d.fattoreSquadra, d.rapportoSquadra, 'Dato grezzo')}</td><td class="num">${numTxt(d.fattoreRuolo, d.rapportoGrezzoAvversario, 'Dato grezzo')}</td><td class="num"><b>${numTxt(d.fattoreAvversario, undefined, '')}</b></td><td class="num">${rxCell}</td></tr>`;
   }).join('');
   const rx0 = roleExposure(info.oppId, p.Posizione_Analitica, 'Tiri', info.oppVenue);
   // come nasce la proiezione
@@ -3805,7 +3806,7 @@ function drawerHtml(match, pid) {
       <table style="margin-top:10px;"><tr><th>Hit rate</th><th>1 o più</th><th>2 o più</th><th>3 o più</th></tr>${hit}</table>
       <div class="note">Solo presenze con almeno ${MODEL_PARAMS.MIN_HITRATE}' (${nHR}). Al passaggio del mouse l'intervallo di fiducia al 95%.</div>
       <div class="note"><b>Regolarità:</b> ${reg}</div></div>
-    <div class="ds op"><h4>${esc(info.oppName)} contro il ruolo <span class="sm" style="display:inline;">verde = concede di più del normale · rosso = concede di meno · passa il mouse per i dettagli</span></h4>
+    <div class="ds op"><h4>${esc(info.oppName)} contro il ruolo</h4>
       <table><tr>
         <th title="Il mercato a cui si riferisce la riga."></th>
         <th title="Quanto ${esc(info.oppName)} concede IN GENERALE (tutti i ruoli, tutte le sue partite) rispetto alla media delle altre squadre — già smorzato verso 1× se ${esc(info.oppName)} ha giocato poche partite. Passa il mouse sul numero per il dato grezzo, non smorzato.">Squadra</th>
@@ -3813,7 +3814,7 @@ function drawerHtml(match, pid) {
         <th title="Squadra × Ruolo: il moltiplicatore che entra davvero nella proiezione del giocatore, più sotto in \'Come nasce la proiezione\'.">Totale</th>
         <th title="Fatti reali, non stime: quante volte questa statistica si è verificata nelle partite già giocate contro ${esc(info.oppName)} da giocatori con questo ruolo, contro quante te ne aspetteresti dalla media-lega per quel ruolo.">Nei dati reali</th>
       </tr>${opRows}</table>
-      <div class="note">${rx0 ? rx0.n : 0} presenze da "${esc(p.Posizione_Analitica)}" contro ${esc(info.oppName)} finora (${Math.round(t.minutiAvversarioRuolo)}'). Più dati ci sono, più il modello si fida: oggi pesa Squadra ${Math.round((t.pesoSquadra || 0) * 100)}% · Ruolo ${Math.round((t.pesoRuolo || 0) * 100)}% (su Tiri). Cartellini non ha un fattore Squadra: dipende dall'arbitro, non dalla difesa avversaria.</div></div>
+      <div class="note">${rx0 ? rx0.n : 0} presenze da "${esc(p.Posizione_Analitica)}" contro ${esc(info.oppName)} finora (${Math.round(t.minutiAvversarioRuolo)}'). Più dati ci sono, più il modello si fida: oggi pesa Squadra ${Math.round((t.pesoSquadra || 0) * 100)}% · Ruolo ${Math.round((t.pesoRuolo || 0) * 100)}% (su Tiri). Cartellini non ha un fattore Squadra: dipende dall'arbitro, non dalla difesa avversaria.${rx0 ? ` Sui Tiri, nei dati reali: ${rx0.obs} osservati contro ${fmt(rx0.exp, 1)} attesi (${Math.round((rx0.ratio - 1) * 100) >= 0 ? '+' : ''}${Math.round((rx0.ratio - 1) * 100)}%) — è la colonna "Nei dati reali" qui sopra, un fatto già successo, non una proiezione.` : ''}</div></div>
     <div class="ds rs"><h4>Come nasce la proiezione</h4>
       <table><tr><th></th><th>Baseline /90</th><th>× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th><th>Min attesi</th><th>Atteso a partita</th></tr>${rsRows}</table>
       <div class="note">Baseline: il giocatore pesa ${Math.round(t.pesoGiocatore * 100)}% (${Math.round(t.minutiStagione)}' giocati), il resto è la media del ruolo ${t.prior90 != null ? '(' + fmt(t.prior90) + ' tiri/90)' : ''}. Affidabilità: ${relHtml(t.affidabilita)}.</div>
