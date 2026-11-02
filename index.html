@@ -3816,9 +3816,13 @@ function drawerHtml(match, pid) {
   const rx0 = roleExposure(info.oppId, p.Posizione_Analitica, 'Tiri', info.oppVenue);
   // come nasce la proiezione
   const rsRows = MK.map(([m, l]) => { const d = proj[m]; return `<tr><td>${l}</td><td>${fmt(d.baseline90)}</td><td>${fmt(d.fattoreAvversario, 2)}×${d.fattoreArbitro !== 1 ? ' · ' + fmt(d.fattoreArbitro, 2) + '×' : ''}</td><td>${Math.round(d.minutiAttesi)}'</td><td><b style="color:var(--accent);">${fmt(d.muFin)}</b></td></tr>`; }).join('');
+  // Stesso stile della tabella "Hit rate" qui sopra (dato secondario inline
+  // con .subtle, non impilato a riga con .sm): erano due tabelle "1 o più /
+  // 2 o più / 3 o più" quasi gemelle ma rese in due modi diversi (Marco 2/11:
+  // "sembra diverso dal resto del pannello").
   const prRows = MK.map(([m, l]) => {
     const d = proj[m];
-    const c = [1, 2, 3].map((k) => { const pr = probAtLeast(d.muFin, k, m); return `<td>${pc(pr)}<span class="sm">quota ≥ ${qm(pr)}</span></td>`; }).join('');
+    const c = [1, 2, 3].map((k) => { const pr = probAtLeast(d.muFin, k, m); return `<td>${pc(pr)} <span class="subtle">≥ ${qm(pr)}</span></td>`; }).join('');
     return `<tr><td>${l}</td>${c}</tr>`;
   }).join('');
   const t = proj.Tiri;
@@ -3840,9 +3844,15 @@ function drawerHtml(match, pid) {
       </tr>${opRows}</table>
       <div class="note">${rx0 ? rx0.n : 0} presenze (${Math.round(t.minutiAvversarioRuolo)}') di "${esc(p.Posizione_Analitica)}" contro ${esc(info.oppName)}. Pesi: Squadra ${Math.round((t.pesoSquadra || 0) * 100)}% · Ruolo ${Math.round((t.pesoRuolo || 0) * 100)}% (su Tiri).</div></div>
     <div class="ds rs"><h4>Come nasce la proiezione</h4>
-      <table><tr><th></th><th>Baseline /90</th><th>× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th><th>Min attesi</th><th>Atteso a partita</th></tr>${rsRows}</table>
+      <table><tr>
+        <th></th>
+        <th title="Quanto fa di solito a partita su 90 minuti: media tra il suo dato personale e quello del ruolo, pesata in base ai minuti giocati — il peso esatto è nella nota sotto.">Baseline /90</th>
+        <th title="Il fattore Totale della tabella \'${esc(info.oppName)} contro il ruolo\' qui sopra${proj.FC.fattoreArbitro !== 1 ? ', moltiplicato per il fattore arbitro (solo su Falli commessi e Cartellini)' : ''}.">× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th>
+        <th title="Minuti che ci si aspetta giochi in questa partita, dalla sua media personale da titolare o subentrato.">Min attesi</th>
+        <th title="Baseline /90 × avversario${proj.FC.fattoreArbitro !== 1 ? ' × arbitro' : ''} × minuti attesi ÷ 90 — il valore finale, usato per le probabilità qui sotto.">Atteso a partita</th>
+      </tr>${rsRows}</table>
       <div class="note">Baseline: il giocatore pesa ${Math.round(t.pesoGiocatore * 100)}% (${Math.round(t.minutiStagione)}' giocati), il resto è la media del ruolo ${t.prior90 != null ? '(' + fmt(t.prior90) + ' tiri/90)' : ''}. Affidabilità: ${relHtml(t.affidabilita)}.</div>
-      <table style="margin-top:10px;"><tr><th title="Calcolate con binomiale negativa sui tiri, Poisson sui cartellini, sul valore atteso di questa partita.">Probabilità</th><th>1 o più</th><th>2 o più</th><th>3 o più</th></tr>${prRows}</table>
+      <table style="margin-top:10px;"><tr><th title="Calcolate con binomiale negativa sui tiri, Poisson sui cartellini, sul valore atteso di questa partita (la colonna \'Atteso a partita\' qui sopra).">Probabilità</th><th>1 o più</th><th>2 o più</th><th>3 o più</th></tr>${prRows}</table>
       <div class="note">Quota minima = 1 ÷ probabilità: sotto quella quota il prezzo non copre il rischio secondo il modello.</div></div>
   </div>`;
 }
