@@ -3838,7 +3838,7 @@ function drawerHtml(match, pid) {
         <th title="Squadra × Ruolo: il moltiplicatore che entra davvero nella proiezione del giocatore, più sotto in \'Come nasce la proiezione\'.">Totale</th>
         <th title="Fatti reali, non stime: quante volte questa statistica si è verificata nelle partite già giocate contro ${esc(info.oppName)} da giocatori con questo ruolo, contro quante te ne aspetteresti dalla media-lega per quel ruolo.">Nei dati reali</th>
       </tr>${opRows}</table>
-      <div class="note">${rx0 ? rx0.n : 0} presenze da "${esc(p.Posizione_Analitica)}" contro ${esc(info.oppName)} finora (${Math.round(t.minutiAvversarioRuolo)}'). Più dati ci sono, più il modello si fida: oggi pesa Squadra ${Math.round((t.pesoSquadra || 0) * 100)}% · Ruolo ${Math.round((t.pesoRuolo || 0) * 100)}% (su Tiri).</div></div>
+      <div class="note">${rx0 ? rx0.n : 0} presenze (${Math.round(t.minutiAvversarioRuolo)}') di "${esc(p.Posizione_Analitica)}" contro ${esc(info.oppName)}. Pesi: Squadra ${Math.round((t.pesoSquadra || 0) * 100)}% · Ruolo ${Math.round((t.pesoRuolo || 0) * 100)}% (su Tiri).</div></div>
     <div class="ds rs"><h4>Come nasce la proiezione</h4>
       <table><tr><th></th><th>Baseline /90</th><th>× avversario${proj.FC.fattoreArbitro !== 1 ? ' · arbitro' : ''}</th><th>Min attesi</th><th>Atteso a partita</th></tr>${rsRows}</table>
       <div class="note">Baseline: il giocatore pesa ${Math.round(t.pesoGiocatore * 100)}% (${Math.round(t.minutiStagione)}' giocati), il resto è la media del ruolo ${t.prior90 != null ? '(' + fmt(t.prior90) + ' tiri/90)' : ''}. Affidabilità: ${relHtml(t.affidabilita)}.</div>
