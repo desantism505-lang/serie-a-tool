@@ -1585,7 +1585,9 @@ function runScanGiornata(){
 
   for (const match of matches) {
     for (const [venue, teamId] of [['HOME', match.Home_ID], ['AWAY', match.Away_ID]]) {
-      const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId && !exclGiornata.has(p.Player_ID));
+      // Portieri esclusi dallo Scanner: stessa regola già in uso nel Matchup Engine
+      // per i Fatti salienti (richiesta Marco, 17/10) — mai applicata qui finora.
+      const players = DB.rosters.filter(p => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId && p.Posizione_Analitica !== 'Portiere' && !exclGiornata.has(p.Player_ID));
       const venueLetter = venue === 'HOME' ? 'H' : 'A';
       for (const player of players) {
         const pTot = computePlayerStats(DB.matchLog, player.Player_ID, 'TOTALE', null, teamId);
