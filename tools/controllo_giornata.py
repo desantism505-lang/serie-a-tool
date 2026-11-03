@@ -60,7 +60,7 @@ out = []
 nuovi = [p for p in R['Player_ID'] if p not in pub_role]
 print(f"\n[1] Giocatori NUOVI in ROSTERS: {len(nuovi)}")
 for p in nuovi:
-    ok = bool(re.fullmatch(r'P_[0-9A-F]{10}', p))
+    ok = bool(re.fullmatch(r'P_[0-9A-F]{10}|UCL_[0-9A-F]{12}', p))  # Serie A: P_+10 hex | UCL: UCL_+12 hex
     print(f"   {new_name[p]} | {new_team[p]} | {new_role[p]} | {p}" + ("" if ok else "  <-- ID NON STANDARD"))
 # 2. ruoli cambiati in ROSTERS
 print("\n[2] Ruoli in ROSTERS diversi dal pubblicato (cambio retroattivo? serve motivo):")
