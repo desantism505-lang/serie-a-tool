@@ -427,7 +427,7 @@
   .msdrop-btn{background:var(--panel);color:var(--text);border:1px solid var(--line);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Inter',sans-serif;}
   .msdrop-btn:hover{border-color:var(--accent-dim);}
   .msdrop-btn.active-filter{border-color:var(--accent);color:var(--accent);}
-  .msdrop-panel{position:absolute;top:100%;left:0;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;z-index:30;display:none;flex-direction:column;gap:5px;min-width:170px;box-shadow:0 6px 16px rgba(0,0,0,0.4);}
+  .msdrop-panel{position:absolute;top:100%;left:0;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;z-index:30;display:none;flex-direction:column;gap:5px;min-width:170px;max-height:min(360px, 60vh);overflow-y:auto;box-shadow:0 6px 16px rgba(0,0,0,0.4);}
   .msdrop-panel.open{display:flex;}
   .msdrop-panel label{display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;font-size:12px;color:var(--text-2);}
   /* Cursore quota a doppio estremo (richiesta Marco, 25/10) — sostituisce i
