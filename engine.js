@@ -2370,16 +2370,16 @@ const NARR_ROLE_PLURAL = {
 // femminile ("le punte centrali"), gli altri sono maschili; servono le tre forme perché "a"/"su"
 // si contraggono con l'articolo ("ai trequartisti", non "a i trequartisti").
 const NARR_ROLE_BARE_ART = {
-  'Punta centrale': 'le punte centrali', 'Trequartista': 'i trequartisti', 'Esterno/Quinto': 'gli Esterni/Quinti',
-  'Centrocampista centrale': 'i centrocampisti centrali', 'Terzino': 'i terzini', 'Centrale difensivo': 'i centrali difensivi',
+  'Punta centrale': 'le punte centrali avversarie', 'Trequartista': 'i trequartisti avversari', 'Esterno/Quinto': 'gli Esterni/Quinti avversari',
+  'Centrocampista centrale': 'i centrocampisti centrali avversari', 'Terzino': 'i terzini avversari', 'Centrale difensivo': 'i centrali difensivi avversari',
 };
 const NARR_ROLE_A = {
-  'Punta centrale': 'alle punte centrali', 'Trequartista': 'ai trequartisti', 'Esterno/Quinto': 'agli Esterni/Quinti',
-  'Centrocampista centrale': 'ai centrocampisti centrali', 'Terzino': 'ai terzini', 'Centrale difensivo': 'ai centrali difensivi',
+  'Punta centrale': 'alle punte centrali avversarie', 'Trequartista': 'ai trequartisti avversari', 'Esterno/Quinto': 'agli Esterni/Quinti avversari',
+  'Centrocampista centrale': 'ai centrocampisti centrali avversari', 'Terzino': 'ai terzini avversari', 'Centrale difensivo': 'ai centrali difensivi avversari',
 };
 const NARR_ROLE_SU = {
-  'Punta centrale': 'sulle punte centrali', 'Trequartista': 'sui trequartisti', 'Esterno/Quinto': 'sugli Esterni/Quinti',
-  'Centrocampista centrale': 'sui centrocampisti centrali', 'Terzino': 'sui terzini', 'Centrale difensivo': 'sui centrali difensivi',
+  'Punta centrale': 'sulle punte centrali avversarie', 'Trequartista': 'sui trequartisti avversari', 'Esterno/Quinto': 'sugli Esterni/Quinti avversari',
+  'Centrocampista centrale': 'sui centrocampisti centrali avversari', 'Terzino': 'sui terzini avversari', 'Centrale difensivo': 'sui centrali difensivi avversari',
 };
 
 // Confronta, per UNA squadra, il rendimento nel venue di oggi con quello nell'ALTRO suo venue
@@ -2664,7 +2664,7 @@ function narrPreview(d) {
 // una vera falla. La metrica può essere Tiri concessi O Falli subiti dal ruolo avversario (quella
 // con lo scarto più marcato), non è più forzata sempre sui tiri.
 const NARR_WEAK_FIELD = { Tiri: 'Tiri_Concessi_90', Falli: 'FalliSubiti_Ruolo_90' };
-function narrWeakSentence(teamName, venueWord, weak, ratio, metric, oppHasRole) {
+function narrWeakSentence(teamName, venueWord, weak, ratio, metric, oppHasRole, opponentName) {
   if (!weak) return `<b>${narrTeam(teamName, true)}</b> ${venueWord} non ha un campione sufficiente, in nessun ruolo, per isolare un punto debole affidabile.`;
   const field = NARR_WEAK_FIELD[metric] || 'Tiri_Concessi_90';
   const val = weak[field];
@@ -2674,8 +2674,9 @@ function narrWeakSentence(teamName, venueWord, weak, ratio, metric, oppHasRole) 
   const roleBare = NARR_ROLE_BARE_ART[weak.Posizione_Analitica];
   // La falla è vera (ratio alto) ma inutile IN QUESTA PARTITA se l'avversario di oggi non
   // schiera nessun giocatore in quel ruolo — va detto chiaro, non lasciato implicito.
+  const oppLabel = opponentName ? narrTeam(opponentName) : 'l\'avversario di oggi';
   const nonSfruttabile = oppHasRole === false
-    ? ' Resta però un dato teorico in questa partita: l\'avversario di oggi non schiera un giocatore in quel ruolo.'
+    ? ` Resta però un dato teorico in questa partita: ${oppLabel} non schiera un giocatore in quel ruolo.`
     : '';
   if (ratio == null) {
     const verbo = metric === 'Falli' ? 'commette più falli contro' : 'concede più tiri';
@@ -2686,23 +2687,23 @@ function narrWeakSentence(teamName, venueWord, weak, ratio, metric, oppHasRole) 
     const desc = metric === 'Falli'
       ? `ha una falla vera sulla disciplina ${roleSu}: commette <span class="narr-hl-bad">${val.toFixed(1).replace('.', ',')} falli a partita</span> su quel ruolo avversario`
       : `ha una falla vera ${roleSu}: concede <span class="narr-hl-bad">${val.toFixed(1).replace('.', ',')} tiri a partita</span>`;
-    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc}, il <b>${Math.round((ratio - 1) * 100)}%</b> in più della media di lega per quel ruolo in questo venue.${extreme}${nonSfruttabile}`;
+    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc}, il <b>${Math.round((ratio - 1) * 100)}%</b> in più della media di lega per quel ruolo avversario in questo venue — è un dato storico su tutti gli avversari affrontati, non sulla rosa propria.${extreme}${nonSfruttabile}`;
   }
   if (ratio >= 1.15) {
     const desc = metric === 'Falli'
       ? `commette sopra media falli ${roleA} (<span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> falli a partita, circa il <b>${Math.round((ratio - 1) * 100)}%</b> sopra la media di lega)`
       : `concede sopra media ${roleA} (<span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> tiri a partita, circa il <b>${Math.round((ratio - 1) * 100)}%</b> sopra la media di lega)`;
-    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc} — un punto da sfruttare, non ancora una voragine.${nonSfruttabile}`;
+    return `<b>${narrTeam(teamName, true)}</b> ${venueWord} ${desc} — un punto da sfruttare, non ancora una voragine (dato storico sul ruolo avversario, non sulla propria rosa).${nonSfruttabile}`;
   }
-  return `<b>${narrTeam(teamName, true)}</b> ${venueWord} non ha in realtà una vera debolezza di reparto: anche il suo dato più esposto (${roleBare}, <span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> ${unit}) resta in linea con la media di lega per quel ruolo in questo venue.`;
+  return `<b>${narrTeam(teamName, true)}</b> ${venueWord} non ha in realtà una vera debolezza di reparto: anche il suo dato più esposto (${roleBare}, <span class="narr-hl">${val.toFixed(1).replace('.', ',')}</span> ${unit}) resta in linea con la media di lega per quel ruolo avversario in questo venue.`;
 }
 function narrChiaveHtml(d) {
   const c = d.chiaveLettura;
   const hw = c.homeWeak, aw = c.awayWeak;
   if (!hw && !aw) return '<p>Campione ancora troppo piccolo per isolare una debolezza di ruolo affidabile su una delle due difese in questo venue.</p>';
   const sentences = [
-    narrWeakSentence(d.homeName, 'in casa', hw, c.homeWeakRatio, c.homeWeakMetric, c.homeWeakOppHasRole),
-    narrWeakSentence(d.awayName, 'in trasferta', aw, c.awayWeakRatio, c.awayWeakMetric, c.awayWeakOppHasRole),
+    narrWeakSentence(d.homeName, 'in casa', hw, c.homeWeakRatio, c.homeWeakMetric, c.homeWeakOppHasRole, d.awayName),
+    narrWeakSentence(d.awayName, 'in trasferta', aw, c.awayWeakRatio, c.awayWeakMetric, c.awayWeakOppHasRole, d.homeName),
   ];
   const homeGenuine = hw && c.homeWeakRatio != null && c.homeWeakRatio >= 1.15;
   const awayGenuine = aw && c.awayWeakRatio != null && c.awayWeakRatio >= 1.15;

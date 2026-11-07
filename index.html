@@ -2697,8 +2697,8 @@ function narrativeBlock(match) {
       + '<div class="cross-visual">' + visualTop
         + '<div class="cross-visual-role">' + esc(role) + ' · ' + esc(unit.split(' ')[0]) + '</div></div>'
       + '<div class="cross-body">'
-        + '<div class="cross-headline">' + esc(artCap(side.team)) + ' (' + side.venue + ') sul ruolo ' + esc(role.toLowerCase()) + '</div>'
-        + '<div class="cross-why"><b>' + esc(artCap(side.team)) + '</b> ' + verbo + ' ' + fmt1(value) + ' ' + metricNoun + ' a partita sul ruolo <b>' + esc(role.toLowerCase()) + '</b> quando gioca ' + side.venue + ', <b>+' + pct + '%</b> sulla media lega dello stesso ruolo/venue.' + oppClause + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(sideLato, side.team, metricNoun) + '</div>'
+        + '<div class="cross-headline">' + esc(artCap(side.team)) + ' (' + side.venue + ') contro il ruolo avversario ' + esc(role.toLowerCase()) + ' (' + esc(side.opponent) + ')</div>'
+        + '<div class="cross-why"><b>' + esc(artCap(side.team)) + '</b> ' + verbo + ' ' + fmt1(value) + ' ' + metricNoun + ' a partita contro il ruolo avversario <b>' + esc(role.toLowerCase()) + '</b> quando gioca ' + side.venue + ' (dato storico contro tutti gli avversari affrontati, non il ruolo della propria rosa), <b>+' + pct + '%</b> sulla media lega dello stesso ruolo/venue.' + oppClause + (playerText || ' Nessun giocatore di quel ruolo con minuti sufficienti per una proiezione affidabile.') + latoContestoHtml(sideLato, side.team, metricNoun) + '</div>'
       + '</div></div>');
   }
   const matchupHtml = matchupRows.length ? '<div class="cross-grid">' + matchupRows.join('') + '</div>' : '';
