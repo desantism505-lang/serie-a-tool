@@ -577,7 +577,7 @@
         <button id="scnExport" class="btn-export" disabled>⬇ Scarica Excel</button>
       </div>
 
-      <div class="filter-group" style="margin-bottom:6px;">
+      <div class="filter-group" id="scnMercatoGroup" style="margin-bottom:6px;">
         <span class="filter-label">Mercati:</span>
         <label><input type="checkbox" class="scnMercatoChk" value="TIRI" checked /> Tiri</label>
         <label><input type="checkbox" class="scnMercatoChk" value="TIRI_IN_PORTA" checked /> Tiri in porta</label>
@@ -587,17 +587,14 @@
       </div>
       <div class="filter-group" id="scnMercatoSquadraGroup" style="margin-bottom:6px;display:none;">
         <span class="filter-label">Mercati squadra:</span>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="TIRI_FATTI" checked /> Tiri fatti</label>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="TIRI_SUBITI" checked /> Tiri subiti</label>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="SOT_FATTI" checked /> SOT fatti</label>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="SOT_SUBITI" checked /> SOT subiti</label>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="FALLI_FATTI_SQ" checked /> Falli fatti</label>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="FALLI_SUBITI_SQ" checked /> Falli subiti</label>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="CARTELLINI_SQ" checked /> Cartellini</label>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="CORNER_FATTI" checked /> Corner fatti</label>
-        <label><input type="checkbox" class="scnMercatoSquadraChk" value="CORNER_SUBITI" checked /> Corner subiti</label>
+        <label><input type="checkbox" class="scnMercatoSquadraChk" value="TIRI" checked /> Tiri</label>
+        <label><input type="checkbox" class="scnMercatoSquadraChk" value="TIRI_IN_PORTA" checked /> Tiri in porta</label>
+        <label><input type="checkbox" class="scnMercatoSquadraChk" value="FALLI" checked /> Falli</label>
+        <label><input type="checkbox" class="scnMercatoSquadraChk" value="CARTELLINO" checked /> Cartellino</label>
+        <label><input type="checkbox" class="scnMercatoSquadraChk" value="CORNER" checked /> Corner</label>
+        <label style="margin-left:14px;"><input type="checkbox" id="scnSquadraTotale" checked /> Includi Totale partita (stima)</label>
       </div>
-      <div class="filter-group">
+      <div class="filter-group" id="scnLineeGroup">
         <span class="filter-label">Linee:</span>
         <label><input type="checkbox" class="scnLineaChk" value="0.5" checked /> 1+</label>
         <label><input type="checkbox" class="scnLineaChk" value="1.5" checked /> 2+</label>
@@ -1038,6 +1035,9 @@ function saveScnState(){
       minN: document.getElementById('scnMinN').value,
       mercati: getCheckedValues('.scnMercatoChk'),
       linee: getCheckedValues('.scnLineaChk'),
+      tipo: document.getElementById('scnTipo').value,
+      mercatiSquadra: getCheckedValues('.scnMercatoSquadraChk'),
+      squadraTotale: document.getElementById('scnSquadraTotale').checked,
       text: document.getElementById('scnFText').value,
       venue: getScnVenue(),
       tit: document.getElementById('scnFTit').value,
@@ -1084,6 +1084,10 @@ function applyScnState(currentAuto){
   }
   if (state.minHit) document.getElementById('scnMinHit').value = state.minHit;
   if (state.minN) document.getElementById('scnMinN').value = state.minN;
+  if (state.tipo) document.getElementById('scnTipo').value = state.tipo;
+  if (state.mercatiSquadra) checkOnly('.scnMercatoSquadraChk', state.mercatiSquadra);
+  if (state.squadraTotale !== undefined) document.getElementById('scnSquadraTotale').checked = state.squadraTotale;
+  scnApplyTipoVisibility();
   if (state.mercati) checkOnly('.scnMercatoChk', state.mercati);
   if (state.linee) checkOnly('.scnLineaChk', state.linee);
   if (state.text != null) document.getElementById('scnFText').value = state.text;
@@ -1362,30 +1366,38 @@ const MARKET_LINES = {
 };
 
 // ---------------------------------------------------------------------------
-// SCANNER SQUADRA (richiesto da Marco, 08/11): stesse linee del giocatore ma
-// a livello di totale-partita della squadra, sia lato FATTI che SUBITI (una
-// squadra non ha un ruolo, quindi niente filtro Posizione/Portiere) — campo
-// `key` legge direttamente da computeTeamMatchTotals/Subiti (Tiri/SOT/Falli/
-// Cart/Corner), non dai campi per90 del giocatore. Linee intere (non .5)
-// perché qui si ragiona su totali-partita reali, non su soglie "1+/2+".
+// SCANNER SQUADRA (richiesto da Marco, 08/11, rivisto lo stesso giorno dopo
+// il suo feedback: via i mercati "subiti" — una squadra non ha un ruolo, i
+// "concessi" generano solo righe deboli/confuse — e aggiunto invece il
+// "Totale partita" tra le due squadre, con stima Poisson spiegata sotto).
+// Un solo gruppo mercati, stesse 5 etichette del giocatore (stesso visual
+// richiesto da Marco), ognuna genera sia le righe per-squadra (lato FATTI)
+// sia la riga combinata Totale partita.
 // ---------------------------------------------------------------------------
-const MARKET_LINES_SQUADRA = {
-  TIRI_FATTI:      { key: 'Tiri',  side: 'fatti',   linee: [8, 10, 12, 14] },
-  TIRI_SUBITI:     { key: 'Tiri',  side: 'subiti',  linee: [8, 10, 12, 14] },
-  SOT_FATTI:       { key: 'SOT',   side: 'fatti',   linee: [3, 4, 5, 6] },
-  SOT_SUBITI:      { key: 'SOT',   side: 'subiti',  linee: [3, 4, 5, 6] },
-  FALLI_FATTI_SQ:  { key: 'Falli', side: 'fatti',   linee: [8, 10, 12, 14] },
-  FALLI_SUBITI_SQ: { key: 'Falli', side: 'subiti',  linee: [8, 10, 12, 14] },
-  CARTELLINI_SQ:   { key: 'Cart',  side: 'fatti',   linee: [1, 2, 3] },
-  CORNER_FATTI:    { key: 'Corner', side: 'fatti',  linee: [3, 4, 5, 6], needsCalendar: true },
-  CORNER_SUBITI:   { key: 'Corner', side: 'subiti', linee: [3, 4, 5, 6], needsCalendar: true },
+const SCN_TEAM_METRICS = {
+  TIRI:           { label: 'Tiri', key: 'Tiri', lineeTeam: [8, 10, 12, 14], lineeTotale: [18, 20, 22, 24, 26] },
+  TIRI_IN_PORTA:  { label: 'Tiri in porta', key: 'SOT', lineeTeam: [3, 4, 5, 6], lineeTotale: [7, 8, 9, 10] },
+  FALLI:          { label: 'Falli', key: 'Falli', lineeTeam: [8, 10, 12, 14], lineeTotale: [18, 20, 22, 24] },
+  CARTELLINO:     { label: 'Cartellino', key: 'Cart', lineeTeam: [1, 2, 3], lineeTotale: [2, 3, 4, 5] },
+  CORNER:         { label: 'Corner', key: 'Corner', lineeTeam: [3, 4, 5, 6], lineeTotale: [7, 8, 9, 10], needsCalendar: true },
 };
+// Stima Poisson per il Totale partita (richiesto Marco, 08/11): le due
+// squadre non hanno mai giocato tra loro, quindi non esiste un campione
+// storico comune su cui calcolare un hit-rate reale. Si assume che il totale
+// (fatti-casa + fatti-trasferta) segua una Poisson di media
+// mu = mediaCasa + mediaTrasferta (somma di due Poisson indipendenti è
+// ancora una Poisson di media pari alla somma) — probAtLeastAlpha(mu, k, 0)
+// già usata altrove nel motore per i cartellini attesi, qui con alpha=0
+// (Poisson pura, non Binomiale Negativa: approssimazione dichiarata, non un
+// hit-rate misurato). Il risultato va sempre mostrato come stima, mai come
+// se fosse un hit-rate storico — vedi isStima nel template della riga.
+function teamTotaleProb(muTotale, linea) {
+  if (muTotale == null || !Number.isFinite(muTotale)) return null;
+  return probAtLeastAlpha(muTotale, linea, 0);
+}
 const MARKET_LABELS_SQUADRA = {
-  TIRI_FATTI: 'Tiri (squadra)', TIRI_SUBITI: 'Tiri concessi (squadra)',
-  SOT_FATTI: 'Tiri in porta (squadra)', SOT_SUBITI: 'Tiri in porta concessi (squadra)',
-  FALLI_FATTI_SQ: 'Falli commessi (squadra)', FALLI_SUBITI_SQ: 'Falli concessi (squadra)',
-  CARTELLINI_SQ: 'Cartellini (squadra)',
-  CORNER_FATTI: 'Corner (squadra)', CORNER_SUBITI: 'Corner concessi (squadra)',
+  TIRI: 'Tiri (squadra)', TIRI_IN_PORTA: 'Tiri in porta (squadra)',
+  FALLI: 'Falli (squadra)', CARTELLINO: 'Cartellini (squadra)', CORNER: 'Corner (squadra)',
 };
 // Consistenza: CV = deviazione standard / media sul conteggio a partita.
 // Sotto 0.5 = giocatore regolare; 0.5-1 = variabile; sopra 1 = molto incostante.
@@ -1574,13 +1586,25 @@ document.getElementById('scnCriterio').addEventListener('change', () => {
   const isHit = document.getElementById('scnCriterio').value === 'HIT';
   document.getElementById('scnMinHitWrap').style.display = isHit ? 'inline-block' : 'none';
 });
-// Mostra il gruppo "Mercati squadra" solo se il Tipo selezionato include le
-// righe squadra (richiesto Marco 08/11) — di default resta "Giocatore" e
-// questo gruppo resta nascosto, nessun cambiamento alla vista attuale.
-document.getElementById('scnTipo').addEventListener('change', () => {
+// Mostra/nasconde i controlli secondo il Tipo selezionato (richiesto Marco
+// 08/11, rivisto lo stesso giorno: "toglierei tutti i riferimenti che sono
+// delle linee giocatori che non servono"). Con Tipo=SQUADRA: via il gruppo
+// Mercati giocatore, il gruppo Linee giocatore (le linee squadra sono fisse
+// per mercato, non selezionabili) e i filtri Ruolo/Titolare/Indisponibili
+// (non si applicano a una riga di squadra). Default resta GIOCATORE: nessun
+// cambiamento alla vista attuale finché non si tocca questo selettore.
+function scnApplyTipoVisibility(){
   const tipo = document.getElementById('scnTipo').value;
-  document.getElementById('scnMercatoSquadraGroup').style.display = (tipo === 'GIOCATORE') ? 'none' : 'inline-block';
-});
+  const soloSquadra = tipo === 'SQUADRA';
+  const conSquadra = tipo !== 'GIOCATORE';
+  document.getElementById('scnMercatoSquadraGroup').style.display = conSquadra ? 'inline-block' : 'none';
+  document.getElementById('scnMercatoGroup').style.display = soloSquadra ? 'none' : 'inline-block';
+  document.getElementById('scnLineeGroup').style.display = soloSquadra ? 'none' : 'inline-block';
+  document.getElementById('scnFRuoloDrop').style.display = soloSquadra ? 'none' : 'inline-block';
+  document.getElementById('scnFTit').style.display = soloSquadra ? 'none' : 'inline-block';
+  document.getElementById('scnExclList').style.display = soloSquadra ? 'none' : 'inline';
+}
+document.getElementById('scnTipo').addEventListener('change', scnApplyTipoVisibility);
 
 function getCheckedValues(selector){
   return [...document.querySelectorAll(selector)].filter(c => c.checked).map(c => c.value);
@@ -1710,10 +1734,11 @@ function runScanGiornata(){
       } // fine tipo !== 'SQUADRA'
 
       if (tipo !== 'GIOCATORE') {
-      // SCANNER SQUADRA (richiesto Marco, 08/11): stessa struttura di riga del
-      // giocatore, ma con un "player" fittizio che porta il nome della
-      // squadra — così il resto del rendering (scanRowKey, favKeyOf, template
-      // riga, filtri, ordinamento) funziona identico senza duplicarlo.
+      // SCANNER SQUADRA, lato FATTI (rivisto 08/11: via i mercati "subiti" —
+      // richiesta Marco). Stessa struttura di riga del giocatore, ma con un
+      // "player" fittizio che porta il nome della squadra — così il resto
+      // del rendering (scanRowKey, favKeyOf, template riga, filtri,
+      // ordinamento) funziona identico senza duplicarlo.
       const teamName = venue === 'HOME' ? match.Home : match.Away;
       const fakeTeamPlayer = {
         Player_ID: 'SQUADRA_' + teamId + '_' + match.Match_ID,
@@ -1721,18 +1746,14 @@ function runScanGiornata(){
         Posizione_Analitica: null, Team_ID_Rif: teamId,
       };
       for (const mercato of mercatiSquadraScelti) {
-        const def = MARKET_LINES_SQUADRA[mercato];
+        const def = SCN_TEAM_METRICS[mercato];
         if (!def) continue;
         if (def.needsCalendar && !DB.calendar) continue;
-        const totals = def.side === 'subiti'
-          ? computeTeamMatchTotalsSubiti(DB.matchLog, teamId, venue, DB.calendar)
-          : computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
-        const totTotale = def.side === 'subiti'
-          ? computeTeamMatchTotalsSubiti(DB.matchLog, teamId, 'TOTALE', DB.calendar)
-          : computeTeamMatchTotals(DB.matchLog, teamId, 'TOTALE', DB.calendar);
+        const totals = computeTeamMatchTotals(DB.matchLog, teamId, venue, DB.calendar);
+        const totTotale = computeTeamMatchTotals(DB.matchLog, teamId, 'TOTALE', DB.calendar);
         const stats = teamSeriesStats(totals, def.key);
         if (stats.n < minN) continue;
-        for (const linea of def.linee) {
+        for (const linea of def.lineeTeam) {
           const hVenue = teamHitRate(totals, def.key, linea - 0.5);
           const hitV = hVenue.rate;
           const mediaV = stats.mean;
@@ -1753,6 +1774,43 @@ function runScanGiornata(){
         }
       }
       } // fine tipo !== 'GIOCATORE'
+    }
+
+    // TOTALE PARTITA (richiesto Marco, 08/11): una riga sola per partita/
+    // mercato, combinando le due squadre — non per venue/teamId, quindi FUORI
+    // dal loop HOME/AWAY qui sopra. Stima Poisson (vedi teamTotaleProb),
+    // segnalata sempre come tale (isStima) e mai mescolata a un hit-rate
+    // storico vero.
+    if (tipo !== 'GIOCATORE' && document.getElementById('scnSquadraTotale').checked) {
+      const fakeTotalePlayer = {
+        Player_ID: 'TOTALE_' + match.Match_ID,
+        Nome_completo: match.Home + ' + ' + match.Away, Squadra_Rif: 'Totale partita',
+        Posizione_Analitica: null, Team_ID_Rif: null,
+      };
+      for (const mercato of mercatiSquadraScelti) {
+        const def = SCN_TEAM_METRICS[mercato];
+        if (!def) continue;
+        if (def.needsCalendar && !DB.calendar) continue;
+        const totH = computeTeamMatchTotals(DB.matchLog, match.Home_ID, 'HOME', DB.calendar);
+        const totA = computeTeamMatchTotals(DB.matchLog, match.Away_ID, 'AWAY', DB.calendar);
+        const sH = teamSeriesStats(totH, def.key), sA = teamSeriesStats(totA, def.key);
+        if (Math.min(sH.n, sA.n) < minN || sH.mean == null || sA.mean == null) continue;
+        const muTotale = sH.mean + sA.mean;
+        for (const linea of def.lineeTotale) {
+          const hitV = teamTotaleProb(muTotale, linea);
+          let pass;
+          if (criterio === 'MEDIA') pass = muTotale > linea;
+          else pass = hitV != null && hitV >= minHit;
+          if (!pass) continue;
+          results.push({
+            type: 'squadra', isStima: true,
+            player: fakeTotalePlayer, match, venue: 'TOTALE', mercato, linea,
+            hitVenue: hitV, hitStag: null,
+            mediaVenue: muTotale, mediaStag: null, mediaL3: null,
+            cv: null, cvSeries: [], nVenue: Math.min(sH.n, sA.n),
+          });
+        }
+      }
     }
   }
   scanResults = results;
@@ -2260,7 +2318,7 @@ function renderScan(){
     const markBtn = isSquadra
       ? `<button class="excl-mark" tabindex="-1" style="${noBook ? 'opacity:1;font-weight:bold;' : 'opacity:.5;'}" title="${noBook ? 'Il bookmaker non propone questa linea: click per rimuovere il marcatore' : 'Segna questa riga come NON proposta dal bookmaker (mostra X invece di quota/edge calcolati)'}" onclick="toggleScnNoBook('${key}')">X</button>`
       : `<button class="excl-mark" tabindex="-1" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')">✕</button>`;
-    const subtitle = isSquadra ? 'Squadra' : `${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}${scnLatoLabel(r.player)}`;
+    const subtitle = r.isStima ? 'Totale partita · stima Poisson, non hit-rate storico (nessun precedente reale tra queste due squadre)' : (isSquadra ? 'Squadra' : `${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}${scnLatoLabel(r.player)}`);
     const mercatoLabel = isSquadra ? MARKET_LABELS_SQUADRA[r.mercato] : MARKET_LABELS[r.mercato];
     const lineaTxt = isSquadra ? `${r.linea}+` : lineaLabel(r.linea);
     const titolareCell = isSquadra ? '<span class="subtle" title="Non applicabile a una riga di squadra">–</span>' : lineupBadge(r);
@@ -2278,9 +2336,9 @@ function renderScan(){
     <td class="num">${lineaTxt}</td>
     <td class="num nw">${fmt(r.mediaVenue)} <span class="subtle">(N=${r.nVenue})</span></td>
     <td class="num">${fmt(r.mediaL3)}</td>
-    <td>${cvBadge(r)}</td>
-    <td class="num"><div class="hitcell">${hitChip(r.hitVenue)}${ciTxt}</div></td>
-    <td class="num">${pctColored(r.hitStag)}</td>
+    <td>${r.isStima ? '<span class="subtle" title="Non calcolabile: nessuno storico head-to-head reale">–</span>' : cvBadge(r)}</td>
+    <td class="num"><div class="hitcell">${r.isStima ? '<span class="subtle" title="Stima Poisson/convoluzione, non un hit-rate storico">~' + pct(r.hitVenue) + '</span>' : hitChip(r.hitVenue)}${ciTxt}</div></td>
+    <td class="num">${r.isStima ? '<span class="subtle">–</span>' : pctColored(r.hitStag)}</td>
     <td class="num">${quotaCell}</td>
     <td class="num" id="scnProb-${i}">${probCell}</td>
     <td class="num ${edge != null && edge > 0 && !noBook ? 'verdict-fav' : (edge != null && !noBook ? 'verdict-nofav' : '')}" id="scnEdge-${i}">${edgeCell}</td>
