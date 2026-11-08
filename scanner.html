@@ -1597,9 +1597,13 @@ function scnApplyTipoVisibility(){
   const tipo = document.getElementById('scnTipo').value;
   const soloSquadra = tipo === 'SQUADRA';
   const conSquadra = tipo !== 'GIOCATORE';
-  document.getElementById('scnMercatoSquadraGroup').style.display = conSquadra ? 'inline-block' : 'none';
-  document.getElementById('scnMercatoGroup').style.display = soloSquadra ? 'none' : 'inline-block';
-  document.getElementById('scnLineeGroup').style.display = soloSquadra ? 'none' : 'inline-block';
+  // .filter-group è display:flex (riga orizzontale con wrap) nel CSS: qui
+  // bisogna ripristinare 'flex', non 'inline-block', altrimenti le checkbox
+  // tornano a impilarsi verticalmente invece di stare in riga come il
+  // gruppo giocatore (bug segnalato da Marco, 08/11).
+  document.getElementById('scnMercatoSquadraGroup').style.display = conSquadra ? 'flex' : 'none';
+  document.getElementById('scnMercatoGroup').style.display = soloSquadra ? 'none' : 'flex';
+  document.getElementById('scnLineeGroup').style.display = soloSquadra ? 'none' : 'flex';
   document.getElementById('scnFRuoloDrop').style.display = soloSquadra ? 'none' : 'inline-block';
   document.getElementById('scnFTit').style.display = soloSquadra ? 'none' : 'inline-block';
   document.getElementById('scnExclList').style.display = soloSquadra ? 'none' : 'inline';
