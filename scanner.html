@@ -157,7 +157,10 @@
     grid-template-columns:1fr 1fr;
     gap:24px;
   }
-  @media (max-width:820px){ .grid{grid-template-columns:1fr;} }
+  /* griglia Casa/Trasferta affiancata (fix mobile, richiesta Marco 08/11): su telefono
+     va a una colonna sola invece di restare 2 colonne strette. */
+  .hv-grid{display:grid;grid-template-columns:1fr 1fr;}
+  @media (max-width:820px){ .grid{grid-template-columns:1fr;} .hv-grid{grid-template-columns:1fr;} }
 
   .panel{
     border:1px solid var(--line);
@@ -1266,7 +1269,7 @@ function renderScnRolesPanel(){
 
   panel.innerHTML = `
     <div style="font-weight:600;margin-bottom:10px;font-size:13.5px;">Ruoli dove l'avversario di questa partita è scoperto, nella classifica di tutta la stagione</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <div class="hv-grid" style="gap:20px;">
       <div>${renderSide(blockHome, 'home')}</div>
       <div>${renderSide(blockAway, 'away')}</div>
     </div>
