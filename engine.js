@@ -153,7 +153,7 @@ function teamRowsSubiti(matchLog, team, segmento) {
   return rows;
 }
 
-function computeTeamStats(matchLog, team, segmento) {
+function computeTeamStats(matchLog, team, segmento, calendar) {
   const fatti = teamRowsFatti(matchLog, team, segmento);
   const subiti = teamRowsSubiti(matchLog, team, segmento);
   const partite = new Set(fatti.map((r) => r.Match_ID)).size;
@@ -199,10 +199,27 @@ function computeTeamStats(matchLog, team, segmento) {
   out.Rossi = sum(fatti, 'Rossi');
   out.Cartellini = out.Gialli + out.Rossi;
   out.Cartellini_90 = partite ? out.Cartellini / partite : null;
+  // Cartellini_Subiti: cartellini presi dalla squadra AVVERSARIA nelle partite
+  // di `team` (richiesto per incrocio linee squadra Cartellini — Marco 08/11,
+  // stesso schema già usato per Falli_Subiti sopra, righe subiti = Opp_ID=team).
+  out.Cartellini_Subiti = sum(subiti, 'Gialli') + sum(subiti, 'Rossi');
+  out.Cartellini_Subiti_90 = partite ? out.Cartellini_Subiti / partite : null;
   out.Possesso_Medio = possessoRows.length
     ? possessoRows.reduce((a, b) => a + b, 0) / possessoRows.length // divide per le sole partite col dato
     : null;
   out.Possesso_N = possessoRows.length;
+  // Corner: dato di partita (CALENDAR, non MATCH_LOG) — aggiunto solo se
+  // viene passato `calendar` (richiesto per incrocio linee squadra Corner,
+  // Marco 08/11). Stessa fonte di teamCornerMatches, nessun numero nuovo.
+  if (calendar) {
+    const cornerSeg = segmento === 'TOTALE' ? 'TOTALE' : segmento === 'HOME' ? 'HOME' : 'AWAY';
+    const cornerRows = teamCornerMatches(calendar, team, cornerSeg);
+    const nCorner = cornerRows.length;
+    out.Corner_Fatti = cornerRows.reduce((s, r) => s + (Number(r.Corner) || 0), 0);
+    out.Corner_Fatti_90 = nCorner ? out.Corner_Fatti / nCorner : null;
+    out.Corner_Subiti = cornerRows.reduce((s, r) => s + (Number(r.CornerConcessi) || 0), 0);
+    out.Corner_Subiti_90 = nCorner ? out.Corner_Subiti / nCorner : null;
+  }
   return out;
 }
 
@@ -1922,24 +1939,32 @@ function computeRoleCrossExtremes(matchLog, rosters, homeId, awayId) {
 // (rank<=3) sulla stessa metrica, nel venue reale di questa gara. Usa
 // computeTeamStats già testato altrove, nessun numero nuovo.
 // ---------------------------------------------------------------------------
+// Cartellini e Corner aggiunti 08/11 (richiesta Marco: "così per tutte le
+// stats rilevanti dove c'è incrocio, come fai per giocatori"). Corner
+// richiede `calendar` (dato di partita, non di match_log) — vedi
+// computeTeamStats più sopra; se `calendar` non viene passato, le righe
+// Corner vengono semplicemente scartate più sotto (value sempre null).
 const LINE_EXTREME_METRICS = [
   { key: 'Tiri', label: 'tiri', prodCol: 'Tiri_Fatti_90', concCol: 'Tiri_Subiti_90' },
   { key: 'SOT', label: 'tiri in porta', prodCol: 'SOT_Fatti_90', concCol: 'SOT_Subiti_90' },
   { key: 'Falli', label: 'falli', prodCol: 'Falli_Fatti_90', concCol: 'Falli_Subiti_90' },
+  { key: 'Cartellini', label: 'cartellini', prodCol: 'Cartellini_90', concCol: 'Cartellini_Subiti_90' },
+  { key: 'Corner', label: 'corner', prodCol: 'Corner_Fatti_90', concCol: 'Corner_Subiti_90', needsCalendar: true },
 ];
-function lineMetricLeagueRank(matchLog, teams, venueSegmento, col) {
+function lineMetricLeagueRank(matchLog, teams, venueSegmento, col, calendar) {
   const minSample = 2;
   const list = teams.map((t) => {
-    const ts = computeTeamStats(matchLog, t, venueSegmento);
+    const ts = computeTeamStats(matchLog, t, venueSegmento, calendar);
     return { key: t, value: ts[col], partite: ts.Partite };
   });
   return { ranks: rankProvisional(list, minSample), list };
 }
-function lineExtremesOneSide(matchLog, teamsAll, attId, attSeg, difId, difSeg) {
+function lineExtremesOneSide(matchLog, teamsAll, attId, attSeg, difId, difSeg, calendar) {
   const out = [];
   for (const m of LINE_EXTREME_METRICS) {
-    const prod = lineMetricLeagueRank(matchLog, teamsAll, attSeg, m.prodCol);
-    const conc = lineMetricLeagueRank(matchLog, teamsAll, difSeg, m.concCol);
+    if (m.needsCalendar && !calendar) continue; // niente Corner senza CALENDAR disponibile
+    const prod = lineMetricLeagueRank(matchLog, teamsAll, attSeg, m.prodCol, calendar);
+    const conc = lineMetricLeagueRank(matchLog, teamsAll, difSeg, m.concCol, calendar);
     const pr = prod.ranks[attId], cr = conc.ranks[difId];
     if (!pr || !cr || pr.rank === 'N/D' || cr.rank === 'N/D') continue;
     if (pr.eligible < CROSS_EXTREME_MIN_ELIGIBLE || cr.eligible < CROSS_EXTREME_MIN_ELIGIBLE) continue;
@@ -1958,10 +1983,12 @@ function lineExtremesOneSide(matchLog, teamsAll, attId, attSeg, difId, difSeg) {
   }
   return out;
 }
-function computeTeamLineCrossExtremes(matchLog, teamsAll, homeId, awayId) {
+// `calendar` opzionale (richiesto per i Corner, 08/11): se omesso la funzione
+// si comporta esattamente come prima (Tiri/SOT/Falli/Cartellini, niente Corner).
+function computeTeamLineCrossExtremes(matchLog, teamsAll, homeId, awayId, calendar) {
   const out = [
-    ...lineExtremesOneSide(matchLog, teamsAll, homeId, 'HOME', awayId, 'AWAY'),
-    ...lineExtremesOneSide(matchLog, teamsAll, awayId, 'AWAY', homeId, 'HOME'),
+    ...lineExtremesOneSide(matchLog, teamsAll, homeId, 'HOME', awayId, 'AWAY', calendar),
+    ...lineExtremesOneSide(matchLog, teamsAll, awayId, 'AWAY', homeId, 'HOME', calendar),
   ];
   out.sort((a, b) => b.combinedScore - a.combinedScore);
   return out;

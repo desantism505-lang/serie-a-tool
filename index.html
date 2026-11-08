@@ -2605,11 +2605,11 @@ function lineCardHtml(c, homeId, homeName, awayName) {
 }
 function lineExtremeSectionHtml(match) {
   let lines;
-  try { lines = computeTeamLineCrossExtremes(DB.matchLog, teamsAllIds(), match.Home_ID, match.Away_ID); }
+  try { lines = computeTeamLineCrossExtremes(DB.matchLog, teamsAllIds(), match.Home_ID, match.Away_ID, DB.calendar); }
   catch (e) { console.error(e); return ''; }
   if (!lines.length) {
     return '<div class="narr-sec"><div class="narr-sec-title">Altri duelli sulle linee</div>'
-      + '<div class="cross-empty">Nessun doppio estremo a livello di squadra in questa partita: nessuna delle due produce o concede abbastanza da essere tra le prime 3 di lega su tiri, tiri in porta o falli, nello stesso venue reale della gara.</div></div>';
+      + '<div class="cross-empty">Nessun doppio estremo a livello di squadra in questa partita: nessuna delle due produce o concede abbastanza da essere tra le prime 3 di lega su tiri, tiri in porta, falli, cartellini o corner, nello stesso venue reale della gara.</div></div>';
   }
   const shown = lines.slice(0, 3);
   const extra = lines.length - shown.length;
