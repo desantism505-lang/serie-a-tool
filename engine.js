@@ -633,6 +633,47 @@ function computeTeamMatchTotals(matchLog, teamId, segmento, calendar) {
   return result;
 }
 
+// Speculare di computeTeamMatchTotals: totali per-partita di quello che la
+// squadra CONCEDE (righe dell'avversario, venue invertita — stesso principio
+// di teamRowsSubiti) più CornerConcessi se viene passato `calendar`. Richiesto
+// per lo Scanner-squadra (Marco, 08/11): ogni mercato "fatti" ha anche il suo
+// lato "subiti" (es. "Tiri concessi 10+"), non solo "fatti" come per i
+// giocatori — una squadra non ha un ruolo, ha sempre entrambi i lati.
+function computeTeamMatchTotalsSubiti(matchLog, teamId, segmento, calendar) {
+  const rows = teamRowsSubiti(matchLog, teamId, segmento);
+  const byMatch = {};
+  for (const r of rows) {
+    const m = byMatch[r.Match_ID] || (byMatch[r.Match_ID] = { Match_ID: r.Match_ID, Tiri: 0, SOT: 0, Falli: 0, Cart: 0 });
+    m.Tiri += Number(r.Tiri) || 0;
+    m.SOT += Number(r.Tiri_in_porta) || 0;
+    m.Falli += Number(r.Falli_commessi) || 0;
+    m.Cart += (Number(r.Gialli) || 0) + (Number(r.Rossi) || 0);
+  }
+  const result = Object.values(byMatch);
+  if (calendar) {
+    const cornerByMatch = {};
+    for (const c of teamCornerMatches(calendar, teamId, segmento)) cornerByMatch[c.Match_ID] = c.CornerConcessi;
+    for (const m of result) m.Corner = cornerByMatch[m.Match_ID] != null ? cornerByMatch[m.Match_ID] : null;
+  }
+  return result;
+}
+
+// Consistenza (CV) sui totali-partita di squadra — stessa identica formula
+// già usata per i giocatori (cvOf in computePlayerStats), qui generica su un
+// array di totali-partita {Match_ID, Tiri, SOT, Falli, Cart, Corner} prodotto
+// da computeTeamMatchTotals/Subiti. Richiede almeno 2 partite valide, altrimenti
+// cv resta null (stesso criterio dei giocatori).
+function teamSeriesStats(totals, key) {
+  const valid = totals.filter((t) => t[key] != null).map((t) => Number(t[key]));
+  const n = valid.length;
+  if (!n) return { mean: null, sd: null, cv: null, n: 0, series: [] };
+  const mean = valid.reduce((a, b) => a + b, 0) / n;
+  if (n < 2) return { mean, sd: null, cv: null, n, series: valid };
+  const variance = valid.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
+  const sd = Math.sqrt(variance);
+  return { mean, sd, cv: mean ? sd / mean : null, n, series: valid };
+}
+
 // Hit rate: quante partite (su quelle con un valore valido per la metrica) la
 // squadra ha superato (Over) o non raggiunto (Under) una linea libera. Salta
 // le partite dove la metrica è null (es. Corner mancante) invece di contarle
@@ -2819,6 +2860,8 @@ if (typeof module !== 'undefined') {
     computeMultigolBandFacts,
     teamGoalMatches,
     computeTeamMatchTotals,
+    computeTeamMatchTotalsSubiti,
+    teamSeriesStats,
     teamHitRate,
     leagueAverageMetric,
     narrPartiteInVenue,
