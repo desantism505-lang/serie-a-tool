@@ -442,6 +442,8 @@
   .quota-slider .qs-handle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .quota-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-top:6px;font-family:'Inter',sans-serif;}
   .quota-labels b{color:var(--text);font-weight:700;}
+  .qs-input{width:52px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:2px 4px;font-size:11px;font-weight:700;font-family:'Inter',sans-serif;text-align:center;}
+  .qs-input:focus{outline:2px solid var(--accent);outline-offset:1px;}
   .quota-reset{width:100%;margin-top:8px;font-size:11px;padding:4px 0;background:none;color:var(--muted);border:1px solid var(--line);border-radius:6px;cursor:pointer;font-family:'Inter',sans-serif;}
   .quota-reset:hover{border-color:var(--accent);color:var(--accent);}
   .filter-group label{
@@ -668,7 +670,7 @@
               <div class="qs-handle" data-h="lo" tabindex="0" role="slider" aria-label="Quota minima"></div>
               <div class="qs-handle" data-h="hi" tabindex="0" role="slider" aria-label="Quota massima"></div>
             </div>
-            <div class="quota-labels"><span>da <b id="scnQuotaLoLabel">1,00</b></span><span>a <b id="scnQuotaHiLabel">3,00+</b></span></div>
+            <div class="quota-labels"><span>da <input type="text" inputmode="decimal" class="qs-input" id="scnQuotaLoLabel" value="1,00" aria-label="Quota minima (anche a mano)" onchange="quotaInputChange('scn','lo',this.value)" onclick="event.stopPropagation()"></span><span>a <input type="text" inputmode="decimal" class="qs-input" id="scnQuotaHiLabel" value="3,00+" aria-label="Quota massima (anche a mano)" onchange="quotaInputChange('scn','hi',this.value)" onclick="event.stopPropagation()"></span></div>
             <button type="button" class="quota-reset" onclick="resetQuotaSlider('scn')">Reset</button>
           </div>
         </div>
@@ -827,7 +829,7 @@
               <div class="qs-handle" data-h="lo" tabindex="0" role="slider" aria-label="Quota minima"></div>
               <div class="qs-handle" data-h="hi" tabindex="0" role="slider" aria-label="Quota massima"></div>
             </div>
-            <div class="quota-labels"><span>da <b id="scrQuotaLoLabel">1,00</b></span><span>a <b id="scrQuotaHiLabel">3,00+</b></span></div>
+            <div class="quota-labels"><span>da <input type="text" inputmode="decimal" class="qs-input" id="scrQuotaLoLabel" value="1,00" aria-label="Quota minima (anche a mano)" onchange="quotaInputChange('scr','lo',this.value)" onclick="event.stopPropagation()"></span><span>a <input type="text" inputmode="decimal" class="qs-input" id="scrQuotaHiLabel" value="3,00+" aria-label="Quota massima (anche a mano)" onchange="quotaInputChange('scr','hi',this.value)" onclick="event.stopPropagation()"></span></div>
             <button type="button" class="quota-reset" onclick="resetQuotaSlider('scr')">Reset</button>
           </div>
         </div>
@@ -1840,8 +1842,12 @@ function quotaSliderRender(prefix){
   const hiTxt = st.hi >= QUOTA_RANGE_MAX ? '3,00+' : st.hi.toFixed(2).replace('.', ',');
   const loLabel = document.getElementById(prefix + 'QuotaLoLabel');
   const hiLabel = document.getElementById(prefix + 'QuotaHiLabel');
-  if (loLabel) loLabel.textContent = loTxt;
-  if (hiLabel) hiLabel.textContent = hiTxt;
+  // Sono input editabili a mano (richiesta Marco, 08/11): non li
+  // sovrascrivo mentre l'utente ci sta scrivendo dentro, altrimenti ogni
+  // render (es. durante il drag dell'altra maniglia) gli cancella quello
+  // che stava digitando.
+  if (loLabel && document.activeElement !== loLabel) loLabel.value = loTxt;
+  if (hiLabel && document.activeElement !== hiLabel) hiLabel.value = hiTxt;
   const active = st.lo > QUOTA_RANGE_MIN || st.hi < QUOTA_RANGE_MAX;
   const btn = document.querySelector('#' + prefix + 'FQuotaDrop .msdrop-btn');
   if (btn) {
@@ -1860,6 +1866,24 @@ function quotaSliderBuckets(prefix){
 }
 function resetQuotaSlider(prefix){
   _quotaSlider[prefix] = { lo: QUOTA_RANGE_MIN, hi: QUOTA_RANGE_MAX };
+  quotaSliderRender(prefix);
+  quotaSliderApply(prefix);
+}
+// Inserimento a mano della quota (richiesta Marco, 08/11) — in aggiunta al
+// trascinare le maniglie, non in sostituzione. Accetta sia virgola che
+// punto come separatore decimale e un eventuale "+" finale (es. "3,00+",
+// lo stesso formato mostrato in automatico per l'estremo superiore senza
+// tetto). Un valore non numerico o vuoto annulla la modifica e ripristina
+// quello attuale, senza toccare lo stato — stesso comportamento "non
+// rompere nulla" di un input non valido su scnQuotaInput.
+function quotaInputChange(prefix, which, rawValue){
+  const cleaned = String(rawValue).trim().replace(',', '.').replace(/\+$/, '');
+  const v = parseFloat(cleaned);
+  if (!isFinite(v)) { quotaSliderRender(prefix); return; } // non numerico: ripristina il valore mostrato
+  const clamped = Math.max(QUOTA_RANGE_MIN, Math.min(QUOTA_RANGE_MAX, v));
+  const st = quotaState(prefix);
+  if (which === 'lo') st.lo = Math.min(clamped, st.hi);
+  else st.hi = Math.max(clamped, st.lo);
   quotaSliderRender(prefix);
   quotaSliderApply(prefix);
 }
