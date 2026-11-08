@@ -554,9 +554,9 @@
           <option value="HIT" selected>Hit rate venue ≥ soglia</option>
         </select>
         <select id="scnTipo" title="Giocatore (default, nessun cambiamento alla vista attuale) · Squadra (richiesto Marco 08/11: Tiri/SOT/Falli/Cartellini/Corner a livello di totale-partita, fatti e subiti) · Tutti">
-          <option value="GIOCATORE" selected>Righe: Giocatore</option>
-          <option value="SQUADRA">Righe: Squadra</option>
-          <option value="TUTTI">Righe: Tutti</option>
+          <option value="GIOCATORE" selected>Tipo: Giocatore</option>
+          <option value="SQUADRA">Tipo: Squadra</option>
+          <option value="TUTTI">Tipo: Tutti</option>
         </select>
         <span id="scnMinHitWrap">
           <select id="scnMinHit">
@@ -2307,7 +2307,7 @@ function renderScan(){
   if (!filtered.length){
     body.innerHTML = '';
     empty.style.display = 'block';
-    empty.textContent = 'Nessuna riga soddisfa i filtri impostati sopra.';
+    empty.textContent = 'Nessun risultato soddisfa i filtri impostati sopra.';
     return;
   }
   empty.style.display = 'none';
@@ -2325,12 +2325,12 @@ function renderScan(){
     // (08/11) — stesso posto visivo, significato diverso, bottone evidenziato
     // quando attivo. Riga giocatore: comportamento identico a prima.
     const markBtn = isSquadra
-      ? `<button class="excl-mark" tabindex="-1" style="${noBook ? 'opacity:1;font-weight:bold;' : 'opacity:.5;'}" title="${noBook ? 'Il bookmaker non propone questa linea: click per rimuovere il marcatore' : 'Segna questa riga come NON proposta dal bookmaker (mostra X invece di quota/edge calcolati)'}" onclick="toggleScnNoBook('${key}')">X</button>`
+      ? `<button class="excl-mark" tabindex="-1" style="${noBook ? 'opacity:1;font-weight:bold;' : 'opacity:.5;'}" title="${noBook ? 'Il bookmaker non propone questa linea: click per rimuovere il marcatore' : 'Segna questa voce come NON proposta dal bookmaker (mostra X invece di quota/edge calcolati)'}" onclick="toggleScnNoBook('${key}')">X</button>`
       : `<button class="excl-mark" tabindex="-1" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')">✕</button>`;
     const subtitle = r.isStima ? 'Totale partita · stima Poisson, non hit-rate storico (nessun precedente reale tra queste due squadre)' : (isSquadra ? 'Squadra' : `${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}${scnLatoLabel(r.player)}`);
     const mercatoLabel = isSquadra ? MARKET_LABELS_SQUADRA[r.mercato] : MARKET_LABELS[r.mercato];
     const lineaTxt = isSquadra ? `${String(r.linea).replace('.', ',')}` : lineaLabel(r.linea);
-    const titolareCell = isSquadra ? '<span class="subtle" title="Non applicabile a una riga di squadra">–</span>' : lineupBadge(r);
+    const titolareCell = isSquadra ? '<span class="subtle" title="Non applicabile a una voce di squadra">–</span>' : lineupBadge(r);
     const quotaCell = noBook
       ? `<span class="subtle" title="Marcato come non proposto dal bookmaker">X</span>`
       : `<input type="text" inputmode="decimal" placeholder="1.85" id="scnQuotaInput-${i}" value="${fmtQuotaInput(quota)}" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:4px;" onchange="scnSetQuota(${i}, this.value)" onkeydown="return scnQuotaTab(event, ${i})" />`;
@@ -2430,9 +2430,9 @@ function updateScnExport(shown, total){
   if (!b) return;
   b.disabled = !shown;
   b.title = !total ? 'Esegui prima una scansione'
-    : !shown ? 'Nessuna riga visibile con i filtri attuali'
-    : shown < total ? `Scarica Excel delle righe visibili (${shown} di ${total}, filtri attivi)`
-    : `Scarica Excel di tutte le righe scansionate (${total})`;
+    : !shown ? 'Nessun risultato visibile con i filtri attuali'
+    : shown < total ? `Scarica Excel dei risultati visibili (${shown} di ${total}, filtri attivi)`
+    : `Scarica Excel di tutti i risultati scansionati (${total})`;
 }
 function exportScannerXlsx(){
   if (typeof XLSX === 'undefined') { alert('Libreria Excel non caricata: controlla la connessione e riprova.'); return; }
@@ -2488,7 +2488,7 @@ function exportScannerXlsx(){
   const legend = [
     ['Scanner — legenda colonne', ''],
     ['Esportato il', `${p2(now.getDate())}/${p2(now.getMonth() + 1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`],
-    ['Righe esportate', `${rows.length} di ${scanResults.length}${rows.length < scanResults.length ? ' (filtri attivi)' : ''}`],
+    ['Risultati esportati', `${rows.length} di ${scanResults.length}${rows.length < scanResults.length ? ' (filtri attivi)' : ''}`],
     ['', ''],
     ['Colonna', 'Cosa significa'],
     ...SCN_XLS_COLS.map(c => [c.h, c.note]),
