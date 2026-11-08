@@ -1374,12 +1374,15 @@ const MARKET_LINES = {
 // richiesto da Marco), ognuna genera sia le righe per-squadra (lato FATTI)
 // sia la riga combinata Totale partita.
 // ---------------------------------------------------------------------------
+// Linee in formato X,5 (richiesta Marco, 08/11) — come le quote reali del
+// book, non "X+": lineeTeam/lineeTotale sono già i valori di linea Over,
+// usati direttamente in teamHitRate (count > linea) senza aggiustamenti.
 const SCN_TEAM_METRICS = {
-  TIRI:           { label: 'Tiri', key: 'Tiri', lineeTeam: [8, 10, 12, 14], lineeTotale: [18, 20, 22, 24, 26] },
-  TIRI_IN_PORTA:  { label: 'Tiri in porta', key: 'SOT', lineeTeam: [3, 4, 5, 6], lineeTotale: [7, 8, 9, 10] },
-  FALLI:          { label: 'Falli', key: 'Falli', lineeTeam: [8, 10, 12, 14], lineeTotale: [18, 20, 22, 24] },
-  CARTELLINO:     { label: 'Cartellino', key: 'Cart', lineeTeam: [1, 2, 3], lineeTotale: [2, 3, 4, 5] },
-  CORNER:         { label: 'Corner', key: 'Corner', lineeTeam: [3, 4, 5, 6], lineeTotale: [7, 8, 9, 10], needsCalendar: true },
+  TIRI:           { label: 'Tiri', key: 'Tiri', lineeTeam: [7.5, 9.5, 11.5, 13.5], lineeTotale: [17.5, 19.5, 21.5, 23.5, 25.5] },
+  TIRI_IN_PORTA:  { label: 'Tiri in porta', key: 'SOT', lineeTeam: [2.5, 3.5, 4.5, 5.5], lineeTotale: [6.5, 7.5, 8.5, 9.5] },
+  FALLI:          { label: 'Falli', key: 'Falli', lineeTeam: [7.5, 9.5, 11.5, 13.5], lineeTotale: [17.5, 19.5, 21.5, 23.5] },
+  CARTELLINO:     { label: 'Cartellino', key: 'Cart', lineeTeam: [0.5, 1.5, 2.5], lineeTotale: [1.5, 2.5, 3.5, 4.5] },
+  CORNER:         { label: 'Corner', key: 'Corner', lineeTeam: [2.5, 3.5, 4.5, 5.5], lineeTotale: [6.5, 7.5, 8.5, 9.5], needsCalendar: true },
 };
 // Stima Poisson per il Totale partita (richiesto Marco, 08/11): le due
 // squadre non hanno mai giocato tra loro, quindi non esiste un campione
@@ -1393,7 +1396,9 @@ const SCN_TEAM_METRICS = {
 // se fosse un hit-rate storico — vedi isStima nel template della riga.
 function teamTotaleProb(muTotale, linea) {
   if (muTotale == null || !Number.isFinite(muTotale)) return null;
-  return probAtLeastAlpha(muTotale, linea, 0);
+  // linea è un valore Over X,5 (es. 17,5): probAtLeastAlpha vuole invece la
+  // soglia intera "almeno k" (qui k = linea + 0,5, es. 18).
+  return probAtLeastAlpha(muTotale, linea + 0.5, 0);
 }
 const MARKET_LABELS_SQUADRA = {
   TIRI: 'Tiri (squadra)', TIRI_IN_PORTA: 'Tiri in porta (squadra)',
@@ -1758,7 +1763,7 @@ function runScanGiornata(){
         const stats = teamSeriesStats(totals, def.key);
         if (stats.n < minN) continue;
         for (const linea of def.lineeTeam) {
-          const hVenue = teamHitRate(totals, def.key, linea - 0.5);
+          const hVenue = teamHitRate(totals, def.key, linea);
           const hitV = hVenue.rate;
           const mediaV = stats.mean;
           let pass;
@@ -1768,7 +1773,7 @@ function runScanGiornata(){
           results.push({
             type: 'squadra',
             player: fakeTeamPlayer, match, venue, mercato, linea,
-            hitVenue: hitV, hitStag: teamHitRate(totTotale, def.key, linea - 0.5).rate,
+            hitVenue: hitV, hitStag: teamHitRate(totTotale, def.key, linea).rate,
             mediaVenue: mediaV, mediaStag: teamSeriesStats(totTotale, def.key).mean,
             mediaL3: null, // non calcolato in questa prima versione: richiede ordinare i totali per Data, che le righe totali non portano ancora
             cv: stats.cv,
@@ -2324,7 +2329,7 @@ function renderScan(){
       : `<button class="excl-mark" tabindex="-1" title="Segna come indisponibile SOLO per la giornata ${r.match.Giornata} (infortunato/squalificato): sparisce da qui finché non lo rimetti da \"Indisponibili\" in alto. Non si propaga alle altre giornate." onclick="toggleScnExcl('${r.player.Player_ID}','${r.match.Giornata}')">✕</button>`;
     const subtitle = r.isStima ? 'Totale partita · stima Poisson, non hit-rate storico (nessun precedente reale tra queste due squadre)' : (isSquadra ? 'Squadra' : `${r.player.Squadra_Rif} · ${r.player.Posizione_Analitica}${scnLatoLabel(r.player)}`);
     const mercatoLabel = isSquadra ? MARKET_LABELS_SQUADRA[r.mercato] : MARKET_LABELS[r.mercato];
-    const lineaTxt = isSquadra ? `${r.linea}+` : lineaLabel(r.linea);
+    const lineaTxt = isSquadra ? `${String(r.linea).replace('.', ',')}` : lineaLabel(r.linea);
     const titolareCell = isSquadra ? '<span class="subtle" title="Non applicabile a una riga di squadra">–</span>' : lineupBadge(r);
     const quotaCell = noBook
       ? `<span class="subtle" title="Marcato come non proposto dal bookmaker">X</span>`
