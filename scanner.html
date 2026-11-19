@@ -1485,6 +1485,13 @@ const MARKET_LABELS = {
   TIRI: 'Tiri', TIRI_IN_PORTA: 'Tiri in porta', FALLI_COMMESSI: 'Falli commessi',
   FALLI_SUBITI: 'Falli subiti', CARTELLINO: 'Cartellino',
 };
+// Risolve l'etichetta del mercato unendo le due mappe (giocatore/squadra):
+// nei Preferiti non sappiamo più se la riga era di tipo "squadra" (non viene
+// salvato), quindi senza fallback le chiavi solo-squadra (FALLI, CORNER)
+// restituivano undefined in colonna Mercato. Bug segnalato da Marco 19/11.
+function marketLabel(mercato){
+  return MARKET_LABELS[mercato] || MARKET_LABELS_SQUADRA[mercato] || mercato;
+}
 
 // ---------------------------------------------------------------------------
 // SCANNER GIORNATA — passa su tutti i giocatori attivi di tutte le partite di
@@ -1915,7 +1922,7 @@ function derived(r){
 const SORT_ACCESSORS = {
   giocatore: r => r.player.Nome_completo,
   titolare: r => ({ Y: 3, Yh: 2, U: 1, N: 0 })[lineupState(r)],
-  mercato: r => MARKET_LABELS[r.mercato],
+  mercato: r => r.type === 'squadra' ? (MARKET_LABELS_SQUADRA[r.mercato] || r.mercato) : (MARKET_LABELS[r.mercato] || r.mercato),
   linea: r => r.linea,
   mediaVenue: r => r.mediaVenue ?? -Infinity,
   mediaL3: r => r.mediaL3 ?? -Infinity,
@@ -2451,7 +2458,7 @@ function exportScannerXlsx(){
       r.player.Posizione_Analitica + (lato || ''),
       r.venue === 'HOME' ? 'Casa' : 'Trasferta',
       ({ Y: 'confermato', Yh: 'ipotetico', N: 'no', U: 'n/d' })[lineupState(r)],
-      MARKET_LABELS[r.mercato] || r.mercato,
+      r.type === 'squadra' ? (MARKET_LABELS_SQUADRA[r.mercato] || r.mercato) : (MARKET_LABELS[r.mercato] || r.mercato),
       lineaLabel(r.linea),
       r.mediaVenue ?? null,
       r.nVenue ?? null,
@@ -2718,7 +2725,7 @@ function scrDerived(r){
 
 const SCR_SORT_ACCESSORS = {
   giocatore: r => r.giocatore,
-  mercato: r => MARKET_LABELS[r.mercato],
+  mercato: r => marketLabel(r.mercato),
   linea: r => r.linea,
   mediaVenue: r => r.mediaVenue ?? -Infinity,
   mediaL3: r => r.mediaL3 ?? -Infinity,
@@ -2996,7 +3003,7 @@ function renderScreener(){
          <button class="rowdel" title="annulla" data-act="${escAttr(r.esito)}" data-id="${escAttr(r.id)}">↺</button>`;
     return `<tr>
       <td class="metricname">${r.giocatore}<div class="subtle">G${r.giornata} · ${r.partita}</div></td>
-      <td>${MARKET_LABELS[r.mercato]}</td>
+      <td>${marketLabel(r.mercato)}</td>
       <td class="num">${lineaLabel(r.linea)}</td>
       <td class="num">${fmt(r.mediaVenue)} <span class="subtle">(${r.venue.toLowerCase()}, N=${r.nVenue})</span></td>
       <td class="num">${fmt(r.mediaL3)}</td>
@@ -3102,7 +3109,7 @@ function exportFavoritesXlsx(){
       r.partita,
       r.giocatore,
       r.venue === 'HOME' ? 'Casa' : 'Trasferta',
-      MARKET_LABELS[r.mercato] || r.mercato,
+      marketLabel(r.mercato),
       lineaLabel(r.linea),
       r.mediaVenue ?? null,
       r.nVenue ?? null,
