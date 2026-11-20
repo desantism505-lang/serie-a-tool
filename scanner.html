@@ -1416,6 +1416,7 @@ const CV_METRIC_EXTRACT = {
 const CV_METRIC_UNIT = {
   TIRI: 'tiri', TIRI_IN_PORTA: 'tiri in porta', FALLI_COMMESSI: 'falli',
   FALLI_SUBITI: 'falli subiti', CARTELLINO: 'cartellini',
+  FALLI: 'falli', CORNER: 'corner', // etichette mercato SQUADRA (SCN_TEAM_METRICS usa chiavi diverse dal giocatore)
 };
 // Serie grezza (valore, minuti) per quel giocatore/venue/metrica, in ordine
 // cronologico — usata per mostrare nel tooltip COSA c'è dietro il CV, invece
@@ -1426,6 +1427,18 @@ function cvRawSeries(rowsVenue, cvKey){
   return [...rowsVenue]
     .sort((a, b) => (a.PlayerVenue_Seq || 0) - (b.PlayerVenue_Seq || 0))
     .map((r) => ({ val: extract(r), min: Number(r.Minuti) || 0 }));
+}
+// Equivalente di cvRawSeries ma per le righe SQUADRA (richiesto da Marco,
+// stesso tooltip già in uso per il giocatore). `totals` è l'array prodotto
+// da computeTeamMatchTotals (un oggetto per Match_ID, nell'ordine in cui le
+// partite compaiono in matchLog, quindi già cronologico). Niente concetto di
+// "presenza breve" per una squadra: min è fisso a 90 così cvTooltipHtml non
+// segnala mai l'asterisco e conta sempre la partita come "piena".
+function teamCvSeries(totals, key){
+  if (!key) return [];
+  return totals
+    .filter((t) => t[key] != null)
+    .map((t) => ({ val: Number(t[key]), min: 90 }));
 }
 // Tooltip sintetico sulla Consistenza: mostra la sequenza reale di partite
 // dietro il CV (non la formula), con avviso sulle presenze brevi (<60') che
@@ -1784,7 +1797,7 @@ function runScanGiornata(){
             mediaVenue: mediaV, mediaStag: teamSeriesStats(totTotale, def.key).mean,
             mediaL3: null, // non calcolato in questa prima versione: richiede ordinare i totali per Data, che le righe totali non portano ancora
             cv: stats.cv,
-            cvSeries: [], // niente tooltip "serie" per le righe squadra in questa prima versione
+            cvSeries: teamCvSeries(totals, def.key),
             nVenue: hVenue.n,
           });
         }
