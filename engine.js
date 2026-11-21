@@ -2085,6 +2085,11 @@ function narrProjectGoals(calendar, homeId, awayId) {
 // del totale partita (es. una squadra che segna con grande regolarità, l'altra imprevedibile).
 const NARR_BANDE_TOTALE = [{ min: 0, max: 1, label: '0-1' }, { min: 2, max: 3, label: '2-3' }, { min: 4, max: 99, label: '4+' }];
 const NARR_BANDE_SQUADRA = [{ min: 0, max: 1, label: '0-1' }, { min: 2, max: 2, label: '2' }, { min: 3, max: 99, label: '3+' }];
+// Richiesta Marco 21/11: la fascia "0-1" è un mercato reale ma Marco non la gioca quasi mai —
+// non va mai proposta come "fascia più plausibile" (né per il totale né per singola squadra),
+// a prescindere da quanto alta sia la sua probabilità Poisson. Le altre bande restano candidate
+// anche quando "0-1" avrebbe prob più alta di tutte.
+const NARR_BANDE_ESCLUSE_PICK = ['0-1'];
 function narrBandaProb(mu, banda) {
   if (mu == null || !Number.isFinite(mu)) return null;
   let p = 0;
@@ -2095,6 +2100,7 @@ function narrMiglioreBanda(mu, bande) {
   if (mu == null || !Number.isFinite(mu)) return null;
   let best = null;
   for (const b of bande) {
+    if (NARR_BANDE_ESCLUSE_PICK.includes(b.label)) continue;
     const p = narrBandaProb(mu, b);
     if (p != null && (!best || p > best.prob)) best = { label: b.label, prob: p };
   }
