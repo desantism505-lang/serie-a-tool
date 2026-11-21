@@ -2469,17 +2469,27 @@ function exportScannerXlsx(){
 
   const aoa = [SCN_XLS_COLS.map(c => c.h)];
   rows.forEach(r => {
-    const { quota, prob, edge, ev } = derived(r);
+    const { quota, prob, edge, ev, noBook } = derived(r);
     const lato = scnLatoLabel(r.player); // es. " · sx" oppure ''
     aoa.push([
       r.match.Giornata,
       `${r.match.Home} - ${r.match.Away}`,
       r.player.Nome_completo,
       r.player.Squadra_Rif,
-      r.player.Posizione_Analitica + (lato || ''),
+      // Bug corretto (21/11): per le righe squadra Posizione_Analitica e' null
+      // (il "player" e' fittizio) — "null + stringa" in JS da' letteralmente
+      // la stringa "null", che finiva scritta nell'Excel (visto da Marco:
+      // colonna Ruolo = "null"). Per le righe squadra/Totale partita non c'e'
+      // un ruolo: mostra una label descrittiva invece.
+      r.type === 'squadra' ? (r.isStima ? 'Totale partita' : 'Squadra') : (r.player.Posizione_Analitica + (lato || '')),
       r.venue === 'HOME' ? 'Casa' : (r.venue === 'AWAY' ? 'Trasferta' : 'Totale'),
       r.type === 'squadra' ? 'n/d' : ({ Y: 'confermato', Yh: 'ipotetico', N: 'no', U: 'n/d' })[lineupState(r)],
-      r.type === 'squadra' ? (MARKET_LABELS_SQUADRA[r.mercato] || r.mercato) : (MARKET_LABELS[r.mercato] || r.mercato),
+      // Bug corretto (21/11): la riga "Totale partita" e' una STIMA
+      // Poisson/convoluzione, non un hit-rate storico — nell'export sparita
+      // ogni distinzione rispetto a una riga squadra vera (che invece e' un
+      // dato storico reale). Segnalato nel nome del mercato, visibile anche
+      // senza aprire la UI.
+      (r.type === 'squadra' ? (MARKET_LABELS_SQUADRA[r.mercato] || r.mercato) : (MARKET_LABELS[r.mercato] || r.mercato)) + (r.isStima ? ' (stima Poisson, non hit-rate storico)' : ''),
       // Righe squadra: linea gia' in formato Over X,5 (vedi SCN_TEAM_METRICS),
       // va mostrata cosi' com'e' — lineaLabel() e' solo per i giocatori
       // (converte X,5 in "X+1+"). Prima di questo fix l'export mostrava "8+"
@@ -2493,10 +2503,13 @@ function exportScannerXlsx(){
       r.cv ?? null,
       r.hitVenue ?? null,
       r.hitStag ?? null,
-      quota ?? null,
-      prob,
-      edge != null ? edge * 100 : null,
-      ev,
+      // Bug corretto (21/11): una voce marcata "X non proposta dal book"
+      // usciva vuota nell'export, identica a una quota semplicemente non
+      // ancora inserita — la X va esplicitata anche qui.
+      noBook ? 'X' : (quota ?? null),
+      noBook ? 'X' : prob,
+      noBook ? 'X' : (edge != null ? edge * 100 : null),
+      noBook ? 'X' : ev,
     ]);
   });
 
