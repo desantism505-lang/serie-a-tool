@@ -2199,7 +2199,15 @@ function applyScnFilters(rows){
     if (scnJumpRole && r.player.Posizione_Analitica !== scnJumpRole) return false;
     if (f.ruoli.length && !f.ruoli.includes(r.player.Posizione_Analitica)) return false;
     if (f.venue && r.venue !== f.venue) return false;
-    if (f.tit) {
+    // Filtro "titolare/confermato" ha senso solo per le righe giocatore: una
+    // riga squadra (r.type === 'squadra') usa un fakeTeamPlayer con un
+    // Player_ID fittizio ('SQUADRA_...') che non compare MAI nella
+    // formazione reale, quindi lineupState() tornava sempre 'N' o 'U' e il
+    // filtro escludeva TUTTE le giocate squadra non appena si selezionava
+    // "solo titolari" o "solo confermati" — bug segnalato da Marco
+    // (21/11): le giocate squadra non dipendono da chi è titolare, vanno
+    // sempre mostrate indipendentemente da questo filtro.
+    if (f.tit && r.type !== 'squadra') {
       const st = lineupState(r);
       if (f.tit === 'tit' && st !== 'Y' && st !== 'Yh') return false;
       if (f.tit === 'conf' && st !== 'Y') return false;
