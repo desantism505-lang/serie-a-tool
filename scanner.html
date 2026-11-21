@@ -2469,10 +2469,15 @@ function exportScannerXlsx(){
       r.player.Nome_completo,
       r.player.Squadra_Rif,
       r.player.Posizione_Analitica + (lato || ''),
-      r.venue === 'HOME' ? 'Casa' : 'Trasferta',
-      ({ Y: 'confermato', Yh: 'ipotetico', N: 'no', U: 'n/d' })[lineupState(r)],
+      r.venue === 'HOME' ? 'Casa' : (r.venue === 'AWAY' ? 'Trasferta' : 'Totale'),
+      r.type === 'squadra' ? 'n/d' : ({ Y: 'confermato', Yh: 'ipotetico', N: 'no', U: 'n/d' })[lineupState(r)],
       r.type === 'squadra' ? (MARKET_LABELS_SQUADRA[r.mercato] || r.mercato) : (MARKET_LABELS[r.mercato] || r.mercato),
-      lineaLabel(r.linea),
+      // Righe squadra: linea gia' in formato Over X,5 (vedi SCN_TEAM_METRICS),
+      // va mostrata cosi' com'e' — lineaLabel() e' solo per i giocatori
+      // (converte X,5 in "X+1+"). Prima di questo fix l'export mostrava "8+"
+      // per una linea 7,5, incoerente con la UI che mostra "7,5" (bug
+      // segnalato da Marco, 21/11).
+      r.type === 'squadra' ? String(r.linea).replace('.', ',') : lineaLabel(r.linea),
       r.mediaVenue ?? null,
       r.nVenue ?? null,
       r.mediaL3 ?? null,
