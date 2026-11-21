@@ -592,7 +592,9 @@
         <label><input type="checkbox" class="scnMercatoSquadraChk" value="FALLI" checked /> Falli</label>
         <label><input type="checkbox" class="scnMercatoSquadraChk" value="CARTELLINO" checked /> Cartellino</label>
         <label><input type="checkbox" class="scnMercatoSquadraChk" value="CORNER" checked /> Corner</label>
-        <label style="margin-left:14px;"><input type="checkbox" id="scnSquadraTotale" checked /> Includi Totale partita (stima)</label>
+      </div>
+      <div class="filter-group" id="scnSquadraTotaleGroup" style="margin-bottom:6px;display:none;">
+        <label><input type="checkbox" id="scnSquadraTotale" checked /> Includi Totale partita (stima)</label>
       </div>
       <div class="filter-group" id="scnLineeGroup">
         <span class="filter-label">Linee:</span>
@@ -1627,11 +1629,17 @@ function scnApplyTipoVisibility(){
   // tornano a impilarsi verticalmente invece di stare in riga come il
   // gruppo giocatore (bug segnalato da Marco, 08/11).
   document.getElementById('scnMercatoSquadraGroup').style.display = conSquadra ? 'flex' : 'none';
+  document.getElementById('scnSquadraTotaleGroup').style.display = conSquadra ? 'flex' : 'none';
   document.getElementById('scnMercatoGroup').style.display = soloSquadra ? 'none' : 'flex';
   document.getElementById('scnLineeGroup').style.display = soloSquadra ? 'none' : 'flex';
   document.getElementById('scnFRuoloDrop').style.display = soloSquadra ? 'none' : 'inline-block';
   document.getElementById('scnFTit').style.display = soloSquadra ? 'none' : 'inline-block';
   document.getElementById('scnExclList').style.display = soloSquadra ? 'none' : 'inline';
+  // Rinomina il filtro Venue, altrimenti "Squadra: complessivo" sembra un
+  // selettore di squadra specifica quando invece filtra solo Casa/Trasferta
+  // (segnalato da Marco 21/11: confondeva Tipo=SQUADRA con una selezione
+  // di squadre che in Scanner non esiste).
+  if (typeof updateScnVenueLabel === 'function') updateScnVenueLabel();
 }
 document.getElementById('scnTipo').addEventListener('change', scnApplyTipoVisibility);
 
@@ -2238,7 +2246,16 @@ function updateScnVenueLabel(){
   const v = getScnVenue();
   const btn = document.querySelector('#scnFVenueDrop .msdrop-btn');
   const name = v === 'HOME' ? 'casa' : v === 'AWAY' ? 'trasferta' : 'complessivo';
-  btn.textContent = `Squadra: ${name} ▾`;
+  // Questo filtro è sempre Casa/Trasferta/Complessivo, non una selezione di
+  // squadra (Scanner non ha un filtro per squadra specifica). Con
+  // Tipo=Giocatore la dizione "Squadra" indicava la squadra del giocatore
+  // in formazione (ok); con Tipo=Squadra/Tutti la riga è di squadra stessa,
+  // quindi "Squadra: complessivo" letto lì sembra "nessuna squadra
+  // selezionata" invece di "casa+trasferta insieme" — da qui la dizione
+  // "Venue" in quei due modi (bug segnalato da Marco 21/11).
+  const tipo = document.getElementById('scnTipo') ? document.getElementById('scnTipo').value : 'GIOCATORE';
+  const label = tipo === 'GIOCATORE' ? 'Squadra' : 'Venue';
+  btn.textContent = `${label}: ${name} ▾`;
   btn.classList.toggle('active-filter', v !== '');
 }
 document.querySelectorAll('.scnFVenueRad').forEach(r => r.addEventListener('change', () => { updateScnVenueLabel(); renderScan(); }));
