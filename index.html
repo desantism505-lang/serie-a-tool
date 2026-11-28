@@ -613,6 +613,8 @@
   details.bench{margin-top:12px;} details.bench summary{cursor:pointer;color:var(--muted);font-size:12px;padding:6px 0;}
 
   /* formazioni */
+  .lutools{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .lutools .luSearchInput{flex:1;min-width:0;}
   .lulist{display:grid;gap:0;}
   .lurow2{display:grid;grid-template-columns:26px 1fr auto auto;gap:10px;align-items:center;padding:7px 4px;border-top:1px solid var(--line);font-size:13px;}
   .lurow2.sel{background:rgba(212,255,107,.05);}
@@ -2283,6 +2285,32 @@ function luToggle(teamId, pid) {
   t.source = 'manuale'; t.confirmed = false;
   luCommit(teamId); renderAll();
 }
+function luSelectAll(teamId, on) {
+  const t = LU.teams[teamId];
+  t.ids = on ? DB.rosters.filter((p) => p.Attivo_SerieA === 'SI' && p.Team_ID_Rif === teamId).map((p) => p.Player_ID) : [];
+  t.source = 'manuale'; t.confirmed = false;
+  luCommit(teamId); renderAll();
+}
+// Filtro di ricerca sul pannello titolari: nasconde le righe via DOM (nessun
+// re-render, serve solo a scorrere la rosa più in fretta) e, per ogni gruppo
+// di ruolo, nasconde l'intestazione se non resta nessuna riga visibile sotto.
+function luFilter(teamId, value) {
+  const list = document.getElementById('lulist-' + teamId);
+  if (!list) return;
+  const q = value.trim().toLowerCase();
+  let hdr = null, hdrVisible = false;
+  Array.from(list.children).forEach((el) => {
+    if (el.classList.contains('lugrp')) {
+      if (hdr) hdr.style.display = hdrVisible ? '' : 'none';
+      hdr = el; hdrVisible = false;
+    } else if (el.classList.contains('lurow2')) {
+      const show = !q || (el.getAttribute('data-name') || '').toLowerCase().includes(q);
+      el.style.display = show ? '' : 'none';
+      if (show) hdrVisible = true;
+    }
+  });
+  if (hdr) hdr.style.display = hdrVisible ? '' : 'none';
+}
 function luConfirm(teamId) {
   const t = LU.teams[teamId];
   t.confirmed = !t.confirmed; if (t.confirmed) t.source = 'manuale';
@@ -3696,7 +3724,7 @@ function secFormazioni(match) {
       const starts = rows.filter((r) => r.Titolare === 'Sì').length;
       const hdr = p.Posizione_Analitica !== last ? `<div class="lugrp">${esc(p.Posizione_Analitica)}</div>` : '';
       last = p.Posizione_Analitica;
-      return `${hdr}<div class="lurow2 ${ids.has(p.Player_ID) ? 'sel' : ''}">
+      return `${hdr}<div class="lurow2 ${ids.has(p.Player_ID) ? 'sel' : ''}" data-name="${esc(p.Nome_completo)}">
         <input type="checkbox" ${ids.has(p.Player_ID) ? 'checked' : ''} onchange="luToggle('${info.teamId}','${p.Player_ID}')" aria-label="titolare ${esc(p.Nome_completo)}"/>
         <span class="pname">${esc(p.Nome_completo)}</span>
         <span class="hint">${rows.length ? starts + ' tit. su ' + rows.length + ' pres.' : 'nessuna presenza'}</span>
@@ -3707,7 +3735,12 @@ function secFormazioni(match) {
       <div class="cb">
         <div class="toolbar"><button class="btn ${u.t.confirmed ? '' : 'solid'}" onclick="luConfirm('${info.teamId}')">${u.t.confirmed ? '✓ Confermata — clic per annullare' : 'Segna come confermata'}</button>
           <button class="btn gray" onclick="luReset('${info.teamId}')" title="Torna alla stima dagli 11 più impiegati">Ripristina stima</button></div>
-        <div class="lulist">${list}</div></div></div>`;
+        <div class="lutools">
+          <input type="text" class="inp luSearchInput" placeholder="Cerca giocatore…" oninput="luFilter('${info.teamId}', this.value)" aria-label="Cerca giocatore in ${esc(info.name)}"/>
+          <button class="btn gray" onclick="luSelectAll('${info.teamId}', true)" title="Seleziona tutti i giocatori della rosa">Tutti</button>
+          <button class="btn gray" onclick="luSelectAll('${info.teamId}', false)" title="Deseleziona tutti i titolari">Nessuno</button>
+        </div>
+        <div class="lulist" id="lulist-${info.teamId}">${list}</div></div></div>`;
   };
   // impatto sulle linee: formazione scelta vs stima di base
   const impactRows = TM.filter((x) => x[0] !== 'Corner').map(([mk, tk, label]) => {
