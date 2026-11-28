@@ -614,7 +614,9 @@
 
   /* formazioni */
   .lutools{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
-  .lutools .luSearchInput{flex:1;min-width:0;}
+  .luSearchInput{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:9px 14px;color:#fff;font-family:inherit;font-size:13px;font-weight:500;transition:border-color .15s;}
+  .luSearchInput::placeholder{color:var(--muted);}
+  .luSearchInput:focus{outline:none;border-color:var(--accent);}
   .lulist{display:grid;gap:0;}
   .lurow2{display:grid;grid-template-columns:26px 1fr auto auto;gap:10px;align-items:center;padding:7px 4px;border-top:1px solid var(--line);font-size:13px;}
   .lurow2.sel{background:rgba(212,255,107,.05);}
@@ -2185,6 +2187,7 @@ function vulnC(oppId, oppVenue) {
 // ---------------------------------------------------------------------------
 const LU_KEY = (id) => 'lineup_v2_' + id;
 let LU = null; // { matchId, teams:{teamId:{ids,confirmed,source,ts}}, base:{teamId:[ids]}, cloud }
+let LU_Q = {}; // { teamId: testo cercato nel pannello titolari } — sopravvive ai re-render (toggle/tutti/nessuno)
 let _luTimers = {};
 
 function stimaFormazione(teamId) {
@@ -2207,6 +2210,7 @@ function luSaveLocal() {
 function initLineups(match) {
   const saved = luLoadLocal(match.Match_ID);
   LU = { matchId: match.Match_ID, teams: {}, base: {}, cloud: sb ? 'sync' : 'local' };
+  LU_Q = {};
   for (const t of [match.Home_ID, match.Away_ID]) {
     LU.base[t] = stimaFormazione(t);
     const s = saved[t];
@@ -2468,6 +2472,9 @@ function renderAll() {
   } catch (e) { console.error(e); body = `<div class="warnbox">Errore nel calcolo di questa sezione: ${esc(e.message)}</div>`; }
   main.innerHTML = headerCard(match) + tabsHtml(match) + `<div id="secBody">${body}</div><div id="drawerHost"></div>`;
   luStatusUpdate();
+  // riapplica la ricerca titolari: un re-render (toggle, tutti/nessuno, conferma...)
+  // ricostruisce il pannello da zero, altrimenti la barra perderebbe il filtro attivo
+  Object.keys(LU_Q).forEach((tid) => { if (LU_Q[tid]) luFilter(tid, LU_Q[tid]); });
   renderDrawer();
   syncHash();
 }
@@ -3736,7 +3743,8 @@ function secFormazioni(match) {
         <div class="toolbar"><button class="btn ${u.t.confirmed ? '' : 'solid'}" onclick="luConfirm('${info.teamId}')">${u.t.confirmed ? '✓ Confermata — clic per annullare' : 'Segna come confermata'}</button>
           <button class="btn gray" onclick="luReset('${info.teamId}')" title="Torna alla stima dagli 11 più impiegati">Ripristina stima</button></div>
         <div class="lutools">
-          <input type="text" class="inp luSearchInput" placeholder="Cerca giocatore…" oninput="luFilter('${info.teamId}', this.value)" aria-label="Cerca giocatore in ${esc(info.name)}"/>
+          <input type="text" class="luSearchInput" placeholder="Cerca giocatore…" value="${esc(LU_Q[info.teamId] || '')}"
+            oninput="LU_Q['${info.teamId}']=this.value; luFilter('${info.teamId}', this.value)" aria-label="Cerca giocatore in ${esc(info.name)}"/>
           <button class="btn gray" onclick="luSelectAll('${info.teamId}', true)" title="Seleziona tutti i giocatori della rosa">Tutti</button>
           <button class="btn gray" onclick="luSelectAll('${info.teamId}', false)" title="Deseleziona tutti i titolari">Nessuno</button>
         </div>
